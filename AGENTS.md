@@ -14,7 +14,7 @@ HDT is behavioral reference material only. It may be inspected to understand Hea
 | --- | --- | --- |
 | `IceCrow.App` | WPF composition root and application lifetime | `Overlay`, `Platform.Windows`, `Hearthstone.Logs`, `Recording` |
 | `IceCrow.Platform.Windows` | Win32 and Windows-specific integration | None |
-| `IceCrow.Overlay` | Overlay presentation boundary | `Battlegrounds`, `Battlegrounds.Memory` |
+| `IceCrow.Overlay` | Overlay presentation boundary | `Battlegrounds`, `Battlegrounds.Memory`, `Platform.Windows` |
 | `IceCrow.Hearthstone.Logs` | Raw Hearthstone log input | None |
 | `IceCrow.Hearthstone.Protocol` | Normalized game events and protocol compatibility | None |
 | `IceCrow.Hearthstone.Entities` | Hearthstone entity state | `Hearthstone.Protocol` |

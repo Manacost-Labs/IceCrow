@@ -1,0 +1,42 @@
+<Window x:Class="IceCrow.Overlay.OverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="IceCrow Overlay"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Focusable="False"
+        ShowActivated="False"
+        ShowInTaskbar="False"
+        SizeToContent="Manual"
+        Topmost="True"
+        WindowStyle="None">
+    <Grid IsHitTestVisible="False">
+        <Border Margin="0,24,24,0"
+                Padding="16,12"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                Background="#D9182029"
+                BorderBrush="#664CDAE8"
+                BorderThickness="1"
+                CornerRadius="8">
+            <StackPanel>
+                <TextBlock HorizontalAlignment="Right"
+                           FontSize="18"
+                           FontWeight="Bold"
+                           Foreground="#F4F7FA"
+                           Text="ICECROW" />
+                <TextBlock x:Name="ConnectionText"
+                           Margin="0,4,0,0"
+                           HorizontalAlignment="Right"
+                           FontSize="13"
+                           Foreground="#8FE3B0"
+                           Text="Hearthstone Connected" />
+                <TextBlock x:Name="SizeText"
+                           Margin="0,2,0,0"
+                           HorizontalAlignment="Right"
+                           FontSize="12"
+                           Foreground="#B7C1CC" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

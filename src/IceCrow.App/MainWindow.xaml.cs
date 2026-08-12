@@ -1,23 +1,40 @@
-﻿using System.Text;
+using System.Collections.ObjectModel;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+using IceCrow.Hearthstone.Logs;
 
 namespace IceCrow.App;
 
-/// <summary>
-/// Interaction logic for MainWindow.xaml
-/// </summary>
 public partial class MainWindow : Window
 {
+    private const int MaximumVisibleLines = 20;
+    private readonly ObservableCollection<string> _powerLogLines = [];
+
     public MainWindow()
     {
         InitializeComponent();
+        PowerLogList.ItemsSource = _powerLogLines;
+    }
+
+    public void AddPowerLogLine(RawLogLine line)
+    {
+        ArgumentNullException.ThrowIfNull(line);
+        Dispatcher.VerifyAccess();
+
+        _powerLogLines.Add($"{line.Timestamp:HH:mm:ss.fff}  {line.Content}");
+        while (_powerLogLines.Count > MaximumVisibleLines)
+        {
+            _powerLogLines.RemoveAt(0);
+        }
+
+        if (_powerLogLines.Count > 0)
+        {
+            PowerLogList.ScrollIntoView(_powerLogLines[^1]);
+        }
+    }
+
+    public void SetPowerLogStatus(string status)
+    {
+        Dispatcher.VerifyAccess();
+        PowerLogStatus.Text = status;
     }
 }

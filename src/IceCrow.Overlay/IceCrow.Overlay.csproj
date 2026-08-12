@@ -3,10 +3,12 @@
   <ItemGroup>
     <ProjectReference Include="..\IceCrow.Battlegrounds\IceCrow.Battlegrounds.csproj" />
     <ProjectReference Include="..\IceCrow.Battlegrounds.Memory\IceCrow.Battlegrounds.Memory.csproj" />
+    <ProjectReference Include="..\IceCrow.Platform.Windows\IceCrow.Platform.Windows.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
   </PropertyGroup>
 
 </Project>
