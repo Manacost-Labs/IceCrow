@@ -1,5 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <ItemGroup>
+    <ProjectReference Include="..\IceCrow.Hearthstone.Entities\IceCrow.Hearthstone.Entities.csproj" />
+    <ProjectReference Include="..\IceCrow.Hearthstone.Protocol\IceCrow.Hearthstone.Protocol.csproj" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>

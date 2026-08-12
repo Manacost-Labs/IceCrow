@@ -1,5 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <ItemGroup>
+    <ProjectReference Include="..\IceCrow.Battlegrounds\IceCrow.Battlegrounds.csproj" />
+    <ProjectReference Include="..\IceCrow.Battlegrounds.Memory\IceCrow.Battlegrounds.Memory.csproj" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
   </PropertyGroup>

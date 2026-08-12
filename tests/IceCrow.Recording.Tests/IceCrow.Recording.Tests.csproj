@@ -18,4 +18,8 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\IceCrow.Recording\IceCrow.Recording.csproj" />
+  </ItemGroup>
+
 </Project>
