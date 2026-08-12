@@ -18,4 +18,8 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\IceCrow.Hearthstone.Protocol\IceCrow.Hearthstone.Protocol.csproj" />
+  </ItemGroup>
+
 </Project>

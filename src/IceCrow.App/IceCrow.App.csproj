@@ -1,5 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <ItemGroup>
+    <ProjectReference Include="..\IceCrow.Overlay\IceCrow.Overlay.csproj" />
+    <ProjectReference Include="..\IceCrow.Platform.Windows\IceCrow.Platform.Windows.csproj" />
+    <ProjectReference Include="..\IceCrow.Hearthstone.Logs\IceCrow.Hearthstone.Logs.csproj" />
+    <ProjectReference Include="..\IceCrow.Recording\IceCrow.Recording.csproj" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
