@@ -10,4 +10,3 @@ namespace IceCrow.App;
 public partial class App : Application
 {
 }
-
