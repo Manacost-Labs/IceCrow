@@ -98,6 +98,10 @@ public static class EntityStoreReducer
 
         tag = rawTag switch
         {
+            "PLAYSTATE" => GameTag.PlayState,
+            "TURN" => GameTag.Turn,
+            "CURRENT_PLAYER" => GameTag.CurrentPlayer,
+            "HERO_ENTITY" => GameTag.HeroEntity,
             "PLAYER_ID" => GameTag.PlayerId,
             "DAMAGE" => GameTag.Damage,
             "HEALTH" => GameTag.Health,
@@ -105,7 +109,11 @@ public static class EntityStoreReducer
             "ZONE" => GameTag.Zone,
             "CONTROLLER" => GameTag.Controller,
             "CARDTYPE" => GameTag.CardType,
+            "ARMOR" => GameTag.Armor,
             "ZONE_POSITION" => GameTag.ZonePosition,
+            "NEXT_OPPONENT_PLAYER_ID" => GameTag.NextOpponentPlayerId,
+            "PLAYER_TECH_LEVEL" => GameTag.PlayerTechLevel,
+            "PLAYER_TRIPLES" => GameTag.PlayerTriples,
             _ => default,
         };
         return tag != default || rawTag == "0";

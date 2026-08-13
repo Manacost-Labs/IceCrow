@@ -10,13 +10,55 @@
         WindowStartupLocation="CenterScreen"
         Background="#10151C">
     <Grid Margin="24">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="240" />
+            <ColumnDefinition Width="20" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <DockPanel>
+        <Border Grid.RowSpan="3"
+                Grid.Column="0"
+                Padding="16"
+                Background="#0A0E13"
+                BorderBrush="#26313D"
+                BorderThickness="1"
+                CornerRadius="6">
+            <StackPanel>
+                <TextBlock Margin="0,0,0,16"
+                           FontSize="20"
+                           FontWeight="SemiBold"
+                           Foreground="#F4F7FA"
+                           Text="Battlegrounds" />
+                <TextBlock x:Name="BattlegroundsActive"
+                           Margin="0,0,0,12"
+                           FontSize="16"
+                           FontWeight="Bold"
+                           Foreground="#7ED7A5"
+                           Text="BG INACTIVE" />
+                <TextBlock x:Name="BattlegroundsTurn"
+                           Margin="0,0,0,6"
+                           Foreground="#D8E0E8"
+                           Text="Turn: 0" />
+                <TextBlock x:Name="BattlegroundsPhase"
+                           Margin="0,0,0,6"
+                           Foreground="#D8E0E8"
+                           Text="Phase: Unknown" />
+                <TextBlock x:Name="BattlegroundsPlayers"
+                           Margin="0,0,0,6"
+                           Foreground="#D8E0E8"
+                           Text="Players: 0" />
+                <TextBlock x:Name="BattlegroundsOpponent"
+                           Foreground="#D8E0E8"
+                           Text="Opponent: PlayerId -" />
+            </StackPanel>
+        </Border>
+
+        <DockPanel Grid.Column="2">
             <TextBlock FontSize="30"
                        FontWeight="SemiBold"
                        Foreground="#F4F7FA"
@@ -29,11 +71,13 @@
 
         <TextBlock x:Name="PowerLogStatus"
                    Grid.Row="1"
+                   Grid.Column="2"
                    Margin="0,12,0,12"
                    Foreground="#9BA7B4"
                    Text="Waiting for Hearthstone Power.log…" />
 
         <Border Grid.Row="2"
+                Grid.Column="2"
                 Padding="12"
                 Background="#0A0E13"
                 BorderBrush="#26313D"

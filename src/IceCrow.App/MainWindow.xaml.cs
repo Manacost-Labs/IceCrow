@@ -37,4 +37,23 @@ public partial class MainWindow : Window
         Dispatcher.VerifyAccess();
         PowerLogStatus.Text = status;
     }
+
+    public void SetBattlegroundsDiagnostics(
+        bool isActive,
+        int turn,
+        string phase,
+        int playerCount,
+        int? currentOpponentPlayerId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(phase);
+        Dispatcher.VerifyAccess();
+
+        BattlegroundsActive.Text = isActive ? "BG ACTIVE" : "BG INACTIVE";
+        BattlegroundsTurn.Text = $"Turn: {turn}";
+        BattlegroundsPhase.Text = $"Phase: {phase}";
+        BattlegroundsPlayers.Text = $"Players: {playerCount}";
+        BattlegroundsOpponent.Text = currentOpponentPlayerId is int opponentPlayerId
+            ? $"Opponent: PlayerId {opponentPlayerId}"
+            : "Opponent: PlayerId -";
+    }
 }
