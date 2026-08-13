@@ -86,6 +86,22 @@
                                         <TextBlock Margin="0,4,0,8"
                                                    Foreground="#D9E2EA"
                                                    Text="{Binding TavernTierLine}" />
+                                        <TextBlock FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#F4F7FA"
+                                                   Text="Progression" />
+                                        <ItemsControl Margin="0,3,0,0"
+                                                      ItemsSource="{Binding ProgressionRows}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Foreground="#BFD2E2"
+                                                               Text="{Binding}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBlock Margin="0,3,0,8"
+                                                   Foreground="#D9E2EA"
+                                                   Text="{Binding TriplesLine}" />
                                         <ItemsControl ItemsSource="{Binding BoardRows}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>

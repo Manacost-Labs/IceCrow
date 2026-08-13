@@ -45,11 +45,12 @@ public sealed class OverlayHost : IDisposable
 
     public void ApplyBattlegroundsState(
         BattlegroundsState state,
-        OpponentMemory memory)
+        OpponentMemory memory,
+        LobbyTimeline? timeline = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         _overlayWindow.Dispatcher.VerifyAccess();
-        _overlayWindow.ApplyBattlegroundsState(state, memory);
+        _overlayWindow.ApplyBattlegroundsState(state, memory, timeline);
     }
 
     public void Dispose()

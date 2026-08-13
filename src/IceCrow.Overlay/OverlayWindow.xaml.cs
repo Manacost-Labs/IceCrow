@@ -53,13 +53,14 @@ public sealed partial class OverlayWindow : Window
 
     public void ApplyBattlegroundsState(
         BattlegroundsState state,
-        OpponentMemory memory)
+        OpponentMemory memory,
+        LobbyTimeline? timeline = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(memory);
         Dispatcher.VerifyAccess();
 
-        LobbyTiles.ItemsSource = OpponentLobbyTileViewState.Create(state, memory);
+        LobbyTiles.ItemsSource = OpponentLobbyTileViewState.Create(state, memory, timeline);
         LobbyTiles.Visibility = state.IsActive && state.Lobby.Count > 1
             ? Visibility.Visible
             : Visibility.Collapsed;

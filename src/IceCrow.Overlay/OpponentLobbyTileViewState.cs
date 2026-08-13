@@ -11,24 +11,32 @@ internal sealed record OpponentLobbyTileViewState(
     string StatusLine,
     string LastSeenLine,
     string AgeLine,
+    IReadOnlyList<string> ProgressionRows,
+    string TriplesLine,
     IReadOnlyList<string> BoardRows)
 {
     public static IReadOnlyList<OpponentLobbyTileViewState> Create(
         BattlegroundsState state,
-        OpponentMemory memory)
+        OpponentMemory memory,
+        LobbyTimeline? timeline = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(memory);
 
         return state.Lobby.Players
             .Where(player => player.PlayerId != state.LocalPlayerId)
-            .Select(player => Create(player, memory.GetLatest(player.PlayerId), state.Turn))
+            .Select(player => Create(
+                player,
+                memory.GetLatest(player.PlayerId),
+                timeline?.GetPlayer(player.PlayerId),
+                state.Turn))
             .ToArray();
     }
 
     private static OpponentLobbyTileViewState Create(
         LobbyPlayer player,
         BoardSnapshot? board,
+        PlayerTimeline? timeline,
         int currentTurn)
     {
         var heroDisplay = FirstAvailable(
@@ -51,8 +59,16 @@ internal sealed record OpponentLobbyTileViewState(
             status,
             board is null ? string.Empty : $"Last Seen: Turn {board.Turn}",
             board is null ? string.Empty : $"Age: {board.GetAge(currentTurn)} turns",
+            CreateProgressionRows(timeline),
+            $"Triples: {timeline?.Triples ?? player.Triples}",
             boardRows);
     }
+
+    private static string[] CreateProgressionRows(PlayerTimeline? timeline) =>
+        timeline?.Events
+            .OfType<TavernUpgraded>()
+            .Select(upgrade => $"T{upgrade.TavernTier} → Turn {upgrade.Turn}")
+            .ToArray() ?? [];
 
     private static string[] CreateBoardRows(BoardSnapshot? board)
     {
