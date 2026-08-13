@@ -14,7 +14,9 @@ public static class NativeWindowStyles
     private const uint SwpNoActivate = 0x0010;
     private const uint SwpFrameChanged = 0x0020;
 
-    public static void ApplyOverlayStyles(nint windowHandle)
+    public static void ApplyOverlayStyles(
+        nint windowHandle,
+        bool isClickThrough = true)
     {
         if (windowHandle == nint.Zero)
         {
@@ -29,7 +31,11 @@ public static class NativeWindowStyles
             throw new Win32Exception(getLastError, "Could not read overlay extended window styles.");
         }
 
-        var desiredStyles = new nint(currentStyles.ToInt64() | WsExTransparent | WsExToolWindow | WsExNoActivate);
+        var desiredStyleValue = currentStyles.ToInt64() | WsExToolWindow | WsExNoActivate;
+        desiredStyleValue = isClickThrough
+            ? desiredStyleValue | WsExTransparent
+            : desiredStyleValue & ~WsExTransparent;
+        var desiredStyles = new nint(desiredStyleValue);
         if (desiredStyles != currentStyles)
         {
             Marshal.SetLastPInvokeError(0);

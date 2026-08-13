@@ -1,4 +1,6 @@
 using System.Windows.Threading;
+using IceCrow.Battlegrounds;
+using IceCrow.Battlegrounds.Memory;
 using IceCrow.Platform.Windows;
 
 namespace IceCrow.Overlay;
@@ -39,6 +41,15 @@ public sealed class OverlayHost : IDisposable
         _started = true;
         TryConnect();
         _lifecycleTimer.Start();
+    }
+
+    public void ApplyBattlegroundsState(
+        BattlegroundsState state,
+        OpponentMemory memory)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _overlayWindow.Dispatcher.VerifyAccess();
+        _overlayWindow.ApplyBattlegroundsState(state, memory);
     }
 
     public void Dispose()

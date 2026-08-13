@@ -97,6 +97,9 @@ public static class BattlegroundsReducer
             var updated = existing with
             {
                 HeroEntityId = heroEntityId,
+                HeroName = isHero && !string.IsNullOrWhiteSpace(entity.Name)
+                    ? entity.Name
+                    : existing.HeroName,
                 HeroCardId = isHero && !string.IsNullOrWhiteSpace(entity.CardId)
                     ? entity.CardId
                     : existing.HeroCardId,

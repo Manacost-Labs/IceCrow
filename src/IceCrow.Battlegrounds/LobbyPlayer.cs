@@ -3,6 +3,7 @@ namespace IceCrow.Battlegrounds;
 public sealed record LobbyPlayer(
     int PlayerId,
     int? HeroEntityId,
+    string? HeroName,
     string? HeroCardId,
     int Health,
     int Armor,
@@ -13,6 +14,7 @@ public sealed record LobbyPlayer(
     public static LobbyPlayer Create(int playerId) => new(
         PlayerId: playerId,
         HeroEntityId: null,
+        HeroName: null,
         HeroCardId: null,
         Health: 0,
         Armor: 0,

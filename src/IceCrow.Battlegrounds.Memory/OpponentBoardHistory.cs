@@ -1,0 +1,44 @@
+using System.Collections.ObjectModel;
+
+namespace IceCrow.Battlegrounds.Memory;
+
+public sealed class OpponentBoardHistory
+{
+    private readonly BoardSnapshot[] _snapshots;
+    private readonly ReadOnlyCollection<BoardSnapshot> _readOnlySnapshots;
+
+    private OpponentBoardHistory(int playerId, BoardSnapshot[] snapshots)
+    {
+        PlayerId = playerId;
+        _snapshots = snapshots;
+        _readOnlySnapshots = Array.AsReadOnly(_snapshots);
+    }
+
+    public int PlayerId { get; }
+
+    public IReadOnlyList<BoardSnapshot> Snapshots => _readOnlySnapshots;
+
+    public BoardSnapshot Latest => _snapshots[^1];
+
+    public static OpponentBoardHistory Start(BoardSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        return new OpponentBoardHistory(snapshot.PlayerId, [snapshot]);
+    }
+
+    public OpponentBoardHistory Add(BoardSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (snapshot.PlayerId != PlayerId)
+        {
+            throw new ArgumentException(
+                "A board snapshot cannot be added to another opponent's history.",
+                nameof(snapshot));
+        }
+
+        var updated = new BoardSnapshot[_snapshots.Length + 1];
+        Array.Copy(_snapshots, updated, _snapshots.Length);
+        updated[^1] = snapshot;
+        return new OpponentBoardHistory(PlayerId, updated);
+    }
+}

@@ -1,6 +1,10 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Media;
+using System.Windows.Media.Media3D;
+using IceCrow.Battlegrounds;
+using IceCrow.Battlegrounds.Memory;
 using IceCrow.Platform.Windows;
 
 namespace IceCrow.Overlay;
@@ -10,7 +14,9 @@ public sealed partial class OverlayWindow : Window
     private const int WmMouseActivate = 0x0021;
     private const int WmNcHitTest = 0x0084;
     private const int MaNoActivate = 3;
+    private const int HtClient = 1;
     private const int HtTransparent = -1;
+    private const string InteractiveTileTag = "IceCrowOpponentTile";
 
     private HwndSource? _windowSource;
 
@@ -45,12 +51,26 @@ public sealed partial class OverlayWindow : Window
         }
     }
 
+    public void ApplyBattlegroundsState(
+        BattlegroundsState state,
+        OpponentMemory memory)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(memory);
+        Dispatcher.VerifyAccess();
+
+        LobbyTiles.ItemsSource = OpponentLobbyTileViewState.Create(state, memory);
+        LobbyTiles.Visibility = state.IsActive && state.Lobby.Count > 1
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
 
         var windowHandle = new WindowInteropHelper(this).Handle;
-        NativeWindowStyles.ApplyOverlayStyles(windowHandle);
+        NativeWindowStyles.ApplyOverlayStyles(windowHandle, isClickThrough: false);
 
         _windowSource = HwndSource.FromHwnd(windowHandle);
         _windowSource?.AddHook(WindowProcedure);
@@ -63,7 +83,7 @@ public sealed partial class OverlayWindow : Window
         base.OnClosed(e);
     }
 
-    private static nint WindowProcedure(
+    private nint WindowProcedure(
         nint windowHandle,
         int message,
         nint wordParameter,
@@ -72,8 +92,6 @@ public sealed partial class OverlayWindow : Window
     {
         _ = windowHandle;
         _ = wordParameter;
-        _ = longParameter;
-
         switch (message)
         {
             case WmMouseActivate:
@@ -81,9 +99,35 @@ public sealed partial class OverlayWindow : Window
                 return new nint(MaNoActivate);
             case WmNcHitTest:
                 handled = true;
-                return new nint(HtTransparent);
+                return IsInteractiveTileAt(longParameter)
+                    ? new nint(HtClient)
+                    : new nint(HtTransparent);
             default:
                 return nint.Zero;
         }
+    }
+
+    private bool IsInteractiveTileAt(nint screenCoordinates)
+    {
+        var packed = screenCoordinates.ToInt64();
+        var screenPoint = new Point(
+            unchecked((short)(packed & 0xFFFF)),
+            unchecked((short)((packed >> 16) & 0xFFFF)));
+        var windowPoint = PointFromScreen(screenPoint);
+        var current = InputHitTest(windowPoint) as DependencyObject;
+
+        while (current is not null)
+        {
+            if (current is FrameworkElement { Tag: InteractiveTileTag })
+            {
+                return true;
+            }
+
+            current = current is Visual or Visual3D
+                ? VisualTreeHelper.GetParent(current)
+                : LogicalTreeHelper.GetParent(current);
+        }
+
+        return false;
     }
 }

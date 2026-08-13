@@ -10,11 +10,12 @@
         SizeToContent="Manual"
         Topmost="True"
         WindowStyle="None">
-    <Grid IsHitTestVisible="False">
+    <Grid>
         <Border Margin="0,24,24,0"
                 Padding="16,12"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Top"
+                IsHitTestVisible="False"
                 Background="#D9182029"
                 BorderBrush="#664CDAE8"
                 BorderThickness="1"
@@ -38,5 +39,89 @@
                            Foreground="#B7C1CC" />
             </StackPanel>
         </Border>
+
+        <ItemsControl x:Name="LobbyTiles"
+                      Margin="20,24,0,0"
+                      HorizontalAlignment="Left"
+                      VerticalAlignment="Top"
+                      Visibility="Collapsed">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel MaxWidth="500" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border Width="148"
+                            Margin="0,0,8,8"
+                            Padding="10,8"
+                            Tag="IceCrowOpponentTile"
+                            Background="#E6161D26"
+                            BorderBrush="#805C7188"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Cursor="Hand">
+                        <Border.ToolTip>
+                            <ToolTip Placement="Right"
+                                     StaysOpen="False">
+                                <Border Width="330"
+                                        Padding="12"
+                                        Background="#F20E141B"
+                                        BorderBrush="#805C7188"
+                                        BorderThickness="1"
+                                        CornerRadius="6">
+                                    <StackPanel>
+                                        <TextBlock FontSize="16"
+                                                   FontWeight="Bold"
+                                                   Foreground="#F4F7FA"
+                                                   Text="{Binding HeroDisplay}" />
+                                        <TextBlock Margin="0,2,0,0"
+                                                   Foreground="#AEBBC8"
+                                                   Text="{Binding HeroCardId}" />
+                                        <TextBlock Margin="0,8,0,0"
+                                                   Foreground="#D9E2EA"
+                                                   Text="{Binding LastSeenLine}" />
+                                        <TextBlock Foreground="#D9E2EA"
+                                                   Text="{Binding AgeLine}" />
+                                        <TextBlock Margin="0,4,0,8"
+                                                   Foreground="#D9E2EA"
+                                                   Text="{Binding TavernTierLine}" />
+                                        <ItemsControl ItemsSource="{Binding BoardRows}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Margin="0,2,0,0"
+                                                            Padding="8,5"
+                                                            Background="#FF202A35"
+                                                            CornerRadius="3">
+                                                        <TextBlock Foreground="#EEF3F8"
+                                                                   Text="{Binding}" />
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </ToolTip>
+                        </Border.ToolTip>
+                        <StackPanel>
+                            <TextBlock FontWeight="SemiBold"
+                                       Foreground="#F4F7FA"
+                                       Text="{Binding HeroDisplay}"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Margin="0,4,0,0"
+                                       FontSize="11"
+                                       Foreground="#B8C4D0"
+                                       Text="{Binding TavernTierLine}" />
+                            <TextBlock Margin="0,6,0,0"
+                                       FontSize="10"
+                                       FontWeight="Bold"
+                                       Foreground="#8FE3B0"
+                                       Text="{Binding StatusLine}"
+                                       TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
     </Grid>
 </Window>

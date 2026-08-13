@@ -68,6 +68,7 @@ public sealed class BattlegroundsReducerTests
 
         var localPlayer = Assert.IsType<LobbyPlayer>(state.Lobby.GetPlayer(1));
         Assert.Equal(101, localPlayer.HeroEntityId);
+        Assert.Equal("Friendly Hero", localPlayer.HeroName);
         Assert.Equal("TB_BaconShop_HERO_01", localPlayer.HeroCardId);
         Assert.Equal(35, localPlayer.Health);
         Assert.Equal(10, localPlayer.Armor);
