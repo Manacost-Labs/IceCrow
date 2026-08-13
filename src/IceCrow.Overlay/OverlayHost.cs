@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows.Threading;
 using IceCrow.Battlegrounds;
 using IceCrow.Battlegrounds.Memory;
@@ -8,11 +9,15 @@ namespace IceCrow.Overlay;
 public sealed class OverlayHost : IDisposable
 {
     private static readonly TimeSpan LifecycleCheckInterval = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan ModifierCheckInterval = TimeSpan.FromMilliseconds(33);
 
     private readonly HearthstoneWindowLocator _windowLocator = new();
     private readonly OverlayWindow _overlayWindow = new();
+    private readonly OverlayInteractionStateMachine _interactionStateMachine = new();
     private readonly DispatcherTimer _lifecycleTimer;
+    private readonly DispatcherTimer _modifierTimer;
     private HearthstoneWindowTracker? _windowTracker;
+    private OverlayInteractionModifier _interactionModifier = OverlayInteractionModifier.Alt;
     private bool _started;
     private bool _disposed;
 
@@ -24,6 +29,14 @@ public sealed class OverlayHost : IDisposable
             OnLifecycleTimerTick,
             _overlayWindow.Dispatcher);
         _lifecycleTimer.Stop();
+        _modifierTimer = new DispatcherTimer(
+            ModifierCheckInterval,
+            DispatcherPriority.Input,
+            OnModifierTimerTick,
+            _overlayWindow.Dispatcher);
+        _modifierTimer.Stop();
+        _overlayWindow.InteractionModifierRequested += OnInteractionModifierRequested;
+        _overlayWindow.SetConfiguredModifier(_interactionModifier);
     }
 
     public OverlayState State { get; private set; } = OverlayState.Disconnected;
@@ -41,6 +54,7 @@ public sealed class OverlayHost : IDisposable
         _started = true;
         TryConnect();
         _lifecycleTimer.Start();
+        _modifierTimer.Start();
     }
 
     public void ApplyBattlegroundsState(
@@ -63,9 +77,12 @@ public sealed class OverlayHost : IDisposable
         _overlayWindow.Dispatcher.VerifyAccess();
         _disposed = true;
         _lifecycleTimer.Stop();
+        _modifierTimer.Stop();
+        _overlayWindow.InteractionModifierRequested -= OnInteractionModifierRequested;
 
         try
         {
+            FailSafeInteraction();
             Disconnect();
         }
         finally
@@ -90,6 +107,37 @@ public sealed class OverlayHost : IDisposable
             Disconnect();
             TryConnect();
         }
+    }
+
+    private void OnModifierTimerTick(object? sender, EventArgs eventArgs)
+    {
+        _ = sender;
+        _ = eventArgs;
+
+        try
+        {
+            var modifierHeld = State.IsVisible &&
+                               ModifierKeyStateReader.IsHeld(_interactionModifier);
+            var transition = _interactionStateMachine.Update(
+                modifierHeld,
+                overlayAvailable: State.IsVisible);
+            ApplyInteractionTransition(transition);
+        }
+        catch (Exception exception)
+        {
+            Debug.WriteLine(exception);
+            FailSafeInteraction();
+        }
+    }
+
+    private void OnInteractionModifierRequested(
+        object? sender,
+        OverlayInteractionModifierChangedEventArgs eventArgs)
+    {
+        _ = sender;
+        FailSafeInteraction();
+        _interactionModifier = eventArgs.Modifier;
+        _overlayWindow.SetConfiguredModifier(_interactionModifier);
     }
 
     private void TryConnect()
@@ -121,6 +169,11 @@ public sealed class OverlayHost : IDisposable
     private void ApplyWindowInfo(HearthstoneWindowInfo windowInfo)
     {
         State = OverlayState.FromWindowInfo(windowInfo);
+        if (!State.IsVisible)
+        {
+            FailSafeInteraction();
+        }
+
         _overlayWindow.ApplyState(State);
     }
 
@@ -137,7 +190,24 @@ public sealed class OverlayHost : IDisposable
         }
 
         State = OverlayState.Disconnected;
+        FailSafeInteraction();
         _overlayWindow.ApplyState(State);
+    }
+
+    private void ApplyInteractionTransition(OverlayInteractionTransition transition)
+    {
+        if (!transition.HasChanged)
+        {
+            return;
+        }
+
+        _overlayWindow.SetInteractionMode(transition.Current);
+    }
+
+    private void FailSafeInteraction()
+    {
+        _ = _interactionStateMachine.FailSafe();
+        _overlayWindow.FailSafeToClickThrough();
     }
 
     private void RunOnDispatcher(Action action)

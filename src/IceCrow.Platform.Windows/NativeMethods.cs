@@ -43,6 +43,9 @@ internal static class NativeMethods
     internal static extern nint GetForegroundWindow();
 
     [DllImport("user32.dll", ExactSpelling = true)]
+    internal static extern short GetAsyncKeyState(int virtualKey);
+
+    [DllImport("user32.dll", ExactSpelling = true)]
     internal static extern uint GetDpiForWindow(nint windowHandle);
 
     [DllImport("user32.dll", EntryPoint = "GetWindowLongW", SetLastError = true, ExactSpelling = true)]

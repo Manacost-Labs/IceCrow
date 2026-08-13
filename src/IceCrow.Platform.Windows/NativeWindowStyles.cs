@@ -5,9 +5,9 @@ namespace IceCrow.Platform.Windows;
 
 public static class NativeWindowStyles
 {
-    private const long WsExTransparent = 0x00000020L;
-    private const long WsExToolWindow = 0x00000080L;
-    private const long WsExNoActivate = 0x08000000L;
+    public const long WsExTransparent = 0x00000020L;
+    public const long WsExToolWindow = 0x00000080L;
+    public const long WsExNoActivate = 0x08000000L;
     private const uint SwpNoSize = 0x0001;
     private const uint SwpNoMove = 0x0002;
     private const uint SwpNoZOrder = 0x0004;
@@ -31,10 +31,9 @@ public static class NativeWindowStyles
             throw new Win32Exception(getLastError, "Could not read overlay extended window styles.");
         }
 
-        var desiredStyleValue = currentStyles.ToInt64() | WsExToolWindow | WsExNoActivate;
-        desiredStyleValue = isClickThrough
-            ? desiredStyleValue | WsExTransparent
-            : desiredStyleValue & ~WsExTransparent;
+        var desiredStyleValue = CalculateOverlayExtendedStyles(
+            currentStyles.ToInt64(),
+            isClickThrough);
         var desiredStyles = new nint(desiredStyleValue);
         if (desiredStyles != currentStyles)
         {
@@ -58,5 +57,15 @@ public static class NativeWindowStyles
         {
             throw new Win32Exception(Marshal.GetLastWin32Error(), "Could not refresh overlay window styles.");
         }
+    }
+
+    public static long CalculateOverlayExtendedStyles(
+        long currentStyles,
+        bool isClickThrough)
+    {
+        var desiredStyles = currentStyles | WsExToolWindow | WsExNoActivate;
+        return isClickThrough
+            ? desiredStyles | WsExTransparent
+            : desiredStyles & ~WsExTransparent;
     }
 }

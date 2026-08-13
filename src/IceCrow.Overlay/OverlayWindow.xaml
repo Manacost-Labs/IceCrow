@@ -10,6 +10,57 @@
         SizeToContent="Manual"
         Topmost="True"
         WindowStyle="None">
+    <Window.Resources>
+        <DataTemplate x:Key="OpponentDetailTemplate">
+            <StackPanel>
+                <TextBlock FontSize="16"
+                           FontWeight="Bold"
+                           Foreground="#F4F7FA"
+                           Text="{Binding HeroDisplay}" />
+                <TextBlock Margin="0,2,0,0"
+                           Foreground="#AEBBC8"
+                           Text="{Binding HeroCardId}" />
+                <TextBlock Margin="0,8,0,0"
+                           Foreground="#D9E2EA"
+                           Text="{Binding LastSeenLine}" />
+                <TextBlock Foreground="#D9E2EA"
+                           Text="{Binding AgeLine}" />
+                <TextBlock Margin="0,4,0,8"
+                           Foreground="#D9E2EA"
+                           Text="{Binding TavernTierLine}" />
+                <TextBlock FontSize="12"
+                           FontWeight="SemiBold"
+                           Foreground="#F4F7FA"
+                           Text="Progression" />
+                <ItemsControl Margin="0,3,0,0"
+                              ItemsSource="{Binding ProgressionRows}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Foreground="#BFD2E2"
+                                       Text="{Binding}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Margin="0,3,0,8"
+                           Foreground="#D9E2EA"
+                           Text="{Binding TriplesLine}" />
+                <ItemsControl ItemsSource="{Binding BoardRows}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Margin="0,2,0,0"
+                                    Padding="8,5"
+                                    Background="#FF202A35"
+                                    CornerRadius="3">
+                                <TextBlock Foreground="#EEF3F8"
+                                           Text="{Binding}" />
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </DataTemplate>
+    </Window.Resources>
+
     <Grid>
         <Border Margin="0,24,24,0"
                 Padding="16,12"
@@ -47,7 +98,7 @@
                       Visibility="Collapsed">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
-                    <WrapPanel MaxWidth="500" />
+                    <WrapPanel MaxWidth="480" />
                 </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
@@ -55,70 +106,15 @@
                     <Border Width="148"
                             Margin="0,0,8,8"
                             Padding="10,8"
-                            Tag="IceCrowOpponentTile"
+                            Tag="IceCrowInteractive"
                             Background="#E6161D26"
                             BorderBrush="#805C7188"
                             BorderThickness="1"
                             CornerRadius="6"
-                            Cursor="Hand">
-                        <Border.ToolTip>
-                            <ToolTip Placement="Right"
-                                     StaysOpen="False">
-                                <Border Width="330"
-                                        Padding="12"
-                                        Background="#F20E141B"
-                                        BorderBrush="#805C7188"
-                                        BorderThickness="1"
-                                        CornerRadius="6">
-                                    <StackPanel>
-                                        <TextBlock FontSize="16"
-                                                   FontWeight="Bold"
-                                                   Foreground="#F4F7FA"
-                                                   Text="{Binding HeroDisplay}" />
-                                        <TextBlock Margin="0,2,0,0"
-                                                   Foreground="#AEBBC8"
-                                                   Text="{Binding HeroCardId}" />
-                                        <TextBlock Margin="0,8,0,0"
-                                                   Foreground="#D9E2EA"
-                                                   Text="{Binding LastSeenLine}" />
-                                        <TextBlock Foreground="#D9E2EA"
-                                                   Text="{Binding AgeLine}" />
-                                        <TextBlock Margin="0,4,0,8"
-                                                   Foreground="#D9E2EA"
-                                                   Text="{Binding TavernTierLine}" />
-                                        <TextBlock FontSize="12"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="#F4F7FA"
-                                                   Text="Progression" />
-                                        <ItemsControl Margin="0,3,0,0"
-                                                      ItemsSource="{Binding ProgressionRows}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock Foreground="#BFD2E2"
-                                                               Text="{Binding}" />
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                        <TextBlock Margin="0,3,0,8"
-                                                   Foreground="#D9E2EA"
-                                                   Text="{Binding TriplesLine}" />
-                                        <ItemsControl ItemsSource="{Binding BoardRows}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Border Margin="0,2,0,0"
-                                                            Padding="8,5"
-                                                            Background="#FF202A35"
-                                                            CornerRadius="3">
-                                                        <TextBlock Foreground="#EEF3F8"
-                                                                   Text="{Binding}" />
-                                                    </Border>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </StackPanel>
-                                </Border>
-                            </ToolTip>
-                        </Border.ToolTip>
+                            Cursor="Hand"
+                            MouseEnter="OnOpponentTileMouseEnter"
+                            MouseLeave="OnOpponentTileMouseLeave"
+                            MouseLeftButtonUp="OnOpponentTileClicked">
                         <StackPanel>
                             <TextBlock FontWeight="SemiBold"
                                        Foreground="#F4F7FA"
@@ -139,5 +135,132 @@
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
+
+        <Border x:Name="HoverOpponentPanel"
+                Width="330"
+                Margin="510,24,0,0"
+                Padding="12"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Tag="IceCrowInteractive"
+                Visibility="Collapsed"
+                Background="#F20E141B"
+                BorderBrush="#805C7188"
+                BorderThickness="1"
+                CornerRadius="6">
+            <ContentControl Content="{Binding ElementName=HoverOpponentPanel, Path=DataContext}"
+                            ContentTemplate="{StaticResource OpponentDetailTemplate}" />
+        </Border>
+
+        <Border x:Name="InteractionToolbar"
+                Margin="0,108,24,0"
+                Padding="10,7"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                Tag="IceCrowInteractive"
+                Visibility="Collapsed"
+                Background="#E6161D26"
+                BorderBrush="#805C7188"
+                BorderThickness="1"
+                CornerRadius="6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock x:Name="InteractionHintText"
+                           Margin="0,0,10,0"
+                           VerticalAlignment="Center"
+                           FontSize="11"
+                           FontWeight="SemiBold"
+                           Foreground="#8FE3B0"
+                           Text="ALT held · interactive" />
+                <Button Padding="8,3"
+                        Focusable="False"
+                        IsTabStop="False"
+                        Click="OnSettingsClicked"
+                        Content="Settings" />
+            </StackPanel>
+        </Border>
+
+        <Border x:Name="SettingsPanel"
+                Width="230"
+                Margin="0,154,24,0"
+                Padding="12"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                Tag="IceCrowInteractive"
+                Visibility="Collapsed"
+                Background="#F20E141B"
+                BorderBrush="#805C7188"
+                BorderThickness="1"
+                CornerRadius="6">
+            <StackPanel>
+                <DockPanel>
+                    <TextBlock FontSize="14"
+                               FontWeight="Bold"
+                               Foreground="#F4F7FA"
+                               Text="Interaction settings" />
+                    <Button Padding="6,1"
+                            HorizontalAlignment="Right"
+                            Focusable="False"
+                            IsTabStop="False"
+                            Click="OnCloseSettingsClicked"
+                            Content="×" />
+                </DockPanel>
+                <TextBlock x:Name="ConfiguredModifierText"
+                           Margin="0,8,0,6"
+                           Foreground="#BFD2E2"
+                           Text="Hold ALT to interact" />
+                <StackPanel Orientation="Horizontal">
+                    <Button Margin="0,0,6,0"
+                            Padding="8,3"
+                            CommandParameter="Alt"
+                            Focusable="False"
+                            IsTabStop="False"
+                            Click="OnModifierClicked"
+                            Content="ALT" />
+                    <Button Margin="0,0,6,0"
+                            Padding="8,3"
+                            CommandParameter="Control"
+                            Focusable="False"
+                            IsTabStop="False"
+                            Click="OnModifierClicked"
+                            Content="CTRL" />
+                    <Button Padding="8,3"
+                            CommandParameter="Shift"
+                            Focusable="False"
+                            IsTabStop="False"
+                            Click="OnModifierClicked"
+                            Content="SHIFT" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <Border x:Name="PinnedOpponentPanel"
+                Width="350"
+                Margin="0,230,24,24"
+                Padding="12"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                Tag="IceCrowInteractive"
+                Visibility="Collapsed"
+                Background="#F20E141B"
+                BorderBrush="#CC4CDAE8"
+                BorderThickness="1"
+                CornerRadius="6">
+            <StackPanel>
+                <DockPanel Margin="0,0,0,8">
+                    <TextBlock FontSize="12"
+                               FontWeight="Bold"
+                               Foreground="#8FE3B0"
+                               Text="PINNED OPPONENT" />
+                    <Button Padding="6,1"
+                            HorizontalAlignment="Right"
+                            Focusable="False"
+                            IsTabStop="False"
+                            Click="OnClosePinnedClicked"
+                            Content="×" />
+                </DockPanel>
+                <ContentControl Content="{Binding ElementName=PinnedOpponentPanel, Path=DataContext}"
+                                ContentTemplate="{StaticResource OpponentDetailTemplate}" />
+            </StackPanel>
+        </Border>
     </Grid>
 </Window>
