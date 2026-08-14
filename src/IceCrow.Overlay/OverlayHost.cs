@@ -96,16 +96,24 @@ public sealed class OverlayHost : IDisposable
         _ = sender;
         _ = eventArgs;
 
-        if (_windowTracker is null)
+        try
         {
-            TryConnect();
-            return;
-        }
+            if (_windowTracker is null)
+            {
+                TryConnect();
+                return;
+            }
 
-        if (!_windowTracker.IsWindowAlive)
+            if (!_windowTracker.IsWindowAlive)
+            {
+                Disconnect();
+                TryConnect();
+            }
+        }
+        catch (Exception exception)
         {
-            Disconnect();
-            TryConnect();
+            Debug.WriteLine(exception);
+            FailSafeInteraction();
         }
     }
 

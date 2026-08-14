@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace IceCrow.Platform.Windows;
@@ -110,6 +111,23 @@ public sealed class HearthstoneWindowTracker : IDisposable
         _ = eventThreadId;
         _ = eventTimeMilliseconds;
 
+        try
+        {
+            ProcessWinEvent(eventType, windowHandle, objectId, childId);
+        }
+        catch (Exception exception)
+        {
+            Debug.WriteLine(exception);
+            TryRaiseWindowUnavailable();
+        }
+    }
+
+    private void ProcessWinEvent(
+        uint eventType,
+        nint windowHandle,
+        int objectId,
+        int childId)
+    {
         if (_disposed)
         {
             return;
@@ -133,6 +151,18 @@ public sealed class HearthstoneWindowTracker : IDisposable
         }
 
         RefreshWindowInfo();
+    }
+
+    private void TryRaiseWindowUnavailable()
+    {
+        try
+        {
+            RaiseWindowUnavailable();
+        }
+        catch (Exception exception)
+        {
+            Debug.WriteLine(exception);
+        }
     }
 
     private void RefreshWindowInfo()

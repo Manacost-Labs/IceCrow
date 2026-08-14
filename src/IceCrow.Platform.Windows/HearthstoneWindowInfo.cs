@@ -1,6 +1,3 @@
-using System.ComponentModel;
-using System.Runtime.InteropServices;
-
 namespace IceCrow.Platform.Windows;
 
 public readonly record struct NativeClientBounds(int Left, int Top, int Width, int Height)
@@ -39,7 +36,7 @@ internal static class HearthstoneWindowInfoReader
 
         if (!NativeMethods.GetClientRect(windowHandle, out var clientRectangle))
         {
-            throw new Win32Exception(Marshal.GetLastWin32Error(), "Could not read the Hearthstone client rectangle.");
+            return false;
         }
 
         var clientOrigin = new NativePoint
@@ -50,7 +47,15 @@ internal static class HearthstoneWindowInfoReader
 
         if (!NativeMethods.ClientToScreen(windowHandle, ref clientOrigin))
         {
-            throw new Win32Exception(Marshal.GetLastWin32Error(), "Could not convert Hearthstone client coordinates to screen coordinates.");
+            return false;
+        }
+
+        var verifiedThreadId = NativeMethods.GetWindowThreadProcessId(windowHandle, out var verifiedProcessId);
+        if (!NativeMethods.IsWindow(windowHandle) ||
+            verifiedThreadId != threadId ||
+            verifiedProcessId != processId)
+        {
+            return false;
         }
 
         var dpi = NativeMethods.GetDpiForWindow(windowHandle);

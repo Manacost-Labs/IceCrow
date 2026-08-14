@@ -12,9 +12,10 @@ namespace IceCrow.Hearthstone.Logs;
 /// </summary>
 public sealed class PowerLogTailer
 {
-    private const int DefaultChannelCapacity = 2048;
+    private const int DefaultChannelCapacity = 128;
+    private const int MaximumChannelCapacity = 256;
     private const int ReadBufferBytes = 16 * 1024;
-    private const int MaximumLineBytes = 256 * 1024;
+    private const int MaximumLineBytes = 64 * 1024;
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private static readonly string[] AcceptedPrefixes =
     [
@@ -42,6 +43,12 @@ public sealed class PowerLogTailer
     {
         ArgumentNullException.ThrowIfNull(locator);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(channelCapacity);
+        if (channelCapacity > MaximumChannelCapacity)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(channelCapacity),
+                $"The channel capacity cannot exceed {MaximumChannelCapacity} lines.");
+        }
 
         _locator = locator;
         _timeProvider = timeProvider ?? TimeProvider.System;

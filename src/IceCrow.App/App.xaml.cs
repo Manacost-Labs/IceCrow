@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Text;
 using System.Windows;
@@ -10,6 +11,10 @@ namespace IceCrow.App;
 
 public partial class App : Application, IDisposable
 {
+#if DEBUG
+    private const int MaximumPendingDeveloperLines = 20;
+#endif
+
     private readonly CancellationTokenSource _shutdown = new();
     private LogConfigManager? _logConfigManager;
     private HearthstoneLogLocator? _logLocator;
@@ -18,7 +23,12 @@ public partial class App : Application, IDisposable
     private Task? _logPipelineTask;
     private bool _disposed;
 #if DEBUG
+    private readonly object _developerUiGate = new();
+    private readonly Queue<RawLogLine> _pendingDeveloperLines = [];
     private MainWindow? _developerWindow;
+    private string? _pendingDeveloperStatus;
+    private bool _developerLinesDrainScheduled;
+    private bool _developerStatusDrainScheduled;
 #endif
 
     protected override void OnStartup(StartupEventArgs e)
@@ -130,6 +140,10 @@ public partial class App : Application, IDisposable
         await Task.WhenAll(tailTask, consumeTask).ConfigureAwait(false);
     }
 
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "The Debug build forwards lines to the developer window instance.")]
     private async Task ConsumePowerLogAsync(
         PowerLogTailer tailer,
         CancellationToken cancellationToken)
@@ -137,13 +151,7 @@ public partial class App : Application, IDisposable
         await foreach (var line in tailer.Lines.ReadAllAsync(cancellationToken).ConfigureAwait(false))
         {
 #if DEBUG
-            var developerWindow = _developerWindow;
-            if (developerWindow is not null)
-            {
-                _ = developerWindow.Dispatcher.BeginInvoke(
-                    DispatcherPriority.Background,
-                    () => developerWindow.AddPowerLogLine(line));
-            }
+            QueueDeveloperLine(line);
 #else
             _ = line;
 #endif
@@ -156,22 +164,111 @@ public partial class App : Application, IDisposable
         ReportLogStatus($"Power log waiting: {exception.Message}");
     }
 
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "The Debug build forwards status to the developer window instance.")]
     private void ReportLogStatus(string status)
     {
 #if DEBUG
-        var developerWindow = _developerWindow;
-        if (developerWindow is not null)
-        {
-            _ = developerWindow.Dispatcher.BeginInvoke(
-                DispatcherPriority.Background,
-                () => developerWindow.SetPowerLogStatus(status));
-        }
+        QueueDeveloperStatus(status);
 #else
         Debug.WriteLine(status);
 #endif
     }
 
 #if DEBUG
+    private void QueueDeveloperLine(RawLogLine line)
+    {
+        var developerWindow = _developerWindow;
+        if (developerWindow is null)
+        {
+            return;
+        }
+
+        lock (_developerUiGate)
+        {
+            while (_pendingDeveloperLines.Count >= MaximumPendingDeveloperLines)
+            {
+                _pendingDeveloperLines.Dequeue();
+            }
+
+            _pendingDeveloperLines.Enqueue(line);
+            if (_developerLinesDrainScheduled)
+            {
+                return;
+            }
+
+            _developerLinesDrainScheduled = true;
+        }
+
+        _ = developerWindow.Dispatcher.BeginInvoke(
+            DispatcherPriority.Background,
+            DrainDeveloperLines);
+    }
+
+    private void DrainDeveloperLines()
+    {
+        RawLogLine[] pending;
+        lock (_developerUiGate)
+        {
+            pending = _pendingDeveloperLines.ToArray();
+            _pendingDeveloperLines.Clear();
+            _developerLinesDrainScheduled = false;
+        }
+
+        var developerWindow = _developerWindow;
+        if (developerWindow is null)
+        {
+            return;
+        }
+
+        foreach (var line in pending)
+        {
+            developerWindow.AddPowerLogLine(line);
+        }
+    }
+
+    private void QueueDeveloperStatus(string status)
+    {
+        var developerWindow = _developerWindow;
+        if (developerWindow is null)
+        {
+            return;
+        }
+
+        lock (_developerUiGate)
+        {
+            _pendingDeveloperStatus = status;
+            if (_developerStatusDrainScheduled)
+            {
+                return;
+            }
+
+            _developerStatusDrainScheduled = true;
+        }
+
+        _ = developerWindow.Dispatcher.BeginInvoke(
+            DispatcherPriority.Background,
+            DrainDeveloperStatus);
+    }
+
+    private void DrainDeveloperStatus()
+    {
+        string? status;
+        lock (_developerUiGate)
+        {
+            status = _pendingDeveloperStatus;
+            _pendingDeveloperStatus = null;
+            _developerStatusDrainScheduled = false;
+        }
+
+        if (status is not null)
+        {
+            _developerWindow?.SetPowerLogStatus(status);
+        }
+    }
+
     private void OnDeveloperWindowClosed(object? sender, EventArgs eventArgs)
     {
         _ = sender;

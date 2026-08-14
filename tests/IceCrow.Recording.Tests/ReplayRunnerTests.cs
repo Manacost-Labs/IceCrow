@@ -174,6 +174,76 @@ public sealed class ReplayRunnerTests
         Assert.Throws<InvalidDataException>(() => runner.RunAll());
     }
 
+    [Fact]
+    public void RepeatedCurrentStateReadsReuseTheImmutableMaterialization()
+    {
+        var runner = new ReplayRunner(DeterministicMatchFixture.Create());
+        _ = runner.Step();
+
+        var first = runner.Current;
+        var second = runner.Current;
+
+        Assert.Same(first, second);
+    }
+
+    [Fact]
+    public void IncrementalReplayEnforcesStateMaterializationWorkLimit()
+    {
+        var timestamp = new DateTimeOffset(2026, 8, 13, 21, 0, 0, TimeSpan.Zero);
+        var recorder = new MatchRecorder(timestamp);
+        recorder.RecordMatchStarted(timestamp);
+        recorder.Record(new RawTagChanged(
+            timestamp,
+            null,
+            1,
+            null,
+            "PLAYER_ID",
+            "1",
+            false));
+        recorder.Record(new RawTagChanged(
+            timestamp,
+            null,
+            1,
+            null,
+            "HEALTH",
+            "40",
+            false));
+
+        var runner = new ReplayRunner(
+            recorder.CreateMatch(),
+            maximumStateMaterializationWorkUnits: 4);
+
+        _ = runner.Step();
+        _ = runner.Step();
+        Assert.Throws<InvalidDataException>(() => runner.Step());
+        Assert.False(runner.CanStep);
+        Assert.Throws<InvalidOperationException>(() => runner.RunAll());
+
+        runner.Reset();
+        _ = runner.Step();
+        _ = runner.Step();
+        Assert.Throws<InvalidDataException>(() => runner.Step());
+    }
+
+    [Fact]
+    public void ReplayBoundsGrowingPerEntityTagSnapshotWork()
+    {
+        var timestamp = new DateTimeOffset(2026, 8, 13, 21, 0, 0, TimeSpan.Zero);
+        var recorder = new MatchRecorder(timestamp);
+        recorder.RecordMatchStarted(timestamp);
+        recorder.Record(new RawTagChanged(timestamp, null, 1, null, "10001", "1", false));
+        recorder.Record(new RawTagChanged(timestamp, null, 1, null, "10002", "1", false));
+
+        var runner = new ReplayRunner(
+            recorder.CreateMatch(),
+            maximumEventSnapshotWorkUnits: 4);
+
+        _ = runner.Step();
+        _ = runner.Step();
+        Assert.Throws<InvalidDataException>(() => runner.Step());
+        Assert.False(runner.CanStep);
+    }
+
     private static IEnumerable<RecordedEvent> CreateMinionEvents(
         int entityId,
         int playerId,

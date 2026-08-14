@@ -9,6 +9,15 @@ public sealed class PowerLogTailerTests
     private static readonly TimeSpan RecoveryInterval = TimeSpan.FromMilliseconds(20);
 
     [Fact]
+    public void RejectsChannelCapacityAboveTheSafetyLimit()
+    {
+        var locator = new HearthstoneLogLocator(logRoots: [Path.GetTempPath()]);
+
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new PowerLogTailer(locator, channelCapacity: 257));
+    }
+
+    [Fact]
     public async Task ReadsNormalAppendAndFiltersUnrelatedLines()
     {
         using var directory = new TemporaryLogDirectory();

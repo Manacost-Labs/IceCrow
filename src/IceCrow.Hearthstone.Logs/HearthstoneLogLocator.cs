@@ -80,7 +80,8 @@ public sealed class HearthstoneLogLocator
 
     private static void ValidateProductUid(string productUid)
     {
-        if (!string.Equals(productUid, Path.GetFileName(productUid), StringComparison.Ordinal) ||
+        if (productUid is "." or ".." ||
+            !string.Equals(productUid, Path.GetFileName(productUid), StringComparison.Ordinal) ||
             productUid.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
         {
             throw new ArgumentException("The product UID must be a single valid path component.", nameof(productUid));

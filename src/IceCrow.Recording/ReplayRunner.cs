@@ -11,28 +11,42 @@ public sealed class ReplayRunner
     public const int MaximumBoardMinions = 7;
     public const int MaximumOpponentSnapshots = 64;
     public const long MaximumSnapshotWorkUnits = 1_000_000;
+    public const long MaximumEventSnapshotWorkUnits = 1_000_000;
+    public const long MaximumStateMaterializationWorkUnits = 10_000_000;
 
     private readonly RecordedMatch _match;
+    private readonly long _maximumStateMaterializationWorkUnits;
+    private readonly long _maximumEventSnapshotWorkUnits;
     private readonly EntityStore _entities = new();
     private readonly OpponentMemoryService _opponentMemory = new();
     private BattlegroundsState _battlegrounds = BattlegroundsState.Empty;
     private int _nextEventIndex;
     private int _opponentSnapshotCount;
     private long _snapshotWorkUnits;
+    private long _eventSnapshotWorkUnits;
+    private long _stateMaterializationWorkUnits;
     private bool _isFaulted;
+    private ReplayState? _currentState;
 
-    public ReplayRunner(RecordedMatch match)
+    public ReplayRunner(
+        RecordedMatch match,
+        long maximumStateMaterializationWorkUnits = MaximumStateMaterializationWorkUnits,
+        long maximumEventSnapshotWorkUnits = MaximumEventSnapshotWorkUnits)
     {
         ArgumentNullException.ThrowIfNull(match);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumStateMaterializationWorkUnits);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumEventSnapshotWorkUnits);
         RecordingSerializer.Validate(match);
         _match = match;
+        _maximumStateMaterializationWorkUnits = maximumStateMaterializationWorkUnits;
+        _maximumEventSnapshotWorkUnits = maximumEventSnapshotWorkUnits;
     }
 
     public bool CanStep => !_isFaulted && _nextEventIndex < _match.Events.Count;
 
     public int CurrentEventIndex => _nextEventIndex - 1;
 
-    public ReplayState Current => CreateState();
+    public ReplayState Current => _currentState ??= CreateState();
 
     public ReplayState Step(CancellationToken cancellationToken = default)
     {
@@ -110,7 +124,10 @@ public sealed class ReplayRunner
         _nextEventIndex = 0;
         _opponentSnapshotCount = 0;
         _snapshotWorkUnits = 0;
+        _eventSnapshotWorkUnits = 0;
+        _stateMaterializationWorkUnits = 0;
         _isFaulted = false;
+        _currentState = null;
     }
 
     private void Apply(RecordedEvent recordedEvent)
@@ -168,6 +185,7 @@ public sealed class ReplayRunner
         {
             Apply(_match.Events[_nextEventIndex]);
             _nextEventIndex++;
+            _currentState = null;
         }
         catch
         {
@@ -189,11 +207,13 @@ public sealed class ReplayRunner
         var gameEvent = recordedEvent.ToGameEvent();
         var mutation = _entities.Apply(gameEvent);
         if (recordedEvent.EntityId is not int entityId ||
-            !_entities.TryGet(entityId, out _))
+            !_entities.TryGet(entityId, out var entity) ||
+            entity is null)
         {
             return;
         }
 
+        ReserveEventSnapshotWork(entity);
         var snapshot = _entities.CreateSnapshot(entityId);
         if (snapshot.PlayerId > 0 &&
             _battlegrounds.Lobby.GetPlayer(snapshot.PlayerId) is null &&
@@ -212,11 +232,30 @@ public sealed class ReplayRunner
                 new BattlegroundsEntityChanged(recordedEvent.Timestamp, snapshot, mutation));
     }
 
-    private ReplayState CreateState() => new(
-        CurrentEventIndex,
-        _entities.CreateAllSnapshots(),
-        _battlegrounds,
-        _opponentMemory.Memory);
+    private ReplayState CreateState()
+    {
+        try
+        {
+            var work = _entities.SnapshotWorkUnits;
+            if (_stateMaterializationWorkUnits > _maximumStateMaterializationWorkUnits - work)
+            {
+                throw new InvalidDataException(
+                    $"Replay exceeds the {_maximumStateMaterializationWorkUnits} state materialization work-unit limit.");
+            }
+
+            _stateMaterializationWorkUnits += work;
+            return new ReplayState(
+                CurrentEventIndex,
+                _entities.CreateAllSnapshots(),
+                _battlegrounds,
+                _opponentMemory.Memory);
+        }
+        catch
+        {
+            _isFaulted = true;
+            throw;
+        }
+    }
 
     private void ReserveSnapshotWork(IReadOnlyList<EntitySnapshot> snapshots)
     {
@@ -228,6 +267,18 @@ public sealed class ReplayRunner
         }
 
         _snapshotWorkUnits += work;
+    }
+
+    private void ReserveEventSnapshotWork(GameEntity entity)
+    {
+        var work = 1L + entity.Tags.Count;
+        if (_eventSnapshotWorkUnits > _maximumEventSnapshotWorkUnits - work)
+        {
+            throw new InvalidDataException(
+                $"Replay exceeds the {_maximumEventSnapshotWorkUnits} event snapshot work-unit limit.");
+        }
+
+        _eventSnapshotWorkUnits += work;
     }
 
     private void ValidateOpponentBoard(IReadOnlyList<EntitySnapshot> snapshots)

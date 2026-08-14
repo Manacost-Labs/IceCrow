@@ -68,6 +68,8 @@ public sealed class LogConfigManagerTests
         var locator = new HearthstoneLogLocator(directory.Path, []);
 
         Assert.Throws<ArgumentException>(() => locator.GetLogConfigPath("..\\other"));
+        Assert.Throws<ArgumentException>(() => locator.GetLogConfigPath(".."));
+        Assert.Throws<ArgumentException>(() => locator.GetLogConfigPath("."));
     }
 
     private static int CountOccurrences(string value, string target)

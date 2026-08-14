@@ -8,6 +8,20 @@ public sealed class EntityStore
 
     public int Count => _entities.Count;
 
+    public long SnapshotWorkUnits
+    {
+        get
+        {
+            long total = 0;
+            foreach (var entity in _entities.Values)
+            {
+                total = checked(total + 1 + entity.Tags.Count);
+            }
+
+            return total;
+        }
+    }
+
     public GameEntity Get(int id) => _entities[id];
 
     public bool TryGet(int id, out GameEntity? entity) => _entities.TryGetValue(id, out entity);

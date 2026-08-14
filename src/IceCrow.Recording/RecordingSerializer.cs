@@ -430,11 +430,16 @@ public static class RecordingSerializer
         var checkpointsArrayDepth = -1;
         var eventCount = 0;
         var checkpointCount = 0;
+        long estimatedMaterializedBytes = 0;
 
         try
         {
             while (reader.Read())
             {
+                ReservePreflightMaterialization(
+                    ref estimatedMaterializedBytes,
+                    EstimateJsonTokenMaterialization(reader));
+
                 if (reader.TokenType is JsonTokenType.String or JsonTokenType.PropertyName &&
                     reader.ValueSpan.Length > MaximumStringCharacters * 6)
                 {
@@ -574,6 +579,28 @@ public static class RecordingSerializer
         JsonTokenType.True or
         JsonTokenType.False or
         JsonTokenType.Null;
+
+    private static long EstimateJsonTokenMaterialization(Utf8JsonReader reader) =>
+        reader.TokenType switch
+        {
+            JsonTokenType.PropertyName or JsonTokenType.String =>
+                32L + (reader.ValueSpan.Length * sizeof(char)),
+            JsonTokenType.StartObject => 128,
+            JsonTokenType.StartArray => 64,
+            JsonTokenType.Number or JsonTokenType.True or JsonTokenType.False or JsonTokenType.Null => 32,
+            _ => 0,
+        };
+
+    private static void ReservePreflightMaterialization(ref long retainedBytes, long byteCount)
+    {
+        if (byteCount < 0 || retainedBytes > MaximumRetainedBytes - byteCount)
+        {
+            throw new InvalidDataException(
+                $"Recording exceeds the {MaximumRetainedBytes} preflight materialization-byte limit.");
+        }
+
+        retainedBytes += byteCount;
+    }
 
     private static void ValidateBlock(RecordedPowerBlock block)
     {

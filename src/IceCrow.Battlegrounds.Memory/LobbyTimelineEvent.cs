@@ -105,19 +105,19 @@ internal sealed class LobbyTimelineEventComparer : IComparer<LobbyTimelineEvent>
     private static int CompareEventDetails(
         LobbyTimelineEvent left,
         LobbyTimelineEvent right) => (left, right) switch
-    {
-        (TavernUpgraded leftUpgrade, TavernUpgraded rightUpgrade) =>
-            leftUpgrade.TavernTier.CompareTo(rightUpgrade.TavernTier),
-        (TripleCreated leftTriple, TripleCreated rightTriple) =>
-            leftTriple.Total.CompareTo(rightTriple.Total),
-        (DamageTaken leftDamage, DamageTaken rightDamage) =>
-            CompareDamage(leftDamage, rightDamage),
-        (PlayerDied leftDeath, PlayerDied rightDeath) =>
-            ComparePair(leftDeath.Health, leftDeath.Armor, rightDeath.Health, rightDeath.Armor),
-        (OpponentObserved leftObservation, OpponentObserved rightObservation) =>
-            leftObservation.MinionCount.CompareTo(rightObservation.MinionCount),
-        _ => 0,
-    };
+        {
+            (TavernUpgraded leftUpgrade, TavernUpgraded rightUpgrade) =>
+                leftUpgrade.TavernTier.CompareTo(rightUpgrade.TavernTier),
+            (TripleCreated leftTriple, TripleCreated rightTriple) =>
+                leftTriple.Total.CompareTo(rightTriple.Total),
+            (DamageTaken leftDamage, DamageTaken rightDamage) =>
+                CompareDamage(leftDamage, rightDamage),
+            (PlayerDied leftDeath, PlayerDied rightDeath) =>
+                ComparePair(leftDeath.Health, leftDeath.Armor, rightDeath.Health, rightDeath.Armor),
+            (OpponentObserved leftObservation, OpponentObserved rightObservation) =>
+                leftObservation.MinionCount.CompareTo(rightObservation.MinionCount),
+            _ => 0,
+        };
 
     private static int CompareDamage(DamageTaken left, DamageTaken right)
     {

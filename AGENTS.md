@@ -20,7 +20,7 @@ HDT is behavioral reference material only. It may be inspected to understand Hea
 | `IceCrow.Hearthstone.Entities` | Hearthstone entity state | `Hearthstone.Protocol` |
 | `IceCrow.Battlegrounds` | Battlegrounds state and reducers | `Hearthstone.Entities`, `Hearthstone.Protocol` |
 | `IceCrow.Battlegrounds.Memory` | Immutable historical Battlegrounds snapshots | `Battlegrounds` |
-| `IceCrow.Recording` | Offline capture and replay infrastructure | `Hearthstone.Logs`, `Hearthstone.Protocol` |
+| `IceCrow.Recording` | Offline capture and deterministic replay composition | `Hearthstone.Logs`, `Hearthstone.Protocol`, `Hearthstone.Entities`, `Battlegrounds`, `Battlegrounds.Memory` |
 
 Test projects may reference only the production project under test and its transitive dependencies.
 
