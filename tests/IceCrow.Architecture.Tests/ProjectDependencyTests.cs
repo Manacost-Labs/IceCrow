@@ -10,10 +10,15 @@ public sealed class ProjectDependencyTests
             ["IceCrow.App"] =
             [
                 "IceCrow.Hearthstone.Logs",
+                "IceCrow.Hearthstone.Data",
+                "IceCrow.Hearthstone.Decks",
+                "IceCrow.Infrastructure.ManacostApi",
                 "IceCrow.Live",
                 "IceCrow.Overlay",
                 "IceCrow.Platform.Windows",
+                "IceCrow.Presentation",
                 "IceCrow.Recording",
+                "IceCrow.Telemetry",
             ],
             ["IceCrow.Battlegrounds"] =
             [
@@ -23,6 +28,8 @@ public sealed class ProjectDependencyTests
             ["IceCrow.Battlegrounds.Memory"] = ["IceCrow.Battlegrounds"],
             ["IceCrow.Hearthstone.Entities"] = ["IceCrow.Hearthstone.Protocol"],
             ["IceCrow.Hearthstone.ClientState"] = [],
+            ["IceCrow.Hearthstone.Data"] = [],
+            ["IceCrow.Hearthstone.Decks"] = ["IceCrow.Hearthstone.Data"],
             ["IceCrow.Hearthstone.Logs"] = [],
             ["IceCrow.Hearthstone.Protocol"] = [],
             ["IceCrow.Live"] =
@@ -33,11 +40,12 @@ public sealed class ProjectDependencyTests
             ],
             ["IceCrow.Overlay"] =
             [
-                "IceCrow.Battlegrounds",
-                "IceCrow.Battlegrounds.Memory",
                 "IceCrow.Platform.Windows",
+                "IceCrow.Presentation",
             ],
             ["IceCrow.Platform.Windows"] = [],
+            ["IceCrow.Presentation"] = ["IceCrow.Hearthstone.Data", "IceCrow.Tracking"],
+            ["IceCrow.Infrastructure.ManacostApi"] = ["IceCrow.Hearthstone.Data"],
             ["IceCrow.Recording"] =
             [
                 "IceCrow.Battlegrounds",
@@ -53,6 +61,7 @@ public sealed class ProjectDependencyTests
                 "IceCrow.Hearthstone.Entities",
                 "IceCrow.Hearthstone.Protocol",
             ],
+            ["IceCrow.Telemetry"] = ["IceCrow.Tracking"],
         };
 
     private static readonly string[] DomainProjects =
@@ -61,10 +70,25 @@ public sealed class ProjectDependencyTests
         "IceCrow.Battlegrounds.Memory",
         "IceCrow.Hearthstone.Entities",
         "IceCrow.Hearthstone.ClientState",
+        "IceCrow.Hearthstone.Data",
+        "IceCrow.Hearthstone.Decks",
         "IceCrow.Hearthstone.Logs",
         "IceCrow.Hearthstone.Protocol",
         "IceCrow.Live",
+        "IceCrow.Presentation",
         "IceCrow.Recording",
+        "IceCrow.Tracking",
+        "IceCrow.Telemetry",
+    ];
+
+    private static readonly string[] NetworkIndependentProjects =
+    [
+        "IceCrow.Battlegrounds",
+        "IceCrow.Battlegrounds.Memory",
+        "IceCrow.Hearthstone.Entities",
+        "IceCrow.Hearthstone.Protocol",
+        "IceCrow.Hearthstone.Decks",
+        "IceCrow.Overlay",
         "IceCrow.Tracking",
     ];
 
@@ -199,6 +223,66 @@ public sealed class ProjectDependencyTests
                 Assert.DoesNotContain("using HearthMirror", source, StringComparison.Ordinal);
                 Assert.DoesNotContain("HearthMirror.", source, StringComparison.Ordinal);
             }
+        }
+    }
+
+    [Fact]
+    public void NativeImportsStayInsidePlatformAdapters()
+    {
+        var root = FindRepositoryRoot();
+        var productionProjects = Directory.EnumerateFiles(
+            Path.Combine(root, "src"),
+            "*.csproj",
+            SearchOption.AllDirectories);
+
+        foreach (var projectFile in productionProjects)
+        {
+            var project = Path.GetFileNameWithoutExtension(projectFile);
+            if (project is "IceCrow.Platform.Windows" or
+                "IceCrow.Hearthstone.ClientState.HearthMirror")
+            {
+                continue;
+            }
+
+            foreach (var sourceFile in EnumerateSourceFiles(Path.GetDirectoryName(projectFile)!))
+            {
+                var source = File.ReadAllText(sourceFile);
+                Assert.DoesNotContain("DllImport(", source, StringComparison.Ordinal);
+                Assert.DoesNotContain("LibraryImport(", source, StringComparison.Ordinal);
+            }
+        }
+    }
+
+    [Fact]
+    public void TrackingAndDomainProjectsDoNotUseHttpClientsOrManacostAdapters()
+    {
+        var root = FindRepositoryRoot();
+        foreach (var project in NetworkIndependentProjects)
+        {
+            foreach (var sourceFile in EnumerateSourceFiles(Path.Combine(root, "src", project)))
+            {
+                var source = File.ReadAllText(sourceFile);
+                Assert.DoesNotContain("System.Net.Http", source, StringComparison.Ordinal);
+                Assert.DoesNotContain("HttpClient", source, StringComparison.Ordinal);
+                Assert.DoesNotContain("Infrastructure.ManacostApi", source, StringComparison.Ordinal);
+            }
+        }
+    }
+
+    [Fact]
+    public void DeveloperToolsAreNotReferencedByRuntimeProjects()
+    {
+        var root = FindRepositoryRoot();
+        var productionProjects = Directory.EnumerateFiles(
+            Path.Combine(root, "src"),
+            "*.csproj",
+            SearchOption.AllDirectories);
+
+        foreach (var projectFile in productionProjects)
+        {
+            Assert.DoesNotContain(
+                ReadProjectReferences(projectFile),
+                reference => reference.Contains("FixtureTool", StringComparison.OrdinalIgnoreCase));
         }
     }
 

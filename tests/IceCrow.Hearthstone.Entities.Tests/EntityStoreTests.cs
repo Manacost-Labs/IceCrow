@@ -63,6 +63,20 @@ public sealed class EntityStoreTests
     }
 
     [Fact]
+    public void TracksMaximumTagsPerEntityWithoutScanningTheStore()
+    {
+        var store = new EntityStore();
+        _ = ApplyTag(store, 1, "ATK", "3");
+        _ = ApplyTag(store, 2, "ATK", "4");
+        _ = ApplyTag(store, 2, "HEALTH", "10");
+
+        Assert.Equal(2, store.MaximumTagCount);
+
+        _ = ApplyTag(store, 2, "HEALTH", "9");
+        Assert.Equal(2, store.MaximumTagCount);
+    }
+
+    [Fact]
     public void ExposesControllerAndControllerQuery()
     {
         var store = new EntityStore();
@@ -185,6 +199,7 @@ public sealed class EntityStoreTests
         store.Reset();
 
         Assert.Equal(0, store.Count);
+        Assert.Equal(0, store.MaximumTagCount);
         Assert.False(store.TryGet(1, out _));
         Assert.Throws<KeyNotFoundException>(() => store.Get(1));
     }

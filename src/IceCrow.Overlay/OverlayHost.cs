@@ -1,8 +1,7 @@
 using System.Diagnostics;
 using System.Windows.Threading;
-using IceCrow.Battlegrounds;
-using IceCrow.Battlegrounds.Memory;
 using IceCrow.Platform.Windows;
+using IceCrow.Presentation;
 
 namespace IceCrow.Overlay;
 
@@ -57,14 +56,12 @@ public sealed class OverlayHost : IDisposable
         _modifierTimer.Start();
     }
 
-    public void ApplyBattlegroundsState(
-        BattlegroundsState state,
-        OpponentMemory memory,
-        LobbyTimelineSnapshot? timeline = null)
+    public void ApplyViewState(BattlegroundsOverlayViewState viewState)
     {
+        ArgumentNullException.ThrowIfNull(viewState);
         ObjectDisposedException.ThrowIf(_disposed, this);
         _overlayWindow.Dispatcher.VerifyAccess();
-        _overlayWindow.ApplyBattlegroundsState(state, memory, timeline);
+        _overlayWindow.ApplyViewState(viewState);
     }
 
     public void Dispose()

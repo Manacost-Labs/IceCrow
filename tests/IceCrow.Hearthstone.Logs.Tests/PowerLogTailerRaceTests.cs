@@ -3,6 +3,7 @@ using System.Globalization;
 
 namespace IceCrow.Hearthstone.Logs.Tests;
 
+[Collection(PowerLogTailerTestsGroup.Name)]
 public sealed class PowerLogTailerRaceTests
 {
     private static readonly Encoding LogEncoding = new UTF8Encoding(false);
@@ -59,23 +60,23 @@ public sealed class PowerLogTailerRaceTests
         var path = directory.GetPath("Power.log");
         var locator = new HearthstoneLogLocator(logRoots: [directory.Path]);
         var tailer = new PowerLogTailer(locator, recoveryInterval: RecoveryInterval);
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var cancellation = new CancellationTokenSource();
         var runTask = tailer.RunAsync(cancellation.Token);
 
         try
         {
             await File.WriteAllTextAsync(path, Line(1) + Line(2), LogEncoding);
-            Assert.EndsWith("race-0001", (await tailer.Lines.ReadAsync(cancellation.Token)).Content, StringComparison.Ordinal);
-            Assert.EndsWith("race-0002", (await tailer.Lines.ReadAsync(cancellation.Token)).Content, StringComparison.Ordinal);
+            Assert.EndsWith("race-0001", (await ReadWithTimeoutAsync(tailer, cancellation.Token)).Content, StringComparison.Ordinal);
+            Assert.EndsWith("race-0002", (await ReadWithTimeoutAsync(tailer, cancellation.Token)).Content, StringComparison.Ordinal);
 
             File.Delete(path);
             await Task.Delay(30, cancellation.Token);
             await File.WriteAllTextAsync(path, Line(3), LogEncoding);
-            Assert.EndsWith("race-0003", (await tailer.Lines.ReadAsync(cancellation.Token)).Content, StringComparison.Ordinal);
+            Assert.EndsWith("race-0003", (await ReadWithTimeoutAsync(tailer, cancellation.Token)).Content, StringComparison.Ordinal);
 
             await File.WriteAllTextAsync(path, Line(4), LogEncoding, cancellation.Token);
-            Assert.EndsWith("race-0004", (await tailer.Lines.ReadAsync(cancellation.Token)).Content, StringComparison.Ordinal);
-            await Task.Delay(75, cancellation.Token);
+            Assert.EndsWith("race-0004", (await ReadWithTimeoutAsync(tailer, cancellation.Token)).Content, StringComparison.Ordinal);
+            await Task.Delay(75);
             Assert.False(tailer.Lines.TryRead(out _));
         }
         finally
@@ -115,4 +116,12 @@ public sealed class PowerLogTailerRaceTests
 
     private static string Line(int index) =>
         $"D 17:00:00.0000000 PowerTaskList.DebugPrintPower() - race-{index:D4}\r\n";
+
+    private static async Task<RawLogLine> ReadWithTimeoutAsync(
+        PowerLogTailer tailer,
+        CancellationToken cancellationToken) =>
+        await tailer.Lines.ReadAsync(cancellationToken)
+            .AsTask()
+            .WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
+
 }

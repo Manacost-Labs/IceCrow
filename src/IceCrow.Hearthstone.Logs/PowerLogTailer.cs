@@ -242,6 +242,11 @@ public sealed class PowerLogTailer
             _discardingOversizedLine = false;
         }
 
+        var openedPrefixLength = checked((int)Math.Min(FingerprintBytes, stream.Length));
+        var openedPrefixFingerprint = await ComputePrefixFingerprintAsync(
+            stream,
+            openedPrefixLength,
+            cancellationToken).ConfigureAwait(false);
         stream.Seek(_checkpoint.ByteOffset, SeekOrigin.Begin);
 
         var rentedBuffer = ArrayPool<byte>.Shared.Rent(ReadBufferBytes);
@@ -299,6 +304,29 @@ public sealed class PowerLogTailer
             }
 
             file.Refresh();
+            var prefixChangedWhileReading =
+                stream.Length < openedPrefixLength ||
+                await ComputePrefixFingerprintAsync(
+                    stream,
+                    openedPrefixLength,
+                    cancellationToken).ConfigureAwait(false) != openedPrefixFingerprint;
+            if (prefixChangedWhileReading)
+            {
+                _checkpoint = new LogReadCheckpoint(
+                    file.FullName,
+                    0,
+                    createdAt,
+                    file.Exists ? file.Length : 0,
+                    file.Exists
+                        ? new DateTimeOffset(file.LastWriteTimeUtc, TimeSpan.Zero)
+                        : lastWriteAt,
+                    0,
+                    0);
+                _discardingOversizedLine = false;
+                Signal();
+                return;
+            }
+
             var fingerprintLength = checked((int)Math.Min(
                 FingerprintBytes,
                 Math.Min(_checkpoint.ByteOffset, stream.Length)));

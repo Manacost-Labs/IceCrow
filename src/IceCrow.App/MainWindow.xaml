@@ -28,6 +28,7 @@
                 BorderBrush="#26313D"
                 BorderThickness="1"
                 CornerRadius="6">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel>
                 <TextBlock Margin="0,0,0,16"
                            FontSize="20"
@@ -78,9 +79,52 @@
                            Foreground="#9BA7B4"
                            Text="Tracking: Inactive" />
                 <TextBlock x:Name="LiveLastUpdate"
+                           Margin="0,0,0,18"
                            Foreground="#9BA7B4"
                            Text="Last update: -" />
+                <TextBlock Margin="0,0,0,8"
+                           FontWeight="SemiBold"
+                           Foreground="#F4F7FA"
+                           Text="MANACOST DATA" />
+                <TextBlock x:Name="ManacostCache"
+                           Margin="0,0,0,4"
+                           Foreground="#9BA7B4"
+                           Text="Cache: Not available" />
+                <TextBlock x:Name="ManacostVersion"
+                           Margin="0,0,0,4"
+                           Foreground="#9BA7B4"
+                           Text="Data version: -" />
+                <TextBlock x:Name="ManacostBuild"
+                           Margin="0,0,0,4"
+                           Foreground="#9BA7B4"
+                           Text="Hearthstone build: -" />
+                <TextBlock x:Name="ManacostSync"
+                           Margin="0,0,0,4"
+                           Foreground="#9BA7B4"
+                           Text="Last sync: -" />
+                <TextBlock x:Name="ManacostCounts"
+                           Margin="0,0,0,18"
+                           Foreground="#9BA7B4"
+                           Text="Cards / BG minions / heroes: 0 / 0 / 0"
+                           TextWrapping="Wrap" />
+                <TextBlock Margin="0,0,0,8"
+                           FontWeight="SemiBold"
+                           Foreground="#F4F7FA"
+                           Text="DECKSTRINGS" />
+                <TextBlock x:Name="DeckstringsStatus"
+                           Margin="0,0,0,18"
+                           Foreground="#9BA7B4"
+                           Text="Package: - · Status: -" />
+                <TextBlock Margin="0,0,0,8"
+                           FontWeight="SemiBold"
+                           Foreground="#F4F7FA"
+                           Text="TELEMETRY" />
+                <TextBlock x:Name="TelemetryStatus"
+                           Foreground="#9BA7B4"
+                           Text="Consent: Off · Queued: 0 · Last upload: -"
+                           TextWrapping="Wrap" />
             </StackPanel>
+            </ScrollViewer>
         </Border>
 
         <DockPanel Grid.Column="2">

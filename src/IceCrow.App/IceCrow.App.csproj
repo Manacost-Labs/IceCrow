@@ -3,6 +3,11 @@
   <ItemGroup>
     <ProjectReference Include="..\IceCrow.Overlay\IceCrow.Overlay.csproj" />
     <ProjectReference Include="..\IceCrow.Platform.Windows\IceCrow.Platform.Windows.csproj" />
+    <ProjectReference Include="..\IceCrow.Presentation\IceCrow.Presentation.csproj" />
+    <ProjectReference Include="..\IceCrow.Hearthstone.Data\IceCrow.Hearthstone.Data.csproj" />
+    <ProjectReference Include="..\IceCrow.Hearthstone.Decks\IceCrow.Hearthstone.Decks.csproj" />
+    <ProjectReference Include="..\IceCrow.Infrastructure.ManacostApi\IceCrow.Infrastructure.ManacostApi.csproj" />
+    <ProjectReference Include="..\IceCrow.Telemetry\IceCrow.Telemetry.csproj" />
     <ProjectReference Include="..\IceCrow.Hearthstone.Logs\IceCrow.Hearthstone.Logs.csproj" />
     <ProjectReference Include="..\IceCrow.Live\IceCrow.Live.csproj" />
     <ProjectReference Include="..\IceCrow.Recording\IceCrow.Recording.csproj" />

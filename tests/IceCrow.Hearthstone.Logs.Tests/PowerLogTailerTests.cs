@@ -3,6 +3,7 @@ using IceCrow.Hearthstone.Logs;
 
 namespace IceCrow.Hearthstone.Logs.Tests;
 
+[Collection(PowerLogTailerTestsGroup.Name)]
 public sealed class PowerLogTailerTests
 {
     private static readonly Encoding LogEncoding = new UTF8Encoding(false);

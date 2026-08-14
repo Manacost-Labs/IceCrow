@@ -12,18 +12,23 @@ HDT is behavioral reference material only. It may be inspected to understand Hea
 
 | Project | Responsibility | Allowed IceCrow dependencies |
 | --- | --- | --- |
-| `IceCrow.App` | WPF composition root and application lifetime | `Overlay`, `Platform.Windows`, `Hearthstone.Logs`, `Live`, `Recording` |
+| `IceCrow.App` | WPF composition root and application lifetime | `Overlay`, `Platform.Windows`, `Presentation`, `Hearthstone.Logs`, `Hearthstone.Data`, `Hearthstone.Decks`, `Infrastructure.ManacostApi`, `Live`, `Recording`, `Telemetry` |
 | `IceCrow.Platform.Windows` | Win32 and Windows-specific integration | None |
-| `IceCrow.Overlay` | Overlay presentation boundary | `Battlegrounds`, `Battlegrounds.Memory`, `Platform.Windows` |
+| `IceCrow.Overlay` | WPF overlay rendering and interaction boundary | `Presentation`, `Platform.Windows` |
+| `IceCrow.Presentation` | Immutable WPF-free tracking/data-to-UI projections | `Hearthstone.Data`, `Tracking` |
 | `IceCrow.Hearthstone.Logs` | Raw Hearthstone log input | None |
 | `IceCrow.Hearthstone.Protocol` | Normalized game events and protocol compatibility | None |
 | `IceCrow.Hearthstone.ClientState` | Optional current-client contracts and semantic change coordination | None |
+| `IceCrow.Hearthstone.Data` | Offline static card/Battlegrounds metadata contracts and in-memory lookups | None |
+| `IceCrow.Hearthstone.Decks` | IceCrow deck models and adapter to the canonical Deckstrings NuGet package | `Hearthstone.Data` |
 | `IceCrow.Hearthstone.Entities` | Hearthstone entity state | `Hearthstone.Protocol` |
 | `IceCrow.Battlegrounds` | Battlegrounds state and reducers | `Hearthstone.Entities`, `Hearthstone.Protocol` |
 | `IceCrow.Battlegrounds.Memory` | Immutable historical Battlegrounds snapshots | `Battlegrounds` |
 | `IceCrow.Tracking` | Authoritative deterministic match state processing | `Hearthstone.Protocol`, `Hearthstone.Entities`, `Battlegrounds`, `Battlegrounds.Memory` |
 | `IceCrow.Live` | Non-UI live parsing, lifecycle detection, and tracking orchestration | `Hearthstone.Logs`, `Hearthstone.Protocol`, `Tracking` |
 | `IceCrow.Recording` | Offline capture, replay navigation, and replay-specific safety limits | `Hearthstone.Protocol`, `Hearthstone.Entities`, `Battlegrounds`, `Battlegrounds.Memory`, `Tracking` |
+| `IceCrow.Infrastructure.ManacostApi` | Public HTTPS dataset sync, last-known-good cache, and image disk cache | `Hearthstone.Data` |
+| `IceCrow.Telemetry` | Consent-aware derived summaries and bounded offline outbox | `Tracking` |
 
 Test projects may reference only the production or developer-tool project under
 test and its transitive dependencies.
@@ -37,6 +42,7 @@ fixture or treat synthetic input as real evidence.
 
 - Domain projects must not reference WPF, `System.Windows`, window handles, or UI controls.
 - UI code must never parse `Power.log` directly.
+- Overlay code must consume presentation view state rather than domain stores or reducers.
 - Raw log readers and parsers must never manipulate WPF directly.
 - Keep normalized events between parsing and state reduction.
 - Client-state snapshots are supplemental current UI state. They must not create
@@ -44,8 +50,12 @@ fixture or treat synthetic input as real evidence.
 - HearthMirror types, if a separately licensed adapter is added later, must stay
   inside `IceCrow.Hearthstone.ClientState.HearthMirror`.
 - Avoid global mutable state and prefer immutable snapshots for historical data.
+- New features consume `TrackingUpdate` or `TrackingSnapshot`; do not turn `TrackingSession` into a feature registry.
+- Runtime projects must never reference developer-only projects under `tools/`.
 - Keep numeric GameTag compatibility values inside explicit compatibility types.
 - Core tracking must not require a network or backend service.
+- Tracking, protocol, entities, Battlegrounds, decks, and overlay must not reference the Manacost HTTP adapter.
+- No shared API token or admin credential may be embedded in IceCrow.
 - Prefer the .NET BCL over new packages. Verify the version, license, and provenance before adding any package.
 - Do not silently swallow important parser failures. Unknown Hearthstone events must not crash the tracker.
 

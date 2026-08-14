@@ -11,6 +11,7 @@ public sealed class EntityStore
     private readonly int _maximumTagsPerEntity;
     private readonly int _maximumTotalTags;
     private int _tagCount;
+    private int _maximumTagCount;
 
     public EntityStore(
         int maximumTagsPerEntity = DefaultMaximumTagsPerEntity,
@@ -26,9 +27,7 @@ public sealed class EntityStore
 
     public int TagCount => _tagCount;
 
-    public int MaximumTagCount => _entities.Count == 0
-        ? 0
-        : _entities.Values.Max(static entity => entity.Tags.Count);
+    public int MaximumTagCount => _maximumTagCount;
 
     public long SnapshotWorkUnits
     {
@@ -75,6 +74,7 @@ public sealed class EntityStore
         if (mutation is not null && isNewTag)
         {
             _tagCount = checked(_tagCount + 1);
+            _maximumTagCount = Math.Max(_maximumTagCount, entity.Tags.Count);
         }
 
         return mutation;
@@ -84,6 +84,7 @@ public sealed class EntityStore
     {
         _entities.Clear();
         _tagCount = 0;
+        _maximumTagCount = 0;
     }
 
     public EntitySnapshot CreateSnapshot(int id) => new(Get(id));

@@ -1,9 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\IceCrow.Battlegrounds\IceCrow.Battlegrounds.csproj" />
-    <ProjectReference Include="..\IceCrow.Battlegrounds.Memory\IceCrow.Battlegrounds.Memory.csproj" />
     <ProjectReference Include="..\IceCrow.Platform.Windows\IceCrow.Platform.Windows.csproj" />
+    <ProjectReference Include="..\IceCrow.Presentation\IceCrow.Presentation.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

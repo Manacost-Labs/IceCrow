@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Windows;
 using IceCrow.Hearthstone.Logs;
 using IceCrow.Live;
+using IceCrow.Infrastructure.ManacostApi;
 
 namespace IceCrow.App;
 
@@ -79,5 +81,37 @@ public partial class MainWindow : Window
         LiveLastUpdate.Text = diagnostics.LastStateUpdateTimestamp is DateTimeOffset timestamp
             ? $"Last update: {timestamp:HH:mm:ss.fff}"
             : "Last update: -";
+    }
+
+    public void SetManacostDataStatus(ManacostDataStatus status)
+    {
+        ArgumentNullException.ThrowIfNull(status);
+        Dispatcher.VerifyAccess();
+
+        ManacostCache.Text = status.CacheReady
+            ? $"Cache: Ready{(status.OfflineMode ? " (offline)" : string.Empty)}"
+            : "Cache: Not available";
+        ManacostVersion.Text = $"Data version: {status.DataVersion ?? "-"}";
+        ManacostBuild.Text = $"Hearthstone build: {status.HearthstoneBuild ?? "-"}";
+        ManacostSync.Text = status.LastSync is DateTimeOffset timestamp
+            ? $"Last sync: {timestamp:yyyy-MM-dd HH:mm:ss}"
+            : $"Last sync: -{(string.IsNullOrWhiteSpace(status.SyncError) ? string.Empty : $" · {status.SyncError}")}";
+        ManacostCounts.Text =
+            $"Cards / BG minions / heroes: {status.CardCount} / {status.BattlegroundsMinionCount} / {status.BattlegroundsHeroCount}";
+    }
+
+    public void SetDeckstringsStatus(string packageVersion, string status)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(packageVersion);
+        ArgumentException.ThrowIfNullOrWhiteSpace(status);
+        Dispatcher.VerifyAccess();
+        DeckstringsStatus.Text = $"Package: {packageVersion} · Status: {status}";
+    }
+
+    public void SetTelemetryStatus(bool consent, int queued, DateTimeOffset? lastUpload)
+    {
+        Dispatcher.VerifyAccess();
+        TelemetryStatus.Text =
+            $"Consent: {(consent ? "On" : "Off")} · Queued: {queued} · Last upload: {(lastUpload is null ? "-" : lastUpload.Value.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture))}";
     }
 }

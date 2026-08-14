@@ -25,8 +25,14 @@ and diagnostic performance baselines are documented in the
 - Versioned, bounded match recording and offline replay with step/run-until/run-all support.
 - A dev-only fixture importer with deterministic anonymization, compact golden expectations, and normalized/raw corpus runners.
 - Debug-only views for accepted log lines and Battlegrounds validation.
+- Offline-first Manacost card/Battlegrounds metadata with CardId/DBF lookups,
+  a hash-validated last-known-good cache, and background public API refresh.
+- `ManacostLabs.Deckstrings` 1.0.0 behind IceCrow-owned deck models for offline
+  encode/decode/validation, sideboards, and clipboard exports.
+- Consent-off-by-default derived match summaries and a bounded local telemetry
+  outbox; no raw logs and no upload transport are enabled.
 
-IceCrow does **not** automate gameplay, click Hearthstone controls, install global keyboard hooks, call an AI service, or require a backend.
+IceCrow does **not** automate gameplay, click Hearthstone controls, install global keyboard hooks, call an AI service, contain a shared Manacost token, or require a backend.
 
 ## Architecture
 
@@ -39,11 +45,20 @@ flowchart TD
     App --> Windows["IceCrow.Platform.Windows<br/>Win32 integration"]
     App --> Recording["IceCrow.Recording<br/>capture and offline replay"]
     App --> Live["IceCrow.Live<br/>live orchestration"]
+    App --> Presentation["IceCrow.Presentation<br/>immutable UI projection"]
+    App --> Data["IceCrow.Hearthstone.Data<br/>offline card metadata"]
+    App --> Api["IceCrow.Infrastructure.ManacostApi<br/>optional public sync/cache"]
+    App --> Decks["IceCrow.Hearthstone.Decks<br/>canonical package adapter"]
+    App --> Telemetry["IceCrow.Telemetry<br/>opt-in summary outbox"]
     ClientState["IceCrow.Hearthstone.ClientState<br/>optional current UI contracts"]
 
-    Overlay --> BG["IceCrow.Battlegrounds<br/>lobby state"]
-    Overlay --> Memory["IceCrow.Battlegrounds.Memory<br/>immutable history"]
+    Overlay --> Presentation
     Overlay --> Windows
+    Presentation --> Tracking
+    Presentation --> Data
+    Api --> Data
+    Decks --> Data
+    Telemetry --> Tracking
 
     Recording --> Tracking["IceCrow.Tracking<br/>authoritative match engine"]
     Recording --> Protocol["IceCrow.Hearthstone.Protocol<br/>normalized events"]
@@ -63,20 +78,25 @@ flowchart TD
 
 | Project | Responsibility | Allowed IceCrow dependencies |
 | --- | --- | --- |
-| `IceCrow.App` | WPF composition root and process lifetime | `Overlay`, `Platform.Windows`, `Hearthstone.Logs`, `Live`, `Recording` |
+| `IceCrow.App` | WPF composition root and process lifetime | UI/platform, optional data, decks, telemetry, live, and recording boundaries |
 | `IceCrow.Platform.Windows` | Win32 declarations, Hearthstone HWND discovery/tracking, input modifier state | None |
-| `IceCrow.Overlay` | Overlay windows and presentation state | `Battlegrounds`, `Battlegrounds.Memory`, `Platform.Windows` |
+| `IceCrow.Overlay` | WPF overlay windows, interaction, and native-window hosting | `Presentation`, `Platform.Windows` |
+| `IceCrow.Presentation` | WPF-free immutable projection from tracking snapshots and local metadata to UI values | `Hearthstone.Data`, `Tracking` |
 | `IceCrow.Hearthstone.Logs` | `log.config` management and bounded raw log input | None |
 | `IceCrow.Hearthstone.Protocol` | Defensive parsing into normalized game events | None |
 | `IceCrow.Hearthstone.ClientState` | Optional immutable current-client contracts and semantic change detection; no HearthMirror dependency | None |
+| `IceCrow.Hearthstone.Data` | IceCrow-owned static card/hero contracts, CardId/DBF indexes, and local BG filters | None |
+| `IceCrow.Hearthstone.Decks` | IceCrow deck models and `ManacostLabs.Deckstrings` adapter | `Hearthstone.Data` |
 | `IceCrow.Hearthstone.Entities` | Canonical mutable match entities and immutable snapshots | `Hearthstone.Protocol` |
 | `IceCrow.Battlegrounds` | Deterministic Battlegrounds state reduction | `Hearthstone.Entities`, `Hearthstone.Protocol` |
 | `IceCrow.Battlegrounds.Memory` | Immutable opponent boards and lobby timelines | `Battlegrounds` |
 | `IceCrow.Tracking` | Authoritative event-to-state orchestration shared by live, replay, and integration paths | `Hearthstone.Protocol`, `Hearthstone.Entities`, `Battlegrounds`, `Battlegrounds.Memory` |
 | `IceCrow.Live` | Background parsing, conservative BG lifecycle detection, and live coordination | `Hearthstone.Logs`, `Hearthstone.Protocol`, `Tracking`; no WPF/Win32 |
 | `IceCrow.Recording` | Versioned capture, replay navigation, and replay-specific resource budgets | `Tracking` and its typed domain contracts; no WPF, HWND, or log input |
+| `IceCrow.Infrastructure.ManacostApi` | Optional public HTTPS synchronization, atomic data cache, and bounded image cache | `Hearthstone.Data` |
+| `IceCrow.Telemetry` | Consent-aware match summaries and bounded persistent outbox | `Tracking` |
 
-Architecture tests enforce this graph, reject cycles, prevent WPF/Win32 APIs from entering domain projects, and limit every ordinary test project to one direct production-project dependency.
+Architecture tests enforce this graph, reject cycles, prevent WPF/Win32 APIs from entering portable projects, keep developer tools out of runtime dependencies, and limit every ordinary test project to one direct production-project dependency. The maintained design is in [architecture.md](docs/architecture.md); use the [feature extension guide](docs/feature-extension-guide.md) and [error-boundary guide](docs/error-boundaries.md) for new work.
 
 Client state is intentionally separate from the tracking engine. Power.log and
 `TrackingSession` remain authoritative for match history; optional client-state
@@ -105,11 +125,23 @@ Power.log
        -> BattlegroundsReducer
        -> OpponentMemory / LobbyTimeline
   -> immutable TrackingSnapshot
+  -> WPF-free BattlegroundsOverlayViewState
   -> latest-only WPF Dispatcher presentation
-  -> OverlayHost.ApplyBattlegroundsState
+  -> OverlayHost.ApplyViewState
 ```
 
 The same `TrackingSession` consumes normalized events during live processing, direct integration tests, and offline replay. Replays run without Hearthstone, HWNDs, WPF, network access, or real-time delays. Unknown and malformed records update bounded diagnostics but never enter the tracking engine.
+
+Static enrichment follows an independent path:
+
+```text
+public Manacost API -> bounded background download -> validated temporary snapshot
+  -> atomic last-known-good cache -> ICardDatabase -> presentation mapping
+```
+
+Startup and match tracking do not wait for this path. See the
+[data authority](docs/data-authority.md), [API contract](docs/manacost-api-contract.md),
+and [cache design](docs/local-data-cache.md).
 
 ## Requirements
 
@@ -195,7 +227,8 @@ The immediate priorities are intentionally engineering-focused:
 4. Calibrate the new live warning/hard limits against anonymized real-match recordings.
 5. Replace the conservative Power.log-only Battlegrounds mode fallback if a stronger supported client signal becomes available.
 
-Strategy recommendations, simulation, backend services, and card-art infrastructure are outside the current milestone.
+Strategy recommendations, simulation, telemetry server authentication/ingest,
+and a complete card-art UI are outside the current milestone.
 
 ## License
 

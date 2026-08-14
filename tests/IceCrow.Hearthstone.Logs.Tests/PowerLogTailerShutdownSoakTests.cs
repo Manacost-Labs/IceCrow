@@ -2,6 +2,7 @@ using System.Text;
 
 namespace IceCrow.Hearthstone.Logs.Tests;
 
+[Collection(PowerLogTailerTestsGroup.Name)]
 public sealed class PowerLogTailerShutdownSoakTests
 {
     [Fact]

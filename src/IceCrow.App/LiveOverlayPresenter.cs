@@ -1,5 +1,7 @@
 using System.Windows.Threading;
 using IceCrow.Overlay;
+using IceCrow.Hearthstone.Data;
+using IceCrow.Presentation;
 using IceCrow.Tracking;
 
 namespace IceCrow.App;
@@ -9,16 +11,21 @@ internal sealed class LiveOverlayPresenter : IDisposable
     private readonly object _gate = new();
     private readonly OverlayHost _overlayHost;
     private readonly Dispatcher _dispatcher;
+    private readonly ICardDatabase? _cardDatabase;
     private TrackingSnapshot? _pending;
     private bool _dispatchScheduled;
     private bool _disposed;
 
-    public LiveOverlayPresenter(OverlayHost overlayHost, Dispatcher dispatcher)
+    public LiveOverlayPresenter(
+        OverlayHost overlayHost,
+        Dispatcher dispatcher,
+        ICardDatabase? cardDatabase = null)
     {
         ArgumentNullException.ThrowIfNull(overlayHost);
         ArgumentNullException.ThrowIfNull(dispatcher);
         _overlayHost = overlayHost;
         _dispatcher = dispatcher;
+        _cardDatabase = cardDatabase;
     }
 
     public void Publish(TrackingSnapshot snapshot)
@@ -75,9 +82,6 @@ internal sealed class LiveOverlayPresenter : IDisposable
             return;
         }
 
-        _overlayHost.ApplyBattlegroundsState(
-            snapshot.Battlegrounds,
-            snapshot.OpponentMemory,
-            snapshot.LobbyTimeline);
+        _overlayHost.ApplyViewState(BattlegroundsOverlayViewStateFactory.Create(snapshot, _cardDatabase));
     }
 }

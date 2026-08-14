@@ -1,11 +1,16 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Net.Http;
 using System.Text;
 using System.Windows;
+using IceCrow.Hearthstone.Data;
+using IceCrow.Hearthstone.Decks;
 using IceCrow.Hearthstone.Logs;
+using IceCrow.Infrastructure.ManacostApi;
 using IceCrow.Live;
 using IceCrow.Overlay;
+using IceCrow.Telemetry;
 
 namespace IceCrow.App;
 
@@ -19,6 +24,16 @@ public partial class App : Application, IDisposable
     private LiveTrackingCoordinator? _liveTrackingCoordinator;
     private LiveOverlayPresenter? _liveOverlayPresenter;
     private Task? _logPipelineTask;
+    private HttpClient? _manacostHttpClient;
+    private InMemoryCardDatabase? _cardDatabase;
+    private ManacostDataSynchronizer? _dataSynchronizer;
+    private Task? _dataPipelineTask;
+    private TelemetryConsent? _telemetryConsent;
+    private TelemetryOutbox? _telemetryOutbox;
+    private TelemetryPreferencesStore? _telemetryPreferencesStore;
+    private Task? _telemetryPreferencesTask;
+    private Task? _telemetryQueueTask;
+    private long _lastTelemetryRevision = -1;
     private bool _disposed;
 #if DEBUG
     private MainWindow? _developerWindow;
@@ -36,9 +51,30 @@ public partial class App : Application, IDisposable
         _developerDiagnosticsPresenter = new DeveloperDiagnosticsPresenter(_developerWindow);
 #endif
 
+        var localDataDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "IceCrow");
+        _cardDatabase = new InMemoryCardDatabase();
+        _manacostHttpClient = new HttpClient();
+        var dataStore = new JsonHearthstoneDataStore(Path.Combine(localDataDirectory, "data", "hearthstone-data.json"));
+        var datasetClient = new ManacostDatasetClient(_manacostHttpClient);
+        _dataSynchronizer = new ManacostDataSynchronizer(_cardDatabase, dataStore, datasetClient);
+        _dataSynchronizer.StatusChanged += OnManacostDataStatusChanged;
+        _dataPipelineTask = RunDataPipelineAsync(_shutdown.Token);
+
+        _telemetryConsent = new TelemetryConsent();
+        _telemetryOutbox = new TelemetryOutbox(Path.Combine(localDataDirectory, "telemetry", "outbox.json"));
+        _telemetryPreferencesStore = new TelemetryPreferencesStore(
+            Path.Combine(localDataDirectory, "telemetry", "preferences.json"));
+        _telemetryPreferencesTask = LoadTelemetryPreferencesAsync(_shutdown.Token);
+#if DEBUG
+        _developerDiagnosticsPresenter?.PublishDeckstringsStatus(ManacostDeckCodec.PackageVersion, "Ready");
+        _developerDiagnosticsPresenter?.PublishTelemetryStatus(false, 0, null);
+#endif
+
         _overlayHost = new OverlayHost();
         _overlayHost.Start();
-        _liveOverlayPresenter = new LiveOverlayPresenter(_overlayHost, Dispatcher);
+        _liveOverlayPresenter = new LiveOverlayPresenter(_overlayHost, Dispatcher, _cardDatabase);
 
         _logLocator = new HearthstoneLogLocator();
         _logLocator.RecoverableError += ReportRecoverableLogError;
@@ -75,6 +111,38 @@ public partial class App : Application, IDisposable
             }
         }
 
+        if (_dataPipelineTask is not null)
+        {
+            try
+            {
+                _dataPipelineTask.GetAwaiter().GetResult();
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        if (_telemetryPreferencesTask is not null)
+        {
+            try
+            {
+                _telemetryPreferencesTask.GetAwaiter().GetResult();
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+        if (_telemetryQueueTask is not null)
+        {
+            try
+            {
+                _telemetryQueueTask.GetAwaiter().GetResult();
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
         if (_logLocator is not null)
         {
             _logLocator.RecoverableError -= ReportRecoverableLogError;
@@ -91,6 +159,23 @@ public partial class App : Application, IDisposable
         _powerLogTailer = null;
         _liveTrackingCoordinator = null;
         _logPipelineTask = null;
+
+        if (_dataSynchronizer is not null)
+        {
+            _dataSynchronizer.StatusChanged -= OnManacostDataStatusChanged;
+        }
+
+        _dataSynchronizer = null;
+        _cardDatabase = null;
+        _dataPipelineTask = null;
+        _telemetryOutbox?.Dispose();
+        _telemetryOutbox = null;
+        _telemetryConsent = null;
+        _telemetryPreferencesStore = null;
+        _telemetryPreferencesTask = null;
+        _telemetryQueueTask = null;
+        _manacostHttpClient?.Dispose();
+        _manacostHttpClient = null;
 
         _liveOverlayPresenter?.Dispose();
         _liveOverlayPresenter = null;
@@ -156,6 +241,96 @@ public partial class App : Application, IDisposable
         if (update is { StateChanged: true, Snapshot: not null })
         {
             _liveOverlayPresenter?.Publish(update.Snapshot);
+            QueueTelemetryIfEligible(update.Snapshot);
+        }
+    }
+
+    private async Task RunDataPipelineAsync(CancellationToken cancellationToken)
+    {
+        if (_dataSynchronizer is null)
+        {
+            return;
+        }
+
+        await _dataSynchronizer.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        await _dataSynchronizer.RefreshAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private void OnManacostDataStatusChanged(ManacostDataStatus status)
+    {
+#if DEBUG
+        _developerDiagnosticsPresenter?.PublishManacostDataStatus(status);
+#else
+        Debug.WriteLine($"Manacost data: {status.DataVersion ?? "no cache"}; offline={status.OfflineMode}");
+#endif
+    }
+
+    private void QueueTelemetryIfEligible(IceCrow.Tracking.TrackingSnapshot snapshot)
+    {
+        if (_telemetryConsent?.IsEnabled != true ||
+            _telemetryOutbox is null ||
+            snapshot.Revision == Interlocked.Read(ref _lastTelemetryRevision))
+        {
+            return;
+        }
+
+        var summary = MatchSummaryFactory.Create(
+            snapshot,
+            typeof(App).Assembly.GetName().Version?.ToString() ?? "0.0.0");
+        if (summary is null)
+        {
+            return;
+        }
+
+        Interlocked.Exchange(ref _lastTelemetryRevision, snapshot.Revision);
+        _telemetryQueueTask = QueueTelemetryCoreAsync(summary, _shutdown.Token);
+    }
+
+    private async Task QueueTelemetryCoreAsync(MatchSummary summary, CancellationToken cancellationToken)
+    {
+        if (_telemetryOutbox is null || _telemetryConsent is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _telemetryOutbox.EnqueueAsync(summary, _telemetryConsent, cancellationToken).ConfigureAwait(false);
+#if DEBUG
+            var count = await _telemetryOutbox.CountAsync(cancellationToken).ConfigureAwait(false);
+            _developerDiagnosticsPresenter?.PublishTelemetryStatus(
+                _telemetryConsent.IsEnabled,
+                count,
+                null);
+#endif
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            Debug.WriteLine($"Telemetry outbox unavailable: {exception.Message}");
+        }
+    }
+
+    private async Task LoadTelemetryPreferencesAsync(CancellationToken cancellationToken)
+    {
+        if (_telemetryPreferencesStore is null || _telemetryConsent is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var preferences = await _telemetryPreferencesStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+            _telemetryConsent.SetEnabled(preferences.ShareAnonymousGameplayStatistics);
+#if DEBUG
+            var count = _telemetryOutbox is null
+                ? 0
+                : await _telemetryOutbox.CountAsync(cancellationToken).ConfigureAwait(false);
+            _developerDiagnosticsPresenter?.PublishTelemetryStatus(_telemetryConsent.IsEnabled, count, null);
+#endif
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            Debug.WriteLine($"Telemetry preferences unavailable; consent remains off: {exception.Message}");
         }
     }
 

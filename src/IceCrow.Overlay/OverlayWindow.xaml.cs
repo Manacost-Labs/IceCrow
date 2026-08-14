@@ -5,9 +5,8 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
-using IceCrow.Battlegrounds;
-using IceCrow.Battlegrounds.Memory;
 using IceCrow.Platform.Windows;
+using IceCrow.Presentation;
 
 namespace IceCrow.Overlay;
 
@@ -65,18 +64,14 @@ public sealed partial class OverlayWindow : Window
         }
     }
 
-    public void ApplyBattlegroundsState(
-        BattlegroundsState state,
-        OpponentMemory memory,
-        LobbyTimelineSnapshot? timeline = null)
+    public void ApplyViewState(BattlegroundsOverlayViewState viewState)
     {
-        ArgumentNullException.ThrowIfNull(state);
-        ArgumentNullException.ThrowIfNull(memory);
+        ArgumentNullException.ThrowIfNull(viewState);
         Dispatcher.VerifyAccess();
 
-        var tiles = OpponentLobbyTileViewState.Create(state, memory, timeline);
+        var tiles = viewState.Opponents;
         LobbyTiles.ItemsSource = tiles;
-        LobbyTiles.Visibility = state.IsActive && state.Lobby.Count > 1
+        LobbyTiles.Visibility = viewState.ShowLobby
             ? Visibility.Visible
             : Visibility.Collapsed;
 
@@ -225,7 +220,7 @@ public sealed partial class OverlayWindow : Window
     {
         _ = eventArgs;
         if (_interactionMode != OverlayInteractionMode.Interactive ||
-            sender is not FrameworkElement { DataContext: OpponentLobbyTileViewState tile })
+            sender is not FrameworkElement { DataContext: OpponentOverlayViewState tile })
         {
             return;
         }
@@ -247,7 +242,7 @@ public sealed partial class OverlayWindow : Window
     private void OnOpponentTileClicked(object sender, MouseButtonEventArgs eventArgs)
     {
         if (_interactionMode != OverlayInteractionMode.Interactive ||
-            sender is not FrameworkElement { DataContext: OpponentLobbyTileViewState tile })
+            sender is not FrameworkElement { DataContext: OpponentOverlayViewState tile })
         {
             return;
         }
@@ -322,7 +317,7 @@ public sealed partial class OverlayWindow : Window
     private static void RefreshDetailPanel(
         FrameworkElement panel,
         int? playerId,
-        IReadOnlyList<OpponentLobbyTileViewState> tiles,
+        IReadOnlyList<OpponentOverlayViewState> tiles,
         Action clearId)
     {
         if (playerId is not int id)
