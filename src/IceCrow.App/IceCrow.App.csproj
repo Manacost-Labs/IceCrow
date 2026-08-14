@@ -13,6 +13,16 @@
     <ProjectReference Include="..\IceCrow.Recording\IceCrow.Recording.csproj" />
   </ItemGroup>
 
+  <!--
+    The developer design preview is a Debug-only surface and must not ship.
+    Removing both the page and its code-behind keeps the Release binary free of
+    preview XAML, sample data, and the generated partial class.
+  -->
+  <ItemGroup Condition="'$(Configuration)' != 'Debug'">
+    <Page Remove="DesignPreview\**" />
+    <Compile Remove="DesignPreview\**" />
+  </ItemGroup>
+
   <PropertyGroup>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <OutputType>WinExe</OutputType>

@@ -12,6 +12,12 @@ outputs; do not turn `TrackingSession` into a feature registry. Keep all
 external collections and work bounded, snapshots immutable, optional APIs
 failure-isolated, and native/WPF code in their designated boundaries.
 
+For UI work read `docs/design-system.md`, `docs/design-tokens.md`, and
+`docs/ui-performance-rules.md`. Use the design tokens in
+`src/IceCrow.Overlay/Design`; never hardcode colours, add blur, or start a
+per-frame loop. Iterate visually through the Debug-only design preview in
+`src/IceCrow.App/DesignPreview`.
+
 Do not add `Common`, `Utils`, a service locator, mediator, global event bus, or
 new package/project without dependency evidence. Add a regression test for
 every Hearthstone edge case. Run the standard Debug and Release quality gate,

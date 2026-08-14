@@ -1,0 +1,80 @@
+<!--
+    Semantic brushes. Controls consume these names, never a colour value.
+    Every brush is frozen: they are shared, immutable, and cheap to render.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                    xmlns:po="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options"
+                    mc:Ignorable="po">
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Colors.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <SolidColorBrush x:Key="IceCrow.Brush.Surface"
+                     po:Freeze="True"
+                     Color="{StaticResource IceCrow.Color.Surface}" />
+    <SolidColorBrush x:Key="IceCrow.Brush.SurfaceRaised"
+                     po:Freeze="True"
+                     Color="{StaticResource IceCrow.Color.SurfaceRaised}" />
+    <SolidColorBrush x:Key="IceCrow.Brush.SurfaceHover"
+                     po:Freeze="True"
+                     Color="{StaticResource IceCrow.Color.SurfaceHover}" />
+    <SolidColorBrush x:Key="IceCrow.Brush.SurfaceSelected"
+                     po:Freeze="True"
+                     Color="{StaticResource IceCrow.Color.SurfaceSelected}" />
+    <SolidColorBrush x:Key="IceCrow.Brush.PanelSurface"
+                     po:Freeze="True"
+                     Color="{StaticResource IceCrow.Color.PanelSurface}" />
+    <SolidColorBrush x:Key="IceCrow.Brush.PanelSurfaceStrong"
+                     po:Freeze="True"
+                     Color="{StaticResource IceCrow.Color.PanelSurfaceStrong}" />
+
+    <SolidColorBrush x:Key="IceCrow.Brush.Border"
+                     po:Freeze="True"
+                     Color="{StaticResource IceCrow.Color.Border}" />
+    <SolidColorBrush x:Key="IceCrow.Brush.BorderStrong"
+                     po:Freeze="True"
+                     Color="{StaticResource IceCrow.Color.BorderStrong}" />
+
+    <SolidColorBrush x:Key="IceCrow.Brush.TextPrimary"
+                     po:Freeze="True"
+                     Color="{StaticResource IceCrow.Color.TextPrimary}" />
+    <SolidColorBrush x:Key="IceCrow.Brush.TextSecondary"
+                     po:Freeze="True"
+                     Color="{StaticResource IceCrow.Color.TextSecondary}" />
+    <SolidColorBrush x:Key="IceCrow.Brush.TextMuted"
+                     po:Freeze="True"
+                     Color="{StaticResource IceCrow.Color.TextMuted}" />
+
+    <SolidColorBrush x:Key="IceCrow.Brush.Accent"
+                     po:Freeze="True"
+                     Color="{StaticResource IceCrow.Color.Accent}" />
+    <SolidColorBrush x:Key="IceCrow.Brush.AccentStrong"
+                     po:Freeze="True"
+                     Color="{StaticResource IceCrow.Color.AccentStrong}" />
+    <SolidColorBrush x:Key="IceCrow.Brush.AccentSoft"
+                     po:Freeze="True"
+                     Color="{StaticResource IceCrow.Color.AccentSoft}" />
+
+    <SolidColorBrush x:Key="IceCrow.Brush.Positive"
+                     po:Freeze="True"
+                     Color="{StaticResource IceCrow.Color.Positive}" />
+    <SolidColorBrush x:Key="IceCrow.Brush.PositiveSoft"
+                     po:Freeze="True"
+                     Color="{StaticResource IceCrow.Color.PositiveSoft}" />
+    <SolidColorBrush x:Key="IceCrow.Brush.Warning"
+                     po:Freeze="True"
+                     Color="{StaticResource IceCrow.Color.Warning}" />
+    <SolidColorBrush x:Key="IceCrow.Brush.WarningSoft"
+                     po:Freeze="True"
+                     Color="{StaticResource IceCrow.Color.WarningSoft}" />
+    <SolidColorBrush x:Key="IceCrow.Brush.Danger"
+                     po:Freeze="True"
+                     Color="{StaticResource IceCrow.Color.Danger}" />
+    <SolidColorBrush x:Key="IceCrow.Brush.DangerSoft"
+                     po:Freeze="True"
+                     Color="{StaticResource IceCrow.Color.DangerSoft}" />
+
+</ResourceDictionary>

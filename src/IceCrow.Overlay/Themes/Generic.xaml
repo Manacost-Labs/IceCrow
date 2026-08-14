@@ -1,0 +1,10 @@
+<!--
+    Default control styles for the IceCrow.Overlay assembly. WPF resolves the
+    IcePanel/IceBadge/IceStat/OpponentRow/MinionTile default styles through here.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="pack://application:,,,/IceCrow.Overlay;component/Design/IceCrowTheme.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+</ResourceDictionary>

@@ -1,7 +1,18 @@
-﻿<Application x:Class="IceCrow.App.App"
+<Application x:Class="IceCrow.App.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
+        <ResourceDictionary>
+            <!--
+                The IceCrow design system is merged once at application scope so
+                every window in this process resolves tokens without repeating
+                the dictionary. The overlay library merges it separately because
+                it must also work when hosted without this application.
+            -->
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/IceCrow.Overlay;component/Design/IceCrowTheme.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -1,0 +1,12 @@
+<!--
+    Single entry point for the IceCrow visual system.
+
+    Merge exactly this dictionary. The chain is deliberately shallow - tokens
+    then components - rather than one dictionary per screen.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="pack://application:,,,/IceCrow.Overlay;component/Design/Components.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+</ResourceDictionary>

@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -5,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
+using IceCrow.Overlay.Controls;
 using IceCrow.Platform.Windows;
 using IceCrow.Presentation;
 
@@ -19,23 +21,62 @@ public sealed partial class OverlayWindow : Window
     private const int HtTransparent = -1;
     private const string InteractiveElementTag = "IceCrowInteractive";
 
+    /// <summary>Player id of the pinned opponent, or zero. Drives the selection marker.</summary>
+    public static readonly DependencyProperty PinnedPlayerIdProperty =
+        DependencyProperty.Register(
+            nameof(PinnedPlayerId),
+            typeof(int),
+            typeof(OverlayWindow),
+            new PropertyMetadata(0));
+
+    private readonly ObservableCollection<OpponentOverlayViewState> _rows = [];
+    private readonly OverlayImageCache _imageCache;
+
     private HwndSource? _windowSource;
     private nint _windowHandle;
     private OverlayInteractionMode _interactionMode = OverlayInteractionMode.ClickThrough;
     private OverlayInteractionModifier _configuredModifier = OverlayInteractionModifier.Alt;
+    private OverlayRenderingSettings _renderingSettings = OverlayRenderingSettings.Default;
+    private OverlayLayoutMode _layoutMode = OverlayLayoutMode.Regular;
+    private BattlegroundsOverlayViewState _viewState = BattlegroundsOverlayViewState.Empty;
     private int? _hoveredPlayerId;
-    private int? _pinnedPlayerId;
 
     public OverlayWindow()
+        : this(new OverlayRenderDiagnostics())
     {
+    }
+
+    public OverlayWindow(OverlayRenderDiagnostics diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostics);
+        Diagnostics = diagnostics;
+        _imageCache = new OverlayImageCache(diagnostics);
+
         InitializeComponent();
+
+        LobbyRows.ItemsSource = _rows;
+        OverlayVisuals.SetImageCache(this, _imageCache);
+        ApplyRenderingSettings(_renderingSettings);
+        ApplyLayoutMode(_layoutMode);
         SetConfiguredModifier(_configuredModifier);
     }
 
     public event EventHandler<OverlayInteractionModifierChangedEventArgs>?
         InteractionModifierRequested;
 
+    public OverlayRenderDiagnostics Diagnostics { get; }
+
     public OverlayInteractionMode InteractionMode => _interactionMode;
+
+    public OverlayRenderingSettings RenderingSettings => _renderingSettings;
+
+    public OverlayLayoutMode LayoutMode => _layoutMode;
+
+    public int PinnedPlayerId
+    {
+        get => (int)GetValue(PinnedPlayerIdProperty);
+        private set => SetValue(PinnedPlayerIdProperty, value);
+    }
 
     public void ApplyState(OverlayState state)
     {
@@ -53,10 +94,11 @@ public sealed partial class OverlayWindow : Window
         Top = state.Bounds.Top;
         Width = state.Bounds.Width;
         Height = state.Bounds.Height;
-        ConnectionText.Text = state.IsConnected ? "Hearthstone Connected" : string.Empty;
+        ConnectionText.Text = state.IsConnected ? "Hearthstone connected" : string.Empty;
         SizeText.Text = string.Create(
             CultureInfo.InvariantCulture,
             $"{state.NativeWidth} × {state.NativeHeight}");
+        ApplyLayoutMode(OverlayLayout.FromClientWidth(state.Bounds.Width));
 
         if (!IsVisible)
         {
@@ -64,25 +106,45 @@ public sealed partial class OverlayWindow : Window
         }
     }
 
+    /// <summary>
+    /// Applies a projected view state. Value-equal updates are dropped, and only
+    /// the lobby rows whose value changed are replaced, so a snapshot that moved
+    /// no visible information costs nothing in WPF.
+    /// </summary>
     public void ApplyViewState(BattlegroundsOverlayViewState viewState)
     {
         ArgumentNullException.ThrowIfNull(viewState);
         Dispatcher.VerifyAccess();
 
-        var tiles = viewState.Opponents;
-        LobbyTiles.ItemsSource = tiles;
-        LobbyTiles.Visibility = viewState.ShowLobby
+        if (viewState.Equals(_viewState))
+        {
+            Diagnostics.RecordViewStateSkipped();
+            return;
+        }
+
+        var previous = _viewState;
+        _viewState = viewState;
+        Diagnostics.RecordViewStateApplied();
+
+        MergeRows(viewState.Opponents);
+        LobbyRows.Visibility = viewState.ShowLobby
             ? Visibility.Visible
             : Visibility.Collapsed;
 
-        RefreshDetailPanel(HoverOpponentPanel, _hoveredPlayerId, tiles, clearId: () =>
+        RefreshDetailPanel(HoverOpponentPanel, _hoveredPlayerId, viewState, () => _hoveredPlayerId = null);
+        RefreshDetailPanel(PinnedOpponentPanel, NullablePinnedPlayerId, viewState, () => PinnedPlayerId = 0);
+
+        if (_renderingSettings.AllowEventPulse && HasNewTriple(previous, viewState))
         {
-            _hoveredPlayerId = null;
-        });
-        RefreshDetailPanel(PinnedOpponentPanel, _pinnedPlayerId, tiles, clearId: () =>
-        {
-            _pinnedPlayerId = null;
-        });
+            StatusPanel.PulseSignature(Diagnostics);
+        }
+    }
+
+    public void SetRenderingSettings(OverlayRenderingSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        Dispatcher.VerifyAccess();
+        ApplyRenderingSettings(settings);
     }
 
     public void SetInteractionMode(OverlayInteractionMode mode)
@@ -167,6 +229,8 @@ public sealed partial class OverlayWindow : Window
         base.OnClosed(e);
     }
 
+    private int? NullablePinnedPlayerId => PinnedPlayerId == 0 ? null : PinnedPlayerId;
+
     private nint WindowProcedure(
         nint windowHandle,
         int message,
@@ -216,58 +280,152 @@ public sealed partial class OverlayWindow : Window
         return false;
     }
 
-    private void OnOpponentTileMouseEnter(object sender, MouseEventArgs eventArgs)
+    /// <summary>
+    /// Replaces only the rows whose value changed. An eight-player lobby does not
+    /// need virtualization, but it must not rebuild every container per snapshot.
+    /// </summary>
+    private void MergeRows(IReadOnlyList<OpponentOverlayViewState> opponents)
     {
-        _ = eventArgs;
-        if (_interactionMode != OverlayInteractionMode.Interactive ||
-            sender is not FrameworkElement { DataContext: OpponentOverlayViewState tile })
+        for (var index = 0; index < opponents.Count; index++)
+        {
+            if (index >= _rows.Count)
+            {
+                _rows.Add(opponents[index]);
+                Diagnostics.RecordOpponentRowReplaced();
+                continue;
+            }
+
+            if (!_rows[index].Equals(opponents[index]))
+            {
+                _rows[index] = opponents[index];
+                Diagnostics.RecordOpponentRowReplaced();
+            }
+        }
+
+        while (_rows.Count > opponents.Count)
+        {
+            _rows.RemoveAt(_rows.Count - 1);
+        }
+    }
+
+    private static void RefreshDetailPanel(
+        IcePanel panel,
+        int? playerId,
+        BattlegroundsOverlayViewState viewState,
+        Action clearId)
+    {
+        if (playerId is not int id)
         {
             return;
         }
 
-        _hoveredPlayerId = tile.PlayerId;
-        HoverOpponentPanel.DataContext = tile;
-        HoverOpponentPanel.Visibility = Visibility.Visible;
+        var opponent = viewState.Opponents.FirstOrDefault(candidate => candidate.PlayerId == id);
+        if (opponent is null)
+        {
+            HideDetailPanel(panel);
+            clearId();
+            return;
+        }
+
+        panel.DataContext = opponent;
     }
 
-    private void OnOpponentTileMouseLeave(object sender, MouseEventArgs eventArgs)
+    private void ShowDetailPanel(IcePanel panel, OpponentOverlayViewState opponent)
+    {
+        panel.DataContext = opponent;
+        if (panel.Visibility == Visibility.Visible)
+        {
+            return;
+        }
+
+        panel.Visibility = Visibility.Visible;
+        if (_renderingSettings.AllowEntranceAnimation)
+        {
+            panel.PlayEntrance(Diagnostics);
+        }
+    }
+
+    private static void HideDetailPanel(IcePanel panel)
+    {
+        panel.Visibility = Visibility.Collapsed;
+        panel.DataContext = null;
+    }
+
+    private static bool HasNewTriple(
+        BattlegroundsOverlayViewState previous,
+        BattlegroundsOverlayViewState current)
+    {
+        foreach (var opponent in current.Opponents)
+        {
+            var before = previous.Opponents
+                .FirstOrDefault(candidate => candidate.PlayerId == opponent.PlayerId);
+            if (before is not null && opponent.Triples > before.Triples)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void OnOpponentRowMouseEnter(object sender, MouseEventArgs eventArgs)
+    {
+        _ = eventArgs;
+        if (_interactionMode != OverlayInteractionMode.Interactive ||
+            sender is not FrameworkElement { DataContext: OpponentOverlayViewState opponent })
+        {
+            return;
+        }
+
+        _hoveredPlayerId = opponent.PlayerId;
+        ShowDetailPanel(HoverOpponentPanel, opponent);
+    }
+
+    private void OnOpponentRowMouseLeave(object sender, MouseEventArgs eventArgs)
     {
         _ = sender;
         _ = eventArgs;
         _hoveredPlayerId = null;
-        HoverOpponentPanel.DataContext = null;
-        HoverOpponentPanel.Visibility = Visibility.Collapsed;
+        HideDetailPanel(HoverOpponentPanel);
     }
 
-    private void OnOpponentTileClicked(object sender, MouseButtonEventArgs eventArgs)
+    private void OnOpponentRowClicked(object sender, MouseButtonEventArgs eventArgs)
     {
         if (_interactionMode != OverlayInteractionMode.Interactive ||
-            sender is not FrameworkElement { DataContext: OpponentOverlayViewState tile })
+            sender is not FrameworkElement { DataContext: OpponentOverlayViewState opponent })
         {
             return;
         }
 
-        _pinnedPlayerId = tile.PlayerId;
-        PinnedOpponentPanel.DataContext = tile;
-        PinnedOpponentPanel.Visibility = Visibility.Visible;
+        PinnedPlayerId = opponent.PlayerId;
+        ShowDetailPanel(PinnedOpponentPanel, opponent);
         eventArgs.Handled = true;
     }
 
     private void OnClosePinnedClicked(object sender, RoutedEventArgs eventArgs)
     {
         _ = sender;
-        _pinnedPlayerId = null;
-        PinnedOpponentPanel.DataContext = null;
-        PinnedOpponentPanel.Visibility = Visibility.Collapsed;
+        PinnedPlayerId = 0;
+        HideDetailPanel(PinnedOpponentPanel);
         eventArgs.Handled = true;
     }
 
     private void OnSettingsClicked(object sender, RoutedEventArgs eventArgs)
     {
         _ = sender;
-        SettingsPanel.Visibility = SettingsPanel.Visibility == Visibility.Visible
-            ? Visibility.Collapsed
-            : Visibility.Visible;
+        if (SettingsPanel.Visibility == Visibility.Visible)
+        {
+            SettingsPanel.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            SettingsPanel.Visibility = Visibility.Visible;
+            if (_renderingSettings.AllowEntranceAnimation)
+            {
+                SettingsPanel.PlayEntrance(Diagnostics);
+            }
+        }
+
         eventArgs.Handled = true;
     }
 
@@ -275,6 +433,15 @@ public sealed partial class OverlayWindow : Window
     {
         _ = sender;
         SettingsPanel.Visibility = Visibility.Collapsed;
+        eventArgs.Handled = true;
+    }
+
+    private void OnPerformanceModeClicked(object sender, RoutedEventArgs eventArgs)
+    {
+        _ = sender;
+        ApplyRenderingSettings(_renderingSettings.PerformanceMode
+            ? OverlayRenderingSettings.Default
+            : OverlayRenderingSettings.Performance);
         eventArgs.Handled = true;
     }
 
@@ -296,6 +463,37 @@ public sealed partial class OverlayWindow : Window
         eventArgs.Handled = true;
     }
 
+    private void ApplyRenderingSettings(OverlayRenderingSettings settings)
+    {
+        _renderingSettings = settings;
+        OverlayVisuals.SetEffectsEnabled(this, !settings.PerformanceMode);
+
+        StatusPanel.HasElevation = settings.AllowPanelShadow;
+        HoverOpponentPanel.HasElevation = settings.AllowPanelShadow;
+        PinnedOpponentPanel.HasElevation = settings.AllowPanelShadow;
+        SettingsPanel.HasElevation = settings.AllowPanelShadow;
+        InteractionToolbar.HasElevation = settings.AllowPanelShadow;
+
+        PerformanceModeButton.Content = settings.PerformanceMode
+            ? "Performance mode: on"
+            : "Performance mode: off";
+    }
+
+    private void ApplyLayoutMode(OverlayLayoutMode mode)
+    {
+        _layoutMode = mode;
+        OverlayVisuals.SetLayoutMode(this, mode);
+
+        var detailWidth = OverlayLayout.DetailPanelWidth(mode);
+        HoverOpponentPanel.Width = detailWidth;
+        PinnedOpponentPanel.Width = detailWidth;
+        HoverOpponentPanel.Margin = new Thickness(
+            OverlayLayout.OpponentRowWidth(mode) + 32,
+            20,
+            0,
+            0);
+    }
+
     private void UpdateInteractionVisuals()
     {
         var interactive = _interactionMode == OverlayInteractionMode.Interactive;
@@ -309,32 +507,8 @@ public sealed partial class OverlayWindow : Window
         }
 
         SettingsPanel.Visibility = Visibility.Collapsed;
-        HoverOpponentPanel.Visibility = Visibility.Collapsed;
-        HoverOpponentPanel.DataContext = null;
+        HideDetailPanel(HoverOpponentPanel);
         _hoveredPlayerId = null;
-    }
-
-    private static void RefreshDetailPanel(
-        FrameworkElement panel,
-        int? playerId,
-        IReadOnlyList<OpponentOverlayViewState> tiles,
-        Action clearId)
-    {
-        if (playerId is not int id)
-        {
-            return;
-        }
-
-        var tile = tiles.FirstOrDefault(candidate => candidate.PlayerId == id);
-        if (tile is null)
-        {
-            panel.DataContext = null;
-            panel.Visibility = Visibility.Collapsed;
-            clearId();
-            return;
-        }
-
-        panel.DataContext = tile;
     }
 
     private static string GetModifierDisplayName(OverlayInteractionModifier modifier) =>

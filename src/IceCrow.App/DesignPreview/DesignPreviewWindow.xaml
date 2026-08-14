@@ -1,0 +1,142 @@
+<Window x:Class="IceCrow.App.DesignPreview.DesignPreviewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:IceCrow.Overlay.Controls;assembly=IceCrow.Overlay"
+        Title="IceCrow — Design preview"
+        Width="1100"
+        Height="760"
+        Background="{StaticResource IceCrow.Brush.Surface}"
+        UseLayoutRounding="True"
+        WindowStartupLocation="CenterScreen">
+    <DockPanel Margin="20">
+        <StackPanel DockPanel.Dock="Top"
+                    Margin="0,0,0,16"
+                    Orientation="Horizontal">
+            <TextBlock VerticalAlignment="Center"
+                       Style="{StaticResource IceCrow.Text.HeroTitle}"
+                       Text="ICECROW DESIGN PREVIEW" />
+            <Button x:Name="PerformanceModeButton"
+                    Margin="24,0,8,0"
+                    Click="OnTogglePerformanceMode"
+                    Content="Performance mode: off"
+                    Style="{StaticResource IceCrow.Style.Button}" />
+            <Button x:Name="LayoutModeButton"
+                    Click="OnToggleLayoutMode"
+                    Content="Layout: Regular"
+                    Style="{StaticResource IceCrow.Style.Button}" />
+            <TextBlock Margin="16,0,0,0"
+                       VerticalAlignment="Center"
+                       Style="{StaticResource IceCrow.Text.Caption}"
+                       Text="Hover any row or button to see the hover state." />
+        </StackPanel>
+
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Margin="0,0,0,8"
+                           Style="{StaticResource IceCrow.Text.SectionTitle}"
+                           Text="Surfaces" />
+                <StackPanel Margin="0,0,0,24" Orientation="Horizontal">
+                    <controls:IcePanel Width="240"
+                                       Margin="0,0,12,0"
+                                       Header="Plain panel">
+                        <TextBlock Style="{StaticResource IceCrow.Text.Label}"
+                                   Text="Border only. No shadow, no blur."
+                                   TextWrapping="Wrap" />
+                    </controls:IcePanel>
+                    <controls:IcePanel x:Name="SignaturePanel"
+                                       Width="240"
+                                       Margin="0,0,12,0"
+                                       Header="Signature panel"
+                                       IsSignature="True">
+                        <TextBlock Style="{StaticResource IceCrow.Text.Label}"
+                                   Text="The angular ice-cut notch is the only brand decoration."
+                                   TextWrapping="Wrap" />
+                    </controls:IcePanel>
+                    <controls:IcePanel x:Name="ElevatedPanel"
+                                       Width="240"
+                                       HasElevation="True"
+                                       Header="Floating panel">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource IceCrow.Text.Label}"
+                                       Text="One small shadow. Cleared in Performance Mode."
+                                       TextWrapping="Wrap" />
+                            <Button Margin="0,8,0,0"
+                                    HorizontalAlignment="Left"
+                                    Click="OnPulseSignature"
+                                    Content="Pulse signature"
+                                    Style="{StaticResource IceCrow.Style.Button}" />
+                        </StackPanel>
+                    </controls:IcePanel>
+                </StackPanel>
+
+                <TextBlock Margin="0,0,0,8"
+                           Style="{StaticResource IceCrow.Text.SectionTitle}"
+                           Text="Badges" />
+                <StackPanel Margin="0,0,0,24" Orientation="Horizontal">
+                    <controls:IceBadge Margin="0,0,8,0" Text="T5" />
+                    <controls:IceBadge Margin="0,0,8,0"
+                                       Text="T6"
+                                       Tone="Accent" />
+                    <controls:IceBadge Margin="0,0,8,0"
+                                       Text="TRIPLE"
+                                       Tone="Positive" />
+                    <controls:IceBadge Margin="0,0,8,0"
+                                       Text="STALE"
+                                       Tone="Warning" />
+                    <controls:IceBadge Text="LETHAL"
+                                       Tone="Danger" />
+                </StackPanel>
+
+                <TextBlock Margin="0,0,0,8"
+                           Style="{StaticResource IceCrow.Text.SectionTitle}"
+                           Text="Buttons and stats" />
+                <StackPanel Margin="0,0,0,24" Orientation="Horizontal">
+                    <Button Margin="0,0,8,0"
+                            Content="Normal"
+                            Style="{StaticResource IceCrow.Style.Button}" />
+                    <Button Margin="0,0,24,0"
+                            Content="Disabled"
+                            IsEnabled="False"
+                            Style="{StaticResource IceCrow.Style.Button}" />
+                    <controls:IceStat Margin="0,0,24,0"
+                                      Label="Health"
+                                      Value="28 HP" />
+                    <controls:IceStat Margin="0,0,24,0"
+                                      Label="Tavern tier"
+                                      Value="T5" />
+                    <controls:IceStat Label="Triples" Value="2" />
+                </StackPanel>
+
+                <TextBlock Margin="0,0,0,8"
+                           Style="{StaticResource IceCrow.Text.SectionTitle}"
+                           Text="Lobby rows" />
+                <StackPanel x:Name="RowGallery"
+                            Margin="0,0,0,24"
+                            Orientation="Horizontal" />
+
+                <TextBlock Margin="0,0,0,8"
+                           Style="{StaticResource IceCrow.Text.SectionTitle}"
+                           Text="Minion tiles (art unavailable — placeholder state)" />
+                <ItemsControl x:Name="TileGallery" Margin="0,0,0,24">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <controls:MinionTile ViewState="{Binding}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Margin="0,0,0,8"
+                           Style="{StaticResource IceCrow.Text.SectionTitle}"
+                           Text="Opponent Memory detail" />
+                <StackPanel x:Name="DetailGallery"
+                            Margin="0,0,0,24"
+                            Orientation="Horizontal" />
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

@@ -48,6 +48,17 @@ about +2% versus single-run before values), which demonstrates why these
 diagnostics are not thresholds. No algorithmic path or retained-state budget
 changed, and the full quality/soak evidence remains the regression authority.
 
+## Overlay rendering
+
+Overlay cost has its own budget, rules, and manual procedure. See
+[UI performance rules](ui-performance-rules.md) and the
+[UI performance test plan](ui-performance-test-plan.md). The short version: the
+overlay has no render loop, no runtime blur, at most one small shadow per
+floating panel, only finite animations, and it drops a view-state update whose
+value did not change. `OverlayRenderDiagnostics` exposes bounded counters in the
+Debug developer window. Idle CPU and steady-state memory still have no
+trustworthy baseline; capture them during the real-client acceptance run.
+
 ## Hot-path policy
 
 - Parse once into normalized events; never re-read a multi-megabyte log on each

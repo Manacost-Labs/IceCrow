@@ -58,7 +58,7 @@ immutable values and therefore does not interpret game state.
 | Infrastructure | `Live`, `Recording`, `Platform.Windows` | Orchestrate live input, replay files, and native Windows integration. |
 | Optional data infrastructure | `Infrastructure.ManacostApi` | Public HTTPS sync, last-known-good snapshots, and image disk cache; never required for tracking. |
 | Static/deck/telemetry contracts | `Hearthstone.Data`, `Hearthstone.Decks`, `Telemetry` | Offline metadata, canonical package adaptation, and consent-aware derived summaries. |
-| Presentation | `Presentation`, `Overlay` | Map tracking snapshots into UI values, then render them with WPF. |
+| Presentation | `Presentation`, `Overlay` | Map tracking snapshots into UI values, then render them with WPF. `Presentation` also owns platform-neutral layout breakpoints and rendering policy; `Overlay` owns the design tokens and component library (`docs/design-system.md`). |
 | Composition | `App` | Construct, start, connect, and dispose the process object graph. |
 | Developer tooling | `tools/IceCrow.FixtureTool` | Import and verify fixtures; never part of the runtime graph. |
 

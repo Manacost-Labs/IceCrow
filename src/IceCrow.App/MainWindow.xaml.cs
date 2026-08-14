@@ -4,6 +4,10 @@ using System.Windows;
 using IceCrow.Hearthstone.Logs;
 using IceCrow.Live;
 using IceCrow.Infrastructure.ManacostApi;
+using IceCrow.Overlay;
+#if DEBUG
+using IceCrow.App.DesignPreview;
+#endif
 
 namespace IceCrow.App;
 
@@ -11,11 +15,17 @@ public partial class MainWindow : Window
 {
     private const int MaximumVisibleLines = 20;
     private readonly ObservableCollection<string> _powerLogLines = [];
+#if DEBUG
+    private DesignPreviewWindow? _designPreviewWindow;
+#endif
 
     public MainWindow()
     {
         InitializeComponent();
         PowerLogList.ItemsSource = _powerLogLines;
+#if !DEBUG
+        DesignPreviewButton.Visibility = Visibility.Collapsed;
+#endif
     }
 
     public void AddPowerLogLine(RawLogLine line)
@@ -108,10 +118,47 @@ public partial class MainWindow : Window
         DeckstringsStatus.Text = $"Package: {packageVersion} · Status: {status}";
     }
 
+    public void SetOverlayRenderDiagnostics(OverlayRenderDiagnostics diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostics);
+        Dispatcher.VerifyAccess();
+        OverlayRenderStats.Text = diagnostics.ToString();
+    }
+
     public void SetTelemetryStatus(bool consent, int queued, DateTimeOffset? lastUpload)
     {
         Dispatcher.VerifyAccess();
         TelemetryStatus.Text =
             $"Consent: {(consent ? "On" : "Off")} · Queued: {queued} · Last upload: {(lastUpload is null ? "-" : lastUpload.Value.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture))}";
     }
+
+    private void OnOpenDesignPreviewClicked(object sender, RoutedEventArgs eventArgs)
+    {
+        _ = sender;
+        eventArgs.Handled = true;
+#if DEBUG
+        if (_designPreviewWindow is not null)
+        {
+            _designPreviewWindow.Activate();
+            return;
+        }
+
+        _designPreviewWindow = new DesignPreviewWindow { Owner = this };
+        _designPreviewWindow.Closed += OnDesignPreviewClosed;
+        _designPreviewWindow.Show();
+#endif
+    }
+
+#if DEBUG
+    private void OnDesignPreviewClosed(object? sender, EventArgs eventArgs)
+    {
+        _ = sender;
+        _ = eventArgs;
+        if (_designPreviewWindow is not null)
+        {
+            _designPreviewWindow.Closed -= OnDesignPreviewClosed;
+            _designPreviewWindow = null;
+        }
+    }
+#endif
 }

@@ -7,8 +7,8 @@ project-reference graph is executable in `IceCrow.Architecture.Tests`.
 | --- | --- | --- | --- |
 | `IceCrow.App` | WPF composition, process lifetime, concrete runtime wiring | UI/platform, live, recording, optional data/decks/telemetry boundaries | domain rules, parsing, durable formats |
 | `IceCrow.Platform.Windows` | Win32 declarations, HWND discovery, hooks, modifier state | none | game semantics, WPF UI |
-| `IceCrow.Overlay` | WPF windows and interaction fail-safe | `Presentation`, `Platform.Windows` | parsing, entity reduction, HTTP |
-| `IceCrow.Presentation` | immutable WPF-free UI projections | `Hearthstone.Data`, `Tracking` | controls, dispatchers, files, network |
+| `IceCrow.Overlay` | WPF windows, interaction fail-safe, design system and components | `Presentation`, `Platform.Windows` | parsing, entity reduction, HTTP |
+| `IceCrow.Presentation` | immutable WPF-free UI projections, layout breakpoints, rendering policy | `Hearthstone.Data`, `Tracking` | controls, dispatchers, files, network |
 | `IceCrow.Hearthstone.Logs` | `log.config`, log discovery, checkpointed bounded input | none | protocol semantics, WPF |
 | `IceCrow.Hearthstone.Protocol` | defensive text-to-event normalization | none | entity state, Battlegrounds state, IO |
 | `IceCrow.Hearthstone.ClientState` | optional immutable current-client observations | none | authoritative history, HearthMirror unless isolated adapter exists |

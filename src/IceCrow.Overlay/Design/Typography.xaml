@@ -1,0 +1,72 @@
+<!--
+    Typography. System fonts only: they render fast, hint well on Windows, and
+    scale correctly at 125–200% without shipping a font file.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Brushes.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <FontFamily x:Key="IceCrow.FontFamily.Ui">Segoe UI Variable Text, Segoe UI</FontFamily>
+    <FontFamily x:Key="IceCrow.FontFamily.Numeric">Segoe UI Variable Display, Segoe UI</FontFamily>
+
+    <sys:Double x:Key="IceCrow.FontSize.Caption">10.5</sys:Double>
+    <sys:Double x:Key="IceCrow.FontSize.Label">11.5</sys:Double>
+    <sys:Double x:Key="IceCrow.FontSize.Body">12.5</sys:Double>
+    <sys:Double x:Key="IceCrow.FontSize.SectionTitle">13</sys:Double>
+    <sys:Double x:Key="IceCrow.FontSize.Stat">15</sys:Double>
+    <sys:Double x:Key="IceCrow.FontSize.HeroTitle">17</sys:Double>
+
+    <!--  Caption: smallest supporting text. Muted, never load-bearing on its own.  -->
+    <Style x:Key="IceCrow.Text.Caption" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource IceCrow.FontFamily.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource IceCrow.FontSize.Caption}" />
+        <Setter Property="Foreground" Value="{StaticResource IceCrow.Brush.TextMuted}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <!--  Label: secondary line of a row or panel.  -->
+    <Style x:Key="IceCrow.Text.Label" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource IceCrow.FontFamily.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource IceCrow.FontSize.Label}" />
+        <Setter Property="Foreground" Value="{StaticResource IceCrow.Brush.TextSecondary}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <!--  Body: default reading text.  -->
+    <Style x:Key="IceCrow.Text.Body" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource IceCrow.FontFamily.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource IceCrow.FontSize.Body}" />
+        <Setter Property="Foreground" Value="{StaticResource IceCrow.Brush.TextPrimary}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <!--  Stat: numbers that must be found without reading.  -->
+    <Style x:Key="IceCrow.Text.Stat" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource IceCrow.FontFamily.Numeric}" />
+        <Setter Property="FontSize" Value="{StaticResource IceCrow.FontSize.Stat}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource IceCrow.Brush.TextPrimary}" />
+    </Style>
+
+    <!--  SectionTitle: the only place uppercase is used, and only for short labels.  -->
+    <Style x:Key="IceCrow.Text.SectionTitle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource IceCrow.FontFamily.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource IceCrow.FontSize.SectionTitle}" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="Foreground" Value="{StaticResource IceCrow.Brush.TextPrimary}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <Style x:Key="IceCrow.Text.HeroTitle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource IceCrow.FontFamily.Numeric}" />
+        <Setter Property="FontSize" Value="{StaticResource IceCrow.FontSize.HeroTitle}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource IceCrow.Brush.TextPrimary}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+</ResourceDictionary>

@@ -1,3 +1,4 @@
+using System.Globalization;
 using IceCrow.Battlegrounds;
 using IceCrow.Battlegrounds.Memory;
 using IceCrow.Hearthstone.Data;
@@ -9,7 +10,8 @@ public static class BattlegroundsOverlayViewStateFactory
 {
     public static BattlegroundsOverlayViewState Create(
         TrackingSnapshot snapshot,
-        ICardDatabase? cardDatabase = null)
+        ICardDatabase? cardDatabase = null,
+        ICardArtSource? cardArtSource = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
 
@@ -21,7 +23,8 @@ public static class BattlegroundsOverlayViewStateFactory
                 snapshot.OpponentMemory.GetLatest(player.PlayerId),
                 snapshot.LobbyTimeline.GetPlayer(player.PlayerId),
                 state.Turn,
-                cardDatabase));
+                cardDatabase,
+                cardArtSource));
 
         return new BattlegroundsOverlayViewState(
             state.IsActive && state.Lobby.Count > 1,
@@ -33,47 +36,50 @@ public static class BattlegroundsOverlayViewStateFactory
         BoardSnapshot? board,
         PlayerTimelineSnapshot? timeline,
         int currentTurn,
-        ICardDatabase? cardDatabase)
+        ICardDatabase? cardDatabase,
+        ICardArtSource? cardArtSource)
     {
-        var heroDisplay = FirstAvailable(
+        var heroName = FirstAvailable(
             player.HeroName,
             player.HeroCardId,
-            $"Player {player.PlayerId}");
-        var status = board switch
+            string.Create(CultureInfo.InvariantCulture, $"Player {player.PlayerId}"));
+        var presence = board switch
         {
-            null => "NOT FOUGHT YET",
-            { Minions.Count: 0 } => "EMPTY BOARD",
-            _ => $"Last Seen: Turn {board.Turn}",
+            null => OpponentPresence.NotFought,
+            { Minions.Count: 0 } => OpponentPresence.EmptyBoard,
+            _ => OpponentPresence.Seen,
         };
 
         return new OpponentOverlayViewState(
             player.PlayerId,
-            heroDisplay,
+            heroName,
             player.HeroCardId,
-            $"Tavern Tier: {player.TavernTier}",
-            status,
-            board is null ? string.Empty : $"Last Seen: Turn {board.Turn}",
-            board is null ? string.Empty : $"Age: {board.GetAge(currentTurn)} turns",
+            player.TavernTier,
+            player.Health,
+            player.Armor,
+            presence,
+            board?.Turn,
+            board?.GetAge(currentTurn),
+            timeline?.Triples ?? player.Triples,
             CreateProgressionRows(timeline),
-            $"Triples: {timeline?.Triples ?? player.Triples}",
-            CreateBoardRows(board, cardDatabase));
+            CreateBoard(board, cardDatabase, cardArtSource));
     }
 
     private static IEnumerable<string> CreateProgressionRows(PlayerTimelineSnapshot? timeline) =>
         timeline?.Events
             .OfType<TavernUpgraded>()
-            .Select(upgrade => $"T{upgrade.TavernTier} → Turn {upgrade.Turn}") ?? [];
+            .Select(upgrade => string.Create(
+                CultureInfo.InvariantCulture,
+                $"T{upgrade.TavernTier}·{upgrade.Turn}")) ?? [];
 
-    private static IEnumerable<string> CreateBoardRows(BoardSnapshot? board, ICardDatabase? cardDatabase)
+    private static IEnumerable<MinionTileViewState> CreateBoard(
+        BoardSnapshot? board,
+        ICardDatabase? cardDatabase,
+        ICardArtSource? cardArtSource)
     {
-        if (board is null)
+        if (board is null || board.Minions.Count == 0)
         {
-            return ["NOT FOUGHT YET"];
-        }
-
-        if (board.Minions.Count == 0)
-        {
-            return ["EMPTY BOARD"];
+            return [];
         }
 
         return board.Minions.Select(minion =>
@@ -81,10 +87,30 @@ public static class BattlegroundsOverlayViewStateFactory
             var definition = string.IsNullOrWhiteSpace(minion.CardId)
                 ? null
                 : cardDatabase?.GetByCardId(minion.CardId);
-            var display = FirstAvailable(definition?.Name, minion.CardId, $"Entity {minion.EntityId}");
-            var tier = definition?.TavernTier is int tavernTier ? $" [T{tavernTier}]" : string.Empty;
-            return $"{minion.ZonePosition}. {display}{tier}  {minion.Attack}/{minion.Health}";
+            var displayName = FirstAvailable(
+                definition?.Name,
+                minion.CardId,
+                string.Create(CultureInfo.InvariantCulture, $"Entity {minion.EntityId}"));
+
+            return MinionTileViewState.Create(
+                minion.ZonePosition,
+                minion.CardId,
+                displayName,
+                minion.Attack,
+                minion.Health,
+                definition?.TavernTier,
+                TryGetArtPath(minion.CardId, cardArtSource));
         });
+    }
+
+    private static string? TryGetArtPath(string? cardId, ICardArtSource? cardArtSource)
+    {
+        if (cardArtSource is null || string.IsNullOrWhiteSpace(cardId))
+        {
+            return null;
+        }
+
+        return cardArtSource.TryGetArtPath(cardId, out var artPath) ? artPath : null;
     }
 
     private static string FirstAvailable(params string?[] values) =>

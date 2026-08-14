@@ -2,6 +2,7 @@ using System.Windows.Threading;
 using IceCrow.Hearthstone.Logs;
 using IceCrow.Live;
 using IceCrow.Infrastructure.ManacostApi;
+using IceCrow.Overlay;
 
 namespace IceCrow.App;
 
@@ -13,6 +14,7 @@ internal sealed class DeveloperDiagnosticsPresenter : IDisposable
 
     private readonly object _gate = new();
     private readonly MainWindow _window;
+    private readonly OverlayRenderDiagnostics _overlayDiagnostics;
     private readonly DispatcherTimer _timer;
     private readonly Queue<RawLogLine> _pendingLines = [];
     private LiveTrackingDiagnostics? _latestDiagnostics;
@@ -22,10 +24,14 @@ internal sealed class DeveloperDiagnosticsPresenter : IDisposable
     private (bool Consent, int Queued, DateTimeOffset? LastUpload)? _latestTelemetryStatus;
     private bool _disposed;
 
-    public DeveloperDiagnosticsPresenter(MainWindow window)
+    public DeveloperDiagnosticsPresenter(
+        MainWindow window,
+        OverlayRenderDiagnostics overlayDiagnostics)
     {
         ArgumentNullException.ThrowIfNull(window);
+        ArgumentNullException.ThrowIfNull(overlayDiagnostics);
         _window = window;
+        _overlayDiagnostics = overlayDiagnostics;
         _timer = new DispatcherTimer(
             RefreshInterval,
             DispatcherPriority.Background,
@@ -147,6 +153,8 @@ internal sealed class DeveloperDiagnosticsPresenter : IDisposable
         {
             _window.AddPowerLogLine(line);
         }
+
+        _window.SetOverlayRenderDiagnostics(_overlayDiagnostics);
 
         if (diagnostics is not null)
         {

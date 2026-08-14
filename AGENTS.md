@@ -55,6 +55,29 @@ See `docs/module-boundaries.md`, `docs/threading-model.md`,
 `docs/resource-budgets.md`, and `docs/feature-development.md` before changing a
 cross-module flow.
 
+## UI rules
+
+The visual language is defined in `docs/design-system.md`, the token set in
+`docs/design-tokens.md` and `design/tokens.json`, and the rendering budget in
+`docs/ui-performance-rules.md`. Architecture tests enforce the mechanical parts.
+
+Before adding an overlay component:
+
+1. Identify the immutable `ViewState` input it renders; presentation projections
+   stay WPF-free and keep value equality.
+2. Use the existing design tokens in `src/IceCrow.Overlay/Design`.
+3. Use or extend an existing component before adding a new one. Every component
+   needs a real consumer today.
+4. Do not hardcode colours. `Design/Colors.xaml` is the only file allowed to
+   contain colour literals.
+5. Do not introduce heavy effects. No blur, no particles, no animated gradients,
+   no looping storyboards, and at most one small shadow per floating panel.
+6. Do not poll. React to view-state changes, not to a timer or a render loop.
+7. Measure with `OverlayRenderDiagnostics` if the component is expected to
+   update frequently.
+8. Add the component and its states to the Debug design preview.
+9. Check the common window sizes and 100–200% DPI.
+
 ## Dependency rules
 
 - Domain projects must not reference WPF, `System.Windows`, window handles, or UI controls.

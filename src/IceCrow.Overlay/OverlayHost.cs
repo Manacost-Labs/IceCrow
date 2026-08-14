@@ -11,7 +11,7 @@ public sealed class OverlayHost : IDisposable
     private static readonly TimeSpan ModifierCheckInterval = TimeSpan.FromMilliseconds(33);
 
     private readonly HearthstoneWindowLocator _windowLocator = new();
-    private readonly OverlayWindow _overlayWindow = new();
+    private readonly OverlayWindow _overlayWindow;
     private readonly OverlayInteractionStateMachine _interactionStateMachine = new();
     private readonly DispatcherTimer _lifecycleTimer;
     private readonly DispatcherTimer _modifierTimer;
@@ -21,7 +21,15 @@ public sealed class OverlayHost : IDisposable
     private bool _disposed;
 
     public OverlayHost()
+        : this(new OverlayRenderDiagnostics())
     {
+    }
+
+    public OverlayHost(OverlayRenderDiagnostics diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostics);
+        Diagnostics = diagnostics;
+        _overlayWindow = new OverlayWindow(diagnostics);
         _lifecycleTimer = new DispatcherTimer(
             LifecycleCheckInterval,
             DispatcherPriority.Background,
@@ -39,6 +47,9 @@ public sealed class OverlayHost : IDisposable
     }
 
     public OverlayState State { get; private set; } = OverlayState.Disconnected;
+
+    /// <summary>Developer counters for overlay rendering work.</summary>
+    public OverlayRenderDiagnostics Diagnostics { get; }
 
     public void Start()
     {
@@ -62,6 +73,14 @@ public sealed class OverlayHost : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         _overlayWindow.Dispatcher.VerifyAccess();
         _overlayWindow.ApplyViewState(viewState);
+    }
+
+    public void SetRenderingSettings(OverlayRenderingSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _overlayWindow.Dispatcher.VerifyAccess();
+        _overlayWindow.SetRenderingSettings(settings);
     }
 
     public void Dispose()

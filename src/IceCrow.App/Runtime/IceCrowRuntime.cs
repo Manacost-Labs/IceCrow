@@ -1,6 +1,7 @@
 using System.Windows.Threading;
 using IceCrow.Infrastructure.ManacostApi;
 using IceCrow.Live;
+using IceCrow.Overlay;
 
 namespace IceCrow.App.Runtime;
 
@@ -34,6 +35,9 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
         _presentation = new PresentationRuntime(dispatcher, _data.Database);
         _live = new LiveRuntime(OnLiveTrackingProcessed, onRecoverableLogError, onLogStatus);
     }
+
+    public OverlayRenderDiagnostics OverlayDiagnostics =>
+        _presentation.OverlayDiagnostics;
 
     public void Start()
     {

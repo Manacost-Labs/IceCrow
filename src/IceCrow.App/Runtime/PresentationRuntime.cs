@@ -22,6 +22,9 @@ internal sealed class PresentationRuntime : IAsyncDisposable
         _presenter = new LiveOverlayPresenter(_overlayHost, dispatcher, cardDatabase);
     }
 
+    /// <summary>Overlay rendering counters for the developer diagnostics view.</summary>
+    public OverlayRenderDiagnostics OverlayDiagnostics => _overlayHost.Diagnostics;
+
     public void Start() => _overlayHost.Start();
 
     public void Publish(TrackingSnapshot snapshot) => _presenter.Publish(snapshot);

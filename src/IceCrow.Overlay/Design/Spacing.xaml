@@ -1,0 +1,50 @@
+<!--
+    Spacing, radius, border, opacity, and motion scales.
+
+    One small scale only. Anything that is not on this scale has to justify
+    itself; arbitrary one-off values are what makes a UI feel noisy.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!--  Spacing scale: 4 / 8 / 12 / 16 / 24 / 32  -->
+    <sys:Double x:Key="IceCrow.Space.Xs">4</sys:Double>
+    <sys:Double x:Key="IceCrow.Space.Sm">8</sys:Double>
+    <sys:Double x:Key="IceCrow.Space.Md">12</sys:Double>
+    <sys:Double x:Key="IceCrow.Space.Lg">16</sys:Double>
+    <sys:Double x:Key="IceCrow.Space.Xl">24</sys:Double>
+    <sys:Double x:Key="IceCrow.Space.Xxl">32</sys:Double>
+
+    <!--  Composed paddings and gaps.  -->
+    <Thickness x:Key="IceCrow.Padding.Panel">12</Thickness>
+    <Thickness x:Key="IceCrow.Padding.PanelCompact">8</Thickness>
+    <Thickness x:Key="IceCrow.Padding.Row">10,8</Thickness>
+    <Thickness x:Key="IceCrow.Padding.Badge">5,1</Thickness>
+    <Thickness x:Key="IceCrow.Padding.Button">10,4</Thickness>
+    <Thickness x:Key="IceCrow.Gap.RowStack">0,0,0,4</Thickness>
+    <Thickness x:Key="IceCrow.Gap.SectionTop">0,12,0,4</Thickness>
+    <Thickness x:Key="IceCrow.Gap.TileTrail">0,0,4,4</Thickness>
+
+    <!--  Radius scale.  -->
+    <CornerRadius x:Key="IceCrow.Radius.Small">3</CornerRadius>
+    <CornerRadius x:Key="IceCrow.Radius.Medium">6</CornerRadius>
+    <CornerRadius x:Key="IceCrow.Radius.Large">10</CornerRadius>
+
+    <!--  Borders are the primary separation device; shadows are the exception.  -->
+    <Thickness x:Key="IceCrow.BorderThickness.Hairline">1</Thickness>
+
+    <!--  Opacity.  -->
+    <sys:Double x:Key="IceCrow.Opacity.Disabled">0.42</sys:Double>
+    <sys:Double x:Key="IceCrow.Opacity.Muted">0.7</sys:Double>
+    <sys:Double x:Key="IceCrow.Opacity.Signature">0.6</sys:Double>
+
+    <!--
+        Motion budget. Normal interactions stay at 140–180 ms, important events
+        at 240 ms, and nothing in the overlay is allowed past 350 ms.
+    -->
+    <Duration x:Key="IceCrow.Duration.Fast">0:0:0.14</Duration>
+    <Duration x:Key="IceCrow.Duration.Normal">0:0:0.18</Duration>
+    <Duration x:Key="IceCrow.Duration.Event">0:0:0.24</Duration>
+
+</ResourceDictionary>

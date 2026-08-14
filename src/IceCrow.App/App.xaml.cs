@@ -26,9 +26,6 @@ public partial class App : Application, IAsyncDisposable
         _developerWindow = new MainWindow();
         _developerWindow.Closed += OnDeveloperWindowClosed;
         _developerWindow.Show();
-        _developerDiagnosticsPresenter = new DeveloperDiagnosticsPresenter(_developerWindow);
-        _developerDiagnosticsPresenter.PublishDeckstringsStatus(ManacostDeckCodec.PackageVersion, "Ready");
-        _developerDiagnosticsPresenter.PublishTelemetryStatus(false, 0, null);
 #endif
 
         var localDataDirectory = Path.Combine(
@@ -43,6 +40,15 @@ public partial class App : Application, IAsyncDisposable
             ReportRecoverableLogError,
             ReportLogStatus,
             typeof(App).Assembly.GetName().Version?.ToString() ?? "0.0.0");
+
+#if DEBUG
+        _developerDiagnosticsPresenter = new DeveloperDiagnosticsPresenter(
+            _developerWindow,
+            _runtime.OverlayDiagnostics);
+        _developerDiagnosticsPresenter.PublishDeckstringsStatus(ManacostDeckCodec.PackageVersion, "Ready");
+        _developerDiagnosticsPresenter.PublishTelemetryStatus(false, 0, null);
+#endif
+
         _runtime.Start();
     }
 

@@ -1,0 +1,494 @@
+<!--
+    IceCrow component library.
+
+    Rules enforced here:
+      * no literal colours - every brush comes from Brushes.xaml;
+      * exactly one shadow resource, applied only by opted-in floating panels;
+      * no blur, no gradients, no particles, no looping storyboards;
+      * sizes come from IceCrow.Presentation.OverlayLayout so the WPF layer and
+        the platform-neutral design tokens cannot drift apart.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:controls="clr-namespace:IceCrow.Overlay.Controls"
+                    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                    xmlns:po="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options"
+                    xmlns:presentation="clr-namespace:IceCrow.Presentation;assembly=IceCrow.Presentation"
+                    mc:Ignorable="po">
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Typography.xaml" />
+        <ResourceDictionary Source="Spacing.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!--
+        The only effect in the product. Small radius, low opacity, performance
+        rendering bias, and applied at most once per floating panel.
+    -->
+    <DropShadowEffect x:Key="IceCrow.Effect.PanelShadow"
+                      po:Freeze="True"
+                      BlurRadius="10"
+                      Direction="270"
+                      Opacity="0.4"
+                      RenderingBias="Performance"
+                      ShadowDepth="2"
+                      Color="{StaticResource IceCrow.Color.Shadow}" />
+
+    <!--
+        The IceCrow signature: one thin angular ice-cut notch. It is the only
+        brand decoration in the system, and removing it leaves the UI intact.
+    -->
+    <PathGeometry x:Key="IceCrow.Geometry.Notch"
+                  po:Freeze="True"
+                  Figures="M0,0 L3,4 L3,17 L0,21 Z" />
+
+    <!--  ===================== IcePanel =====================  -->
+    <Style TargetType="{x:Type controls:IcePanel}">
+        <Setter Property="Background" Value="{StaticResource IceCrow.Brush.PanelSurface}" />
+        <Setter Property="BorderBrush" Value="{StaticResource IceCrow.Brush.Border}" />
+        <Setter Property="BorderThickness" Value="{StaticResource IceCrow.BorderThickness.Hairline}" />
+        <Setter Property="Padding" Value="{StaticResource IceCrow.Padding.Panel}" />
+        <Setter Property="Foreground" Value="{StaticResource IceCrow.Brush.TextPrimary}" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type controls:IcePanel}">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{StaticResource IceCrow.Radius.Medium}"
+                            SnapsToDevicePixels="True">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Path x:Name="PART_Signature"
+                                  Grid.Column="0"
+                                  Margin="0,10,0,0"
+                                  VerticalAlignment="Top"
+                                  Data="{StaticResource IceCrow.Geometry.Notch}"
+                                  Fill="{StaticResource IceCrow.Brush.Accent}"
+                                  Opacity="{StaticResource IceCrow.Opacity.Signature}"
+                                  Visibility="Collapsed" />
+
+                            <Grid Grid.Column="1" Margin="{TemplateBinding Padding}">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <Grid x:Name="HeaderRow"
+                                      Grid.Row="0"
+                                      Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               VerticalAlignment="Center"
+                                               Style="{StaticResource IceCrow.Text.SectionTitle}"
+                                               Text="{TemplateBinding Header}" />
+                                    <ContentPresenter Grid.Column="1"
+                                                      VerticalAlignment="Center"
+                                                      Content="{TemplateBinding Trailing}" />
+                                </Grid>
+
+                                <ContentPresenter Grid.Row="1"
+                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                            </Grid>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsSignature" Value="True">
+                            <Setter TargetName="PART_Signature" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="HasElevation" Value="True">
+                            <Setter TargetName="Root" Property="Effect" Value="{StaticResource IceCrow.Effect.PanelShadow}" />
+                        </Trigger>
+                        <Trigger Property="Header" Value="{x:Null}">
+                            <Setter TargetName="HeaderRow" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="controls:OverlayVisuals.LayoutMode" Value="Compact">
+                <Setter Property="Padding" Value="{StaticResource IceCrow.Padding.PanelCompact}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  ===================== IceBadge =====================  -->
+    <Style TargetType="{x:Type controls:IceBadge}">
+        <Setter Property="Background" Value="{StaticResource IceCrow.Brush.SurfaceSelected}" />
+        <Setter Property="Foreground" Value="{StaticResource IceCrow.Brush.TextSecondary}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type controls:IceBadge}">
+                    <Border x:Name="Root"
+                            Padding="{StaticResource IceCrow.Padding.Badge}"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="{StaticResource IceCrow.Radius.Small}"
+                            SnapsToDevicePixels="True">
+                        <TextBlock FontFamily="{StaticResource IceCrow.FontFamily.Ui}"
+                                   FontSize="{StaticResource IceCrow.FontSize.Caption}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{TemplateBinding Foreground}"
+                                   Text="{TemplateBinding Text}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Tone" Value="Accent">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource IceCrow.Brush.AccentSoft}" />
+                            <Setter Property="Foreground" Value="{StaticResource IceCrow.Brush.AccentStrong}" />
+                        </Trigger>
+                        <Trigger Property="Tone" Value="Positive">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource IceCrow.Brush.PositiveSoft}" />
+                            <Setter Property="Foreground" Value="{StaticResource IceCrow.Brush.Positive}" />
+                        </Trigger>
+                        <Trigger Property="Tone" Value="Warning">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource IceCrow.Brush.WarningSoft}" />
+                            <Setter Property="Foreground" Value="{StaticResource IceCrow.Brush.Warning}" />
+                        </Trigger>
+                        <Trigger Property="Tone" Value="Danger">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource IceCrow.Brush.DangerSoft}" />
+                            <Setter Property="Foreground" Value="{StaticResource IceCrow.Brush.Danger}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  ===================== IceStat =====================  -->
+    <Style TargetType="{x:Type controls:IceStat}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type controls:IceStat}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource IceCrow.Text.Stat}" Text="{TemplateBinding Value}" />
+                        <TextBlock Style="{StaticResource IceCrow.Text.Caption}" Text="{TemplateBinding Label}" />
+                    </StackPanel>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  ===================== IceButton (style, not a new type) =====================  -->
+    <Style x:Key="IceCrow.Style.Button" TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource IceCrow.Brush.SurfaceRaised}" />
+        <Setter Property="BorderBrush" Value="{StaticResource IceCrow.Brush.Border}" />
+        <Setter Property="Foreground" Value="{StaticResource IceCrow.Brush.TextSecondary}" />
+        <Setter Property="Padding" Value="{StaticResource IceCrow.Padding.Button}" />
+        <Setter Property="FontFamily" Value="{StaticResource IceCrow.FontFamily.Ui}" />
+        <Setter Property="FontSize" Value="{StaticResource IceCrow.FontSize.Label}" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            Padding="{TemplateBinding Padding}"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{StaticResource IceCrow.BorderThickness.Hairline}"
+                            CornerRadius="{StaticResource IceCrow.Radius.Small}"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource IceCrow.Brush.SurfaceHover}" />
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource IceCrow.Brush.BorderStrong}" />
+                            <Setter Property="Foreground" Value="{StaticResource IceCrow.Brush.TextPrimary}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource IceCrow.Brush.SurfaceSelected}" />
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource IceCrow.Brush.Accent}" />
+                            <Setter Property="Foreground" Value="{StaticResource IceCrow.Brush.AccentStrong}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="{StaticResource IceCrow.Opacity.Disabled}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  ===================== MinionTile =====================  -->
+    <Style TargetType="{x:Type controls:MinionTile}">
+        <Setter Property="Width" Value="{x:Static presentation:OverlayLayout.RegularMinionTileWidth}" />
+        <Setter Property="Height" Value="{x:Static presentation:OverlayLayout.RegularMinionTileWidth}" />
+        <Setter Property="Margin" Value="{StaticResource IceCrow.Gap.TileTrail}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type controls:MinionTile}">
+                    <Border Background="{StaticResource IceCrow.Brush.Surface}"
+                            BorderBrush="{StaticResource IceCrow.Brush.Border}"
+                            BorderThickness="{StaticResource IceCrow.BorderThickness.Hairline}"
+                            CornerRadius="{StaticResource IceCrow.Radius.Small}"
+                            SnapsToDevicePixels="True">
+                        <Grid ClipToBounds="True">
+                            <Image x:Name="Art"
+                                   RenderOptions.BitmapScalingMode="LowQuality"
+                                   Source="{TemplateBinding ArtSource}"
+                                   Stretch="UniformToFill" />
+
+                            <!--  Placeholder: intentional, not a broken-image glyph.  -->
+                            <TextBlock x:Name="Placeholder"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       FontFamily="{StaticResource IceCrow.FontFamily.Numeric}"
+                                       FontSize="{StaticResource IceCrow.FontSize.Stat}"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource IceCrow.Brush.TextMuted}"
+                                       Text="{Binding ViewState.Initials, RelativeSource={RelativeSource TemplatedParent}}"
+                                       Visibility="Collapsed" />
+
+                            <Grid VerticalAlignment="Bottom" Background="{StaticResource IceCrow.Brush.PanelSurfaceStrong}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Margin="3,0,0,0"
+                                           HorizontalAlignment="Left"
+                                           FontFamily="{StaticResource IceCrow.FontFamily.Numeric}"
+                                           FontSize="{StaticResource IceCrow.FontSize.Label}"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource IceCrow.Brush.TextPrimary}"
+                                           Text="{Binding ViewState.Attack, RelativeSource={RelativeSource TemplatedParent}}" />
+                                <TextBlock Grid.Column="1"
+                                           Margin="0,0,3,0"
+                                           HorizontalAlignment="Right"
+                                           FontFamily="{StaticResource IceCrow.FontFamily.Numeric}"
+                                           FontSize="{StaticResource IceCrow.FontSize.Label}"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource IceCrow.Brush.TextPrimary}"
+                                           Text="{Binding ViewState.Health, RelativeSource={RelativeSource TemplatedParent}}" />
+                            </Grid>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="ArtSource" Value="{x:Null}">
+                            <Setter TargetName="Art" Property="Visibility" Value="Collapsed" />
+                            <Setter TargetName="Placeholder" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="controls:OverlayVisuals.LayoutMode" Value="Compact">
+                <Setter Property="Width" Value="{x:Static presentation:OverlayLayout.CompactMinionTileWidth}" />
+                <Setter Property="Height" Value="{x:Static presentation:OverlayLayout.CompactMinionTileWidth}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--
+        ===================== Opponent Memory detail =====================
+        The visual benchmark for the whole system: hero, what changed, board,
+        then progression, in that reading order. Shared by the overlay and the
+        developer design preview so they cannot drift apart.
+    -->
+    <DataTemplate x:Key="IceCrow.Template.OpponentDetail">
+        <StackPanel>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           VerticalAlignment="Center"
+                           Style="{StaticResource IceCrow.Text.HeroTitle}"
+                           Text="{Binding HeroName}" />
+                <controls:IceBadge Grid.Column="1"
+                                   Margin="8,0,0,0"
+                                   VerticalAlignment="Center"
+                                   Text="{Binding TierBadge}"
+                                   Tone="Accent" />
+            </Grid>
+
+            <Grid Margin="0,4,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           VerticalAlignment="Center"
+                           Style="{StaticResource IceCrow.Text.Label}"
+                           Text="{Binding DetailLastSeenLine}" />
+                <controls:IceBadge Grid.Column="1"
+                                   Margin="8,0,0,0"
+                                   VerticalAlignment="Center"
+                                   Text="{Binding AgeBadge}" />
+            </Grid>
+
+            <ItemsControl Margin="0,12,0,0" ItemsSource="{Binding Board}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <controls:MinionTile ViewState="{Binding}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Margin="0,8,0,0" Text="{Binding BoardPlaceholder}">
+                <TextBlock.Style>
+                    <Style BasedOn="{StaticResource IceCrow.Text.Label}" TargetType="TextBlock">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding BoardPlaceholder}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <StackPanel Margin="0,14,0,0" Orientation="Horizontal">
+                <controls:IceStat Margin="0,0,20,0"
+                                  Label="Health"
+                                  Value="{Binding HealthLine}" />
+                <controls:IceStat Margin="0,0,20,0"
+                                  Label="Tavern tier"
+                                  Value="{Binding TierBadge}" />
+                <controls:IceStat Label="Triples" Value="{Binding Triples}" />
+            </StackPanel>
+
+            <TextBlock Margin="0,14,0,4"
+                       Style="{StaticResource IceCrow.Text.SectionTitle}"
+                       Text="Progression" />
+            <ItemsControl ItemsSource="{Binding ProgressionRows}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <controls:IceBadge Margin="0,0,4,4" Text="{Binding}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Margin="0,6,0,0"
+                       Style="{StaticResource IceCrow.Text.Label}"
+                       Text="{Binding TriplesLine}" />
+        </StackPanel>
+    </DataTemplate>
+
+    <!--  ===================== OpponentRow =====================  -->
+    <Style TargetType="{x:Type controls:OpponentRow}">
+        <Setter Property="Width" Value="{x:Static presentation:OverlayLayout.RegularOpponentRowWidth}" />
+        <Setter Property="Margin" Value="{StaticResource IceCrow.Gap.RowStack}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type controls:OpponentRow}">
+                    <Border x:Name="Root"
+                            Padding="{StaticResource IceCrow.Padding.Row}"
+                            Background="{StaticResource IceCrow.Brush.PanelSurface}"
+                            BorderBrush="{StaticResource IceCrow.Brush.Border}"
+                            BorderThickness="{StaticResource IceCrow.BorderThickness.Hairline}"
+                            CornerRadius="{StaticResource IceCrow.Radius.Medium}"
+                            SnapsToDevicePixels="True">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <Path x:Name="Signature"
+                                  Grid.RowSpan="2"
+                                  Grid.Column="0"
+                                  Margin="0,1,7,0"
+                                  VerticalAlignment="Top"
+                                  Data="{StaticResource IceCrow.Geometry.Notch}"
+                                  Fill="{StaticResource IceCrow.Brush.Accent}"
+                                  Opacity="{StaticResource IceCrow.Opacity.Signature}"
+                                  Visibility="Collapsed" />
+
+                            <TextBlock Grid.Row="0"
+                                       Grid.Column="1"
+                                       VerticalAlignment="Center"
+                                       Style="{StaticResource IceCrow.Text.SectionTitle}"
+                                       Text="{Binding ViewState.HeroName, RelativeSource={RelativeSource TemplatedParent}}" />
+
+                            <controls:IceBadge x:Name="TierBadge"
+                                               Grid.Row="0"
+                                               Grid.Column="2"
+                                               Margin="6,0,0,0"
+                                               VerticalAlignment="Center"
+                                               Text="{Binding ViewState.TierBadge, RelativeSource={RelativeSource TemplatedParent}}" />
+
+                            <StackPanel Grid.Row="1"
+                                        Grid.Column="1"
+                                        Margin="0,3,0,0"
+                                        Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource IceCrow.Text.Label}"
+                                           Text="{Binding ViewState.HealthLine, RelativeSource={RelativeSource TemplatedParent}}" />
+                                <controls:IceBadge x:Name="StaleBadge"
+                                                   Margin="6,0,0,0"
+                                                   VerticalAlignment="Center"
+                                                   Text="STALE"
+                                                   Tone="Warning"
+                                                   Visibility="Collapsed" />
+                            </StackPanel>
+
+                            <TextBlock x:Name="SecondaryLine"
+                                       Grid.Row="1"
+                                       Grid.Column="2"
+                                       Margin="6,3,0,0"
+                                       VerticalAlignment="Center"
+                                       Style="{StaticResource IceCrow.Text.Caption}"
+                                       Text="{Binding ViewState.AgeBadge, RelativeSource={RelativeSource TemplatedParent}}" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <DataTrigger Binding="{Binding ViewState.RequiresAttention, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                            <Setter TargetName="Signature" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="TierBadge" Property="Tone" Value="Accent" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding ViewState.IsStale, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                            <Setter TargetName="StaleBadge" Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource IceCrow.Brush.SurfaceHover}" />
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource IceCrow.Brush.BorderStrong}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource IceCrow.Brush.SurfaceSelected}" />
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource IceCrow.Brush.Accent}" />
+                            <Setter TargetName="Signature" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="controls:OverlayVisuals.LayoutMode" Value="Compact">
+                            <Setter TargetName="SecondaryLine" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="controls:OverlayVisuals.LayoutMode" Value="Compact">
+                <Setter Property="Width" Value="{x:Static presentation:OverlayLayout.CompactOpponentRowWidth}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+</ResourceDictionary>
