@@ -37,10 +37,21 @@ jobs:
         shell: pwsh
         run: |
           $tokenFiles = @(git grep -I -l -E 'khs_v1_[A-Za-z0-9_-]{8,}_[A-Za-z0-9_-]{16,}' -- .)
+          $grepExitCode = $LASTEXITCODE
+          if ($grepExitCode -eq 1) {
+            $tokenFiles = @()
+          }
+          elseif ($grepExitCode -ne 0) {
+            Write-Error "Token scan failed with git grep exit code $grepExitCode."
+            exit $grepExitCode
+          }
+
           if ($tokenFiles.Count -gt 0) {
             Write-Error ("Potential Manacost token detected in tracked file(s): " + ($tokenFiles -join ', '))
             exit 1
           }
+
+          exit 0
 
       - name: Cache NuGet packages
         uses: actions/cache@v6
