@@ -7,7 +7,8 @@ public sealed record LogReadCheckpoint(
     long ObservedLength,
     DateTimeOffset LastWriteAt,
     ulong PrefixFingerprint,
-    int PrefixFingerprintLength)
+    int PrefixFingerprintLength,
+    ulong ContentFingerprint)
 {
     public static LogReadCheckpoint Empty { get; } = new(
         null,
@@ -16,5 +17,6 @@ public sealed record LogReadCheckpoint(
         0,
         DateTimeOffset.MinValue,
         0,
-        0);
+        0,
+        PowerLogTailer.InitialContentFingerprint);
 }

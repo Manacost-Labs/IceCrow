@@ -98,6 +98,30 @@ public sealed class JsonHearthstoneDataStore : IHearthstoneDataStore
             throw new InvalidDataException("The Hearthstone data cache schema is unsupported.");
         }
 
+        if (string.IsNullOrWhiteSpace(envelope.DataVersion) ||
+            string.IsNullOrWhiteSpace(envelope.Sha256) ||
+            envelope.Cards is null ||
+            envelope.Heroes is null ||
+            envelope.Cards.Length > 20_000 ||
+            envelope.Heroes.Length > 1_000 ||
+            envelope.Cards.Any(static card => card is null) ||
+            envelope.Heroes.Any(static hero => hero is null) ||
+            envelope.Cards.Any(static card =>
+                string.IsNullOrWhiteSpace(card.CardId) ||
+                string.IsNullOrWhiteSpace(card.Name) ||
+                string.IsNullOrWhiteSpace(card.CardType) ||
+                card.CreatureTypes is null ||
+                card.CreatureTypes.Any(static type => type is null) ||
+                card.Images is null) ||
+            envelope.Heroes.Any(static hero =>
+                string.IsNullOrWhiteSpace(hero.CardId) ||
+                string.IsNullOrWhiteSpace(hero.Name) ||
+                hero.Images is null ||
+                hero.HeroPower is { Images: null }))
+        {
+            throw new InvalidDataException("The Hearthstone data cache contains null required values.");
+        }
+
         var snapshot = envelope.ToSnapshot();
         ValidateSnapshot(snapshot);
         return snapshot;
@@ -156,12 +180,12 @@ public sealed class JsonHearthstoneDataStore : IHearthstoneDataStore
 
     private sealed record CacheEnvelope(
         int SchemaVersion,
-        string DataVersion,
+        string? DataVersion,
         string? HearthstoneBuild,
-        string Sha256,
+        string? Sha256,
         DateTimeOffset CreatedAt,
-        CardDefinition[] Cards,
-        BattlegroundsHeroDefinition[] Heroes)
+        CardDefinition[]? Cards,
+        BattlegroundsHeroDefinition[]? Heroes)
     {
         public static CacheEnvelope FromSnapshot(HearthstoneDataSnapshot snapshot) => new(
             snapshot.Version.SchemaVersion,
@@ -173,8 +197,8 @@ public sealed class JsonHearthstoneDataStore : IHearthstoneDataStore
             snapshot.Heroes.ToArray());
 
         public HearthstoneDataSnapshot ToSnapshot() => new(
-            new HearthstoneDataVersion(SchemaVersion, DataVersion, HearthstoneBuild, Sha256, CreatedAt),
-            Cards,
-            Heroes);
+            new HearthstoneDataVersion(SchemaVersion, DataVersion!, HearthstoneBuild, Sha256!, CreatedAt),
+            Cards!,
+            Heroes!);
     }
 }

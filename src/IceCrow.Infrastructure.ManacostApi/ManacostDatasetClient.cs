@@ -34,9 +34,10 @@ public sealed class ManacostDatasetClient
 
     public async Task<HearthstoneDataSnapshot> DownloadAsync(CancellationToken cancellationToken = default)
     {
-        var cards = await DownloadPagesAsync<CardDto>("api/v1/cards", 20_000, cancellationToken)
+        var budget = new DownloadBudget(_options.MaximumTotalResponseBytes);
+        var cards = await DownloadPagesAsync<CardDto>("api/v1/cards", 20_000, budget, cancellationToken)
             .ConfigureAwait(false);
-        var heroes = await DownloadPagesAsync<HeroDto>("api/v1/heroes", 1_000, cancellationToken)
+        var heroes = await DownloadPagesAsync<HeroDto>("api/v1/heroes", 1_000, budget, cancellationToken)
             .ConfigureAwait(false);
         var mappedCards = cards.Select(MapCard).ToArray();
         var mappedHeroes = heroes.Select(MapHero).ToArray();
@@ -47,13 +48,14 @@ public sealed class ManacostDatasetClient
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Order(StringComparer.Ordinal)
             .LastOrDefault();
-        var dataVersion = updatedAt ?? "unversioned";
+        var dataVersion = BoundedOrNull(updatedAt, 64, "updated_at") ?? "unversioned";
         return HearthstoneDataSnapshotFactory.Create(dataVersion, null, mappedCards, mappedHeroes);
     }
 
     private async Task<List<T>> DownloadPagesAsync<T>(
         string path,
         int maximumItems,
+        DownloadBudget budget,
         CancellationToken cancellationToken)
     {
         var items = new List<T>();
@@ -61,7 +63,7 @@ public sealed class ManacostDatasetClient
         {
             var separator = path.Contains('?', StringComparison.Ordinal) ? '&' : '?';
             var uri = $"{path}{separator}page={page}&per_page={_options.PageSize}";
-            var envelope = await GetJsonAsync<PageEnvelope<T>>(uri, cancellationToken).ConfigureAwait(false);
+            var envelope = await GetJsonAsync<PageEnvelope<T>>(uri, budget, cancellationToken).ConfigureAwait(false);
             if (envelope.Data is null || envelope.Pagination is null)
             {
                 throw new ManacostApiException("The Manacost API returned an incomplete page envelope.");
@@ -82,7 +84,10 @@ public sealed class ManacostDatasetClient
         throw new ManacostApiException("The Manacost API page limit was exceeded.");
     }
 
-    private async Task<T> GetJsonAsync<T>(string relativeUri, CancellationToken cancellationToken)
+    private async Task<T> GetJsonAsync<T>(
+        string relativeUri,
+        DownloadBudget budget,
+        CancellationToken cancellationToken)
     {
         for (var attempt = 0; attempt < 3; attempt++)
         {
@@ -92,6 +97,8 @@ public sealed class ManacostDatasetClient
                 request,
                 HttpCompletionOption.ResponseHeadersRead,
                 cancellationToken).ConfigureAwait(false);
+
+            ValidateResponseOrigin(response);
 
             if (IsTransient(response.StatusCode) && attempt < 2)
             {
@@ -111,6 +118,7 @@ public sealed class ManacostDatasetClient
             }
 
             var bytes = await ReadBoundedAsync(response.Content, cancellationToken).ConfigureAwait(false);
+            budget.Consume(bytes.Length);
             try
             {
                 return JsonSerializer.Deserialize<T>(bytes, JsonOptions)
@@ -171,7 +179,7 @@ public sealed class ManacostDatasetClient
 
         var creatureTypes = string.IsNullOrWhiteSpace(card.CreatureType?.Slug)
             ? Array.Empty<string>()
-            : new[] { card.CreatureType.Slug };
+            : new[] { RequireBounded(card.CreatureType.Slug, 64, "creature_type.slug") };
         return new CardDefinition(
             card.Dbf.Value,
             RequireBounded(card.CardId, 128, "card_id"),
@@ -238,12 +246,30 @@ public sealed class ManacostDatasetClient
             return null;
         }
 
+        if (value.Length > 2_048)
+        {
+            return null;
+        }
+
         if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
         {
             return null;
         }
 
         return uri;
+    }
+
+    private void ValidateResponseOrigin(HttpResponseMessage response)
+    {
+        var finalUri = response.RequestMessage?.RequestUri;
+        var expected = _httpClient.BaseAddress!;
+        if (finalUri is null ||
+            finalUri.Scheme != Uri.UriSchemeHttps ||
+            !string.Equals(finalUri.IdnHost, expected.IdnHost, StringComparison.OrdinalIgnoreCase) ||
+            finalUri.Port != expected.Port)
+        {
+            throw new ManacostApiException("The Manacost API response escaped the configured HTTPS origin.");
+        }
     }
 
     private static void Validate(CardDefinition[] cards, BattlegroundsHeroDefinition[] heroes)
@@ -352,4 +378,19 @@ public sealed class ManacostDatasetClient
         [property: JsonPropertyName("hero_power")] HeroRelationDto? HeroPower,
         [property: JsonPropertyName("buddy")] HeroRelationDto? Buddy,
         [property: JsonPropertyName("updated_at")] string? UpdatedAt);
+
+    private sealed class DownloadBudget(int maximumBytes)
+    {
+        private int _remainingBytes = maximumBytes;
+
+        public void Consume(int bytes)
+        {
+            if (bytes < 0 || bytes > _remainingBytes)
+            {
+                throw new ManacostApiException("The Manacost API aggregate response budget was exceeded.");
+            }
+
+            _remainingBytes -= bytes;
+        }
+    }
 }

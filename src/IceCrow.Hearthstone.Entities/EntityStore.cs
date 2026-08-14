@@ -6,6 +6,8 @@ public sealed class EntityStore
 {
     public const int DefaultMaximumTagsPerEntity = 256;
     public const int DefaultMaximumTotalTags = 1_000_000;
+    public const int MaximumCardIdLength = 128;
+    public const int MaximumEntityNameLength = 1_024;
 
     private readonly Dictionary<int, GameEntity> _entities = [];
     private readonly int _maximumTagsPerEntity;
@@ -58,7 +60,12 @@ public sealed class EntityStore
         return entity;
     }
 
-    public EntityMutation? Apply(GameEvent gameEvent) => EntityStoreReducer.Apply(this, gameEvent);
+    public EntityMutation? Apply(GameEvent gameEvent)
+    {
+        ArgumentNullException.ThrowIfNull(gameEvent);
+        ValidateRetainedText(gameEvent);
+        return EntityStoreReducer.Apply(this, gameEvent);
+    }
 
     internal EntityMutation? ApplyTag(int entityId, GameTag tag, int value)
     {
@@ -151,5 +158,31 @@ public sealed class EntityStore
             return positionComparison != 0 ? positionComparison : left.Id.CompareTo(right.Id);
         });
         return board;
+    }
+
+    private static void ValidateRetainedText(GameEvent gameEvent)
+    {
+        switch (gameEvent)
+        {
+            case EntityCreated created:
+                ValidateLength(created.CardId, MaximumCardIdLength, "CardId");
+                break;
+            case EntityRevealed revealed:
+                ValidateLength(revealed.CardId, MaximumCardIdLength, "CardId");
+                ValidateLength(revealed.EntityName, MaximumEntityNameLength, "entity name");
+                break;
+            case EntityChanged changed:
+                ValidateLength(changed.CardId, MaximumCardIdLength, "CardId");
+                ValidateLength(changed.EntityName, MaximumEntityNameLength, "entity name");
+                break;
+        }
+    }
+
+    private static void ValidateLength(string? value, int maximumLength, string field)
+    {
+        if (value?.Length > maximumLength)
+        {
+            throw new InvalidDataException($"The {field} exceeds the {maximumLength}-character retention limit.");
+        }
     }
 }

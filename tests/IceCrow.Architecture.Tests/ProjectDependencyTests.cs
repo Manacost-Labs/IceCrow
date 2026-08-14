@@ -85,10 +85,18 @@ public sealed class ProjectDependencyTests
     [
         "IceCrow.Battlegrounds",
         "IceCrow.Battlegrounds.Memory",
+        "IceCrow.Hearthstone.ClientState",
+        "IceCrow.Hearthstone.Data",
         "IceCrow.Hearthstone.Entities",
-        "IceCrow.Hearthstone.Protocol",
         "IceCrow.Hearthstone.Decks",
+        "IceCrow.Hearthstone.Logs",
+        "IceCrow.Hearthstone.Protocol",
+        "IceCrow.Live",
         "IceCrow.Overlay",
+        "IceCrow.Platform.Windows",
+        "IceCrow.Presentation",
+        "IceCrow.Recording",
+        "IceCrow.Telemetry",
         "IceCrow.Tracking",
     ];
 
@@ -286,6 +294,46 @@ public sealed class ProjectDependencyTests
         }
     }
 
+    [Fact]
+    public void ProductionCodeUsesOnlyBoundedChannels()
+    {
+        var root = FindRepositoryRoot();
+        foreach (var sourceFile in EnumerateSourceFiles(Path.Combine(root, "src")))
+        {
+            var source = File.ReadAllText(sourceFile);
+            Assert.DoesNotContain("Channel.CreateUnbounded", source, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void BlockingTaskWaitsStayAtTheWpfExitBoundary()
+    {
+        var root = FindRepositoryRoot();
+        foreach (var sourceFile in EnumerateSourceFiles(Path.Combine(root, "src")))
+        {
+            var source = File.ReadAllText(sourceFile);
+            if (sourceFile.EndsWith(
+                    Path.Combine("IceCrow.App", "App.xaml.cs"),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                Assert.Equal(1, Count(source, ".GetAwaiter().GetResult()"));
+                continue;
+            }
+
+            Assert.DoesNotContain(".GetAwaiter().GetResult()", source, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void GenericDumpingGroundProjectsAreNotIntroduced()
+    {
+        var projectNames = LoadProductionGraph().Keys;
+        Assert.DoesNotContain(projectNames, name =>
+            name.EndsWith(".Common", StringComparison.OrdinalIgnoreCase) ||
+            name.EndsWith(".Utils", StringComparison.OrdinalIgnoreCase) ||
+            name.EndsWith(".Utilities", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static Dictionary<string, IReadOnlyList<string>> LoadProductionGraph()
     {
         var root = FindRepositoryRoot();
@@ -345,6 +393,19 @@ public sealed class ProjectDependencyTests
                 reference.Contains("PresentationCore", StringComparison.OrdinalIgnoreCase) ||
                 reference.Contains("WindowsBase", StringComparison.OrdinalIgnoreCase) ||
                 reference.Contains("Microsoft.WindowsDesktop.App", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static int Count(string source, string value)
+    {
+        var count = 0;
+        var offset = 0;
+        while ((offset = source.IndexOf(value, offset, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            offset += value.Length;
+        }
+
+        return count;
     }
 
     private static IEnumerable<string> EnumerateSourceFiles(string projectDirectory)

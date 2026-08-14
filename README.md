@@ -96,7 +96,7 @@ flowchart TD
 | `IceCrow.Infrastructure.ManacostApi` | Optional public HTTPS synchronization, atomic data cache, and bounded image cache | `Hearthstone.Data` |
 | `IceCrow.Telemetry` | Consent-aware match summaries and bounded persistent outbox | `Tracking` |
 
-Architecture tests enforce this graph, reject cycles, prevent WPF/Win32 APIs from entering portable projects, keep developer tools out of runtime dependencies, and limit every ordinary test project to one direct production-project dependency. The maintained design is in [architecture.md](docs/architecture.md); use the [feature extension guide](docs/feature-extension-guide.md) and [error-boundary guide](docs/error-boundaries.md) for new work.
+Architecture tests enforce this graph, reject cycles, prevent WPF/Win32 APIs from entering portable projects, keep developer tools out of runtime dependencies, require bounded channels, and limit every ordinary test project to one direct production-project dependency. The maintained design is in [architecture.md](docs/architecture.md); new work starts with the [feature development guide](docs/feature-development.md), [module boundaries](docs/module-boundaries.md), and [error model](docs/error-model.md).
 
 Client state is intentionally separate from the tracking engine. Power.log and
 `TrackingSession` remain authoritative for match history; optional client-state
@@ -210,6 +210,11 @@ On startup, IceCrow may update Hearthstone's `log.config` to enable Power loggin
 - The overlay must fail safe to click-through and must never synthesize gameplay input.
 
 The full contributor constraints are documented in [AGENTS.md](AGENTS.md).
+Runtime ownership, budgets, dependencies, and measurement commands are recorded
+in [threading-model.md](docs/threading-model.md),
+[resource-budgets.md](docs/resource-budgets.md),
+[dependencies.md](docs/dependencies.md), and
+[performance.md](docs/performance.md).
 
 ## Clean-room notice
 

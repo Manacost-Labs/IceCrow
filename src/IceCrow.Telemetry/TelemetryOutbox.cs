@@ -145,18 +145,24 @@ public sealed class TelemetryOutbox : IDisposable
                 FileShare.Read,
                 16 * 1024,
                 FileOptions.Asynchronous | FileOptions.SequentialScan);
-            var items = await JsonSerializer.DeserializeAsync<List<MatchSummary>>(
-                stream,
-                JsonOptions,
-                cancellationToken).ConfigureAwait(false) ?? [];
-            if (items.Count > MaximumItems)
+            var items = new List<MatchSummary>(MaximumItems);
+            await foreach (var item in JsonSerializer.DeserializeAsyncEnumerable<MatchSummary>(
+                               stream,
+                               JsonOptions,
+                               cancellationToken).ConfigureAwait(false))
             {
-                throw new InvalidDataException("The telemetry outbox item limit was exceeded.");
-            }
+                if (item is null)
+                {
+                    throw new InvalidDataException("The telemetry outbox contains a null item.");
+                }
 
-            foreach (var item in items)
-            {
                 Validate(item);
+                if (items.Count == MaximumItems)
+                {
+                    throw new InvalidDataException("The telemetry outbox item limit was exceeded.");
+                }
+
+                items.Add(item);
             }
 
             return items;
@@ -204,7 +210,12 @@ public sealed class TelemetryOutbox : IDisposable
 
     private static void Validate(MatchSummary summary)
     {
-        if (summary.TelemetrySchemaVersion != MatchSummaryFactory.CurrentSchemaVersion ||
+        if (summary.GameMode is null ||
+            summary.QueueMode is null ||
+            summary.ClientVersion is null ||
+            summary.TavernProgression is null ||
+            summary.TavernProgression.Any(static entry => entry is null) ||
+            summary.TelemetrySchemaVersion != MatchSummaryFactory.CurrentSchemaVersion ||
             summary.MatchId == Guid.Empty ||
             summary.EndedAt < summary.StartedAt ||
             summary.Turns is < 0 or > 100 ||

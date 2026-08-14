@@ -82,6 +82,88 @@ public sealed class PowerLogTailerTests
     }
 
     [Fact]
+    public async Task TimestampOnlyTouchAtEndOfFileDoesNotReplayExistingLines()
+    {
+        using var directory = new TemporaryLogDirectory();
+        var powerLog = directory.GetPath("Power.log");
+        await File.WriteAllTextAsync(
+            powerLog,
+            Line("GameState.DebugPrintGame() - original"),
+            LogEncoding);
+        var (tailer, cancellation, runTask) = StartTailer(directory.Path);
+
+        try
+        {
+            _ = await ReadNextAsync(tailer, cancellation.Token);
+            var offset = tailer.Checkpoint.ByteOffset;
+
+            File.SetLastWriteTimeUtc(powerLog, DateTime.UtcNow.AddSeconds(2));
+            await Task.Delay(150, cancellation.Token);
+
+            Assert.Equal(offset, tailer.Checkpoint.ByteOffset);
+            Assert.False(tailer.Lines.TryRead(out _));
+        }
+        finally
+        {
+            await StopTailerAsync(cancellation, runTask);
+        }
+    }
+
+    [Fact]
+    public async Task SameLengthRewriteAfterUnchangedPrefixResetsTheCheckpoint()
+    {
+        const int lineCount = 100;
+        using var directory = new TemporaryLogDirectory();
+        var powerLog = directory.GetPath("Power.log");
+        var lines = Enumerable.Range(0, lineCount)
+            .Select(index => Line($"GameState.DebugPrintGame() - line-{index:D3}-{new string('A', 64)}"))
+            .ToArray();
+        await File.WriteAllTextAsync(powerLog, string.Concat(lines), LogEncoding);
+        var (tailer, cancellation, runTask) = StartTailer(directory.Path, TimeSpan.FromSeconds(30));
+
+        try
+        {
+            for (var index = 0; index < lineCount; index++)
+            {
+                _ = await ReadNextAsync(tailer, cancellation.Token);
+            }
+
+            await WaitForCheckpointAsync(
+                tailer,
+                new FileInfo(powerLog).Length,
+                cancellation.Token);
+            var originalOffset = tailer.Checkpoint.ByteOffset;
+            var replacementOffset = LogEncoding.GetByteCount(string.Concat(lines[..^1])) +
+                                    LogEncoding.GetByteCount(lines[^1]) - 4;
+            await using (var stream = new FileStream(
+                powerLog,
+                FileMode.Open,
+                FileAccess.Write,
+                FileShare.ReadWrite | FileShare.Delete,
+                bufferSize: 4096,
+                FileOptions.Asynchronous | FileOptions.WriteThrough))
+            {
+                stream.Seek(replacementOffset, SeekOrigin.Begin);
+                await stream.WriteAsync("B"u8.ToArray(), cancellation.Token);
+                await stream.FlushAsync(cancellation.Token);
+            }
+
+            File.SetLastWriteTimeUtc(
+                powerLog,
+                tailer.Checkpoint.LastWriteAt.UtcDateTime.AddSeconds(1));
+
+            var replayed = await ReadNextAsync(tailer, cancellation.Token);
+
+            Assert.EndsWith(new string('A', 64), replayed.Content, StringComparison.Ordinal);
+            Assert.Equal(originalOffset, new FileInfo(powerLog).Length);
+        }
+        finally
+        {
+            await StopTailerAsync(cancellation, runTask);
+        }
+    }
+
+    [Fact]
     public async Task HoldsPartialCrLfLineUntilTheLineIsComplete()
     {
         using var directory = new TemporaryLogDirectory();
@@ -104,6 +186,10 @@ public sealed class PowerLogTailerTests
             var result = await ReadNextAsync(tailer, cancellation.Token);
 
             Assert.EndsWith("partial", result.Content, StringComparison.Ordinal);
+            await WaitForCheckpointAsync(
+                tailer,
+                new FileInfo(powerLog).Length,
+                cancellation.Token);
             Assert.Equal(new FileInfo(powerLog).Length, tailer.Checkpoint.ByteOffset);
         }
         finally
@@ -263,11 +349,11 @@ public sealed class PowerLogTailerTests
     }
 
     private static (PowerLogTailer Tailer, CancellationTokenSource Cancellation, Task RunTask)
-        StartTailer(string logRoot)
+        StartTailer(string logRoot, TimeSpan? timeout = null)
     {
         var locator = new HearthstoneLogLocator(logRoots: [logRoot]);
         var tailer = new PowerLogTailer(locator, recoveryInterval: RecoveryInterval);
-        var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var cancellation = new CancellationTokenSource(timeout ?? TimeSpan.FromSeconds(10));
         return (tailer, cancellation, tailer.RunAsync(cancellation.Token));
     }
 
@@ -276,6 +362,24 @@ public sealed class PowerLogTailerTests
         CancellationToken cancellationToken)
     {
         return await tailer.Lines.ReadAsync(cancellationToken);
+    }
+
+    private static async Task WaitForCheckpointAsync(
+        PowerLogTailer tailer,
+        long expectedOffset,
+        CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            var checkpoint = tailer.Checkpoint;
+            if (checkpoint.ByteOffset == expectedOffset &&
+                (expectedOffset == 0 || checkpoint.PrefixFingerprintLength > 0))
+            {
+                return;
+            }
+
+            await Task.Delay(10, cancellationToken);
+        }
     }
 
     private static async Task StopTailerAsync(

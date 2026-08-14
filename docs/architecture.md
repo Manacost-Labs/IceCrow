@@ -66,6 +66,11 @@ Every production assembly represents either a trust boundary, a reusable
 deterministic domain, or a platform/presentation boundary. A new assembly must
 remove a real dependency edge or protect a distinct trust boundary.
 
+Inside `IceCrow.App`, `App.xaml.cs` owns only WPF startup/exit and diagnostics.
+Concrete runtime coordinators own data refresh, live ingestion, local telemetry,
+and overlay presentation. This is a folder-level composition split, not another
+assembly or a service-locator abstraction.
+
 ## Authoritative state and extension boundary
 
 `TrackingSession` is the single writer for a match revision. It owns the
@@ -109,7 +114,7 @@ and network access.
 | Current client-state observation | `ClientStateCoordinator` |
 | HWND, native hooks, client geometry | `Platform.Windows` |
 | Overlay connection/interaction and WPF controls | `OverlayHost` / `OverlayWindow` |
-| Process object lifetime | `App` |
+| Process object lifetime | `App` and concrete `App/Runtime` coordinators |
 
 Historical snapshots and presentation view states copy caller-owned
 collections. Mutable `GameEntity` instances never escape into history.

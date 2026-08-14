@@ -38,6 +38,23 @@ runtime project. `IceCrow.FixtureTool` may depend on `Recording` and `Live` to
 build and validate regression candidates, but it must never auto-commit a
 fixture or treat synthetic input as real evidence.
 
+## Where changes go
+
+- External log discovery/checkpointing belongs in `Hearthstone.Logs`; text
+  normalization belongs in `Hearthstone.Protocol`.
+- Authoritative atomic match transitions belong in `Tracking`; optional
+  features consume `TrackingUpdate` or `TrackingSnapshot` outside that engine.
+- Static card/hero contracts belong in `Hearthstone.Data`; HTTP/cache concerns
+  belong in `Infrastructure.ManacostApi`.
+- WPF-free UI mapping belongs in `Presentation`; controls and interaction belong
+  in `Overlay`; process wiring and runtime ownership belong in `App/Runtime`.
+- Recording/replay code must remain usable without live files, WPF, HWND, delay,
+  or network access.
+
+See `docs/module-boundaries.md`, `docs/threading-model.md`,
+`docs/resource-budgets.md`, and `docs/feature-development.md` before changing a
+cross-module flow.
+
 ## Dependency rules
 
 - Domain projects must not reference WPF, `System.Windows`, window handles, or UI controls.
@@ -58,6 +75,13 @@ fixture or treat synthetic input as real evidence.
 - No shared API token or admin credential may be embedded in IceCrow.
 - Prefer the .NET BCL over new packages. Verify the version, license, and provenance before adding any package.
 - Do not silently swallow important parser failures. Unknown Hearthstone events must not crash the tracker.
+- Do not introduce `Common`, `Utils`, service locators, global event buses, or
+  generic repositories. Add a project only when it removes a forbidden
+  dependency edge or protects a distinct platform/security boundary.
+- Use bounded channels and bounded histories. A file-size limit does not replace
+  an item, string, nesting, or work limit.
+- `async void` is permitted only for UI event handlers. Blocking task waits are
+  permitted only at a documented synchronous framework boundary.
 
 ## Standard validation
 
@@ -67,6 +91,15 @@ Run from the repository root:
 dotnet restore IceCrow.sln
 dotnet build IceCrow.sln --no-restore
 dotnet test IceCrow.sln --no-build --no-restore
+```
+
+The complete gate also runs Release and repository hygiene:
+
+```powershell
+dotnet build IceCrow.sln -c Release --no-restore
+dotnet test IceCrow.sln -c Release --no-build --no-restore
+dotnet format IceCrow.sln --verify-no-changes --no-restore
+git diff --check
 ```
 
 Before reporting completion, review the complete diff and run security checks when the change introduces security-sensitive behavior.

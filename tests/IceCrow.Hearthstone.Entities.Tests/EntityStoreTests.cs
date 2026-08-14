@@ -165,6 +165,27 @@ public sealed class EntityStoreTests
     }
 
     [Fact]
+    public void RejectsIdentityTextThatExceedsRetentionLimits()
+    {
+        var store = new EntityStore();
+
+        Assert.Throws<InvalidDataException>(() => store.Apply(
+            new EntityCreated(
+                Timestamp,
+                null,
+                42,
+                new string('C', EntityStore.MaximumCardIdLength + 1))));
+        Assert.Throws<InvalidDataException>(() => store.Apply(
+            new EntityRevealed(
+                Timestamp,
+                null,
+                42,
+                new string('N', EntityStore.MaximumEntityNameLength + 1),
+                "CARD_001")));
+        Assert.False(store.TryGet(42, out _));
+    }
+
+    [Fact]
     public void SnapshotRemainsUnchangedAfterSourceMutation()
     {
         var store = new EntityStore();

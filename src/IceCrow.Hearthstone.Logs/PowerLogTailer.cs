@@ -18,6 +18,9 @@ public sealed class PowerLogTailer
     private const int ReadBufferBytes = 16 * 1024;
     private const int MaximumLineBytes = 64 * 1024;
     private const int FingerprintBytes = 4 * 1024;
+    private const int RewriteFingerprintBytes = 64 * 1024;
+    private const ulong ContentFingerprintPrime = 1099511628211;
+    internal const ulong InitialContentFingerprint = 14695981039346656037;
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private static readonly string[] AcceptedPrefixes =
     [
@@ -208,6 +211,7 @@ public sealed class PowerLogTailer
             FileShare.ReadWrite | FileShare.Delete,
             bufferSize: ReadBufferBytes,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
+        var openedLength = stream.Length;
         var samePath = string.Equals(
             _checkpoint.FilePath,
             file.FullName,
@@ -219,17 +223,24 @@ public sealed class PowerLogTailer
                                  stream,
                                  _checkpoint.PrefixFingerprintLength,
                                  cancellationToken).ConfigureAwait(false) != _checkpoint.PrefixFingerprint);
-        var samePathRewrite =
+        var possibleSameLengthRewrite =
             samePath &&
             _checkpoint.FileCreatedAt == createdAt &&
-            file.Length <= _checkpoint.ByteOffset &&
-            file.Length <= _checkpoint.ObservedLength &&
-            lastWriteAt > _checkpoint.LastWriteAt;
+            file.Length == _checkpoint.ByteOffset &&
+            file.Length == _checkpoint.ObservedLength;
+        var openedContentFingerprint = possibleSameLengthRewrite
+            ? await ComputeContentFingerprintAsync(
+                stream,
+                _checkpoint.ByteOffset,
+                cancellationToken).ConfigureAwait(false)
+            : (ulong?)null;
+        var contentChangedAtEndOfFile = openedContentFingerprint.HasValue &&
+            openedContentFingerprint.Value != _checkpoint.ContentFingerprint;
         if (!samePath ||
             _checkpoint.FileCreatedAt != createdAt ||
             file.Length < _checkpoint.ByteOffset ||
             prefixChanged ||
-            samePathRewrite)
+            contentChangedAtEndOfFile)
         {
             _checkpoint = new LogReadCheckpoint(
                 file.FullName,
@@ -238,7 +249,8 @@ public sealed class PowerLogTailer
                 file.Length,
                 lastWriteAt,
                 0,
-                0);
+                0,
+                InitialContentFingerprint);
             _discardingOversizedLine = false;
         }
 
@@ -251,7 +263,6 @@ public sealed class PowerLogTailer
 
         var rentedBuffer = ArrayPool<byte>.Shared.Rent(ReadBufferBytes);
         using var lineBuffer = new MemoryStream(capacity: 4096);
-
         try
         {
             while (true)
@@ -269,10 +280,12 @@ public sealed class PowerLogTailer
                 {
                     absoluteOffset++;
                     var current = rentedBuffer[index];
-
                     if (_discardingOversizedLine)
                     {
-                        _checkpoint = _checkpoint with { ByteOffset = absoluteOffset };
+                        _checkpoint = _checkpoint with
+                        {
+                            ByteOffset = absoluteOffset,
+                        };
                         if (current == (byte)'\n')
                         {
                             _discardingOversizedLine = false;
@@ -285,7 +298,10 @@ public sealed class PowerLogTailer
                     {
                         await ProcessCompleteLineAsync(lineBuffer, cancellationToken).ConfigureAwait(false);
                         lineBuffer.SetLength(0);
-                        _checkpoint = _checkpoint with { ByteOffset = absoluteOffset };
+                        _checkpoint = _checkpoint with
+                        {
+                            ByteOffset = absoluteOffset,
+                        };
                         continue;
                     }
 
@@ -295,7 +311,10 @@ public sealed class PowerLogTailer
                             $"A Power.log line exceeded the {MaximumLineBytes}-byte safety limit and was skipped."));
                         lineBuffer.SetLength(0);
                         _discardingOversizedLine = true;
-                        _checkpoint = _checkpoint with { ByteOffset = absoluteOffset };
+                        _checkpoint = _checkpoint with
+                        {
+                            ByteOffset = absoluteOffset,
+                        };
                         continue;
                     }
 
@@ -321,7 +340,8 @@ public sealed class PowerLogTailer
                         ? new DateTimeOffset(file.LastWriteTimeUtc, TimeSpan.Zero)
                         : lastWriteAt,
                     0,
-                    0);
+                    0,
+                    InitialContentFingerprint);
                 _discardingOversizedLine = false;
                 Signal();
                 return;
@@ -334,6 +354,30 @@ public sealed class PowerLogTailer
                 stream,
                 fingerprintLength,
                 cancellationToken).ConfigureAwait(false);
+            var contentFingerprint = await ComputeContentFingerprintAsync(
+                stream,
+                _checkpoint.ByteOffset,
+                cancellationToken).ConfigureAwait(false);
+            if (openedContentFingerprint.HasValue &&
+                stream.Length == openedLength &&
+                contentFingerprint != openedContentFingerprint.Value)
+            {
+                _checkpoint = new LogReadCheckpoint(
+                    file.FullName,
+                    0,
+                    createdAt,
+                    file.Exists ? file.Length : 0,
+                    file.Exists
+                        ? new DateTimeOffset(file.LastWriteTimeUtc, TimeSpan.Zero)
+                        : lastWriteAt,
+                    0,
+                    0,
+                    InitialContentFingerprint);
+                _discardingOversizedLine = false;
+                Signal();
+                return;
+            }
+
             _checkpoint = _checkpoint with
             {
                 ObservedLength = file.Exists ? file.Length : _checkpoint.ObservedLength,
@@ -342,6 +386,7 @@ public sealed class PowerLogTailer
                     : _checkpoint.LastWriteAt,
                 PrefixFingerprint = fingerprint,
                 PrefixFingerprintLength = fingerprintLength,
+                ContentFingerprint = contentFingerprint,
             };
         }
         finally
@@ -349,6 +394,52 @@ public sealed class PowerLogTailer
             ArrayPool<byte>.Shared.Return(rentedBuffer);
         }
     }
+
+    private static async Task<ulong> ComputeContentFingerprintAsync(
+        FileStream stream,
+        long length,
+        CancellationToken cancellationToken)
+    {
+        var fingerprint = InitialContentFingerprint;
+        if (length == 0)
+        {
+            return fingerprint;
+        }
+
+        var buffer = ArrayPool<byte>.Shared.Rent(ReadBufferBytes);
+        try
+        {
+            var fingerprintStart = Math.Max(0, length - RewriteFingerprintBytes);
+            stream.Seek(fingerprintStart, SeekOrigin.Begin);
+            var remaining = length - fingerprintStart;
+            while (remaining > 0)
+            {
+                var read = await stream.ReadAsync(
+                    buffer.AsMemory(0, checked((int)Math.Min(buffer.Length, remaining))),
+                    cancellationToken).ConfigureAwait(false);
+                if (read == 0)
+                {
+                    break;
+                }
+
+                for (var index = 0; index < read; index++)
+                {
+                    fingerprint = AppendContentFingerprint(fingerprint, buffer[index]);
+                }
+
+                remaining -= read;
+            }
+
+            return fingerprint;
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
+
+    private static ulong AppendContentFingerprint(ulong fingerprint, byte value) =>
+        unchecked((fingerprint ^ value) * ContentFingerprintPrime);
 
     private static async Task<ulong> ComputePrefixFingerprintAsync(
         FileStream stream,

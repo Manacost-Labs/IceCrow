@@ -2,6 +2,7 @@ using IceCrow.Battlegrounds;
 using IceCrow.Battlegrounds.Memory;
 using IceCrow.Telemetry;
 using IceCrow.Tracking;
+using System.Text.Json;
 using Xunit;
 
 namespace IceCrow.Telemetry.Tests;
@@ -100,6 +101,35 @@ public sealed class TelemetryFoundationTests
         await Assert.ThrowsAsync<InvalidDataException>(() =>
             outbox.EnqueueAsync(Summary(Guid.CreateVersion7()) with { ClientVersion = new string('x', 65) }, consent));
         Assert.Equal(0, await outbox.CountAsync());
+    }
+
+    [Fact]
+    public async Task OversizedPersistedArrayIsRejectedAtTheFirstExcessItem()
+    {
+        using var temporary = new TemporaryDirectory();
+        var path = Path.Combine(temporary.Path, "outbox.json");
+        var items = Enumerable.Range(0, TelemetryOutbox.MaximumItems + 1)
+            .Select(_ => Summary(Guid.CreateVersion7()))
+            .ToArray();
+        await File.WriteAllTextAsync(path, JsonSerializer.Serialize(items));
+        using var outbox = new TelemetryOutbox(path);
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => outbox.CountAsync());
+
+        Assert.Contains("item limit", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task NullRequiredPersistedMemberIsReportedAsInvalidData()
+    {
+        using var temporary = new TemporaryDirectory();
+        var path = Path.Combine(temporary.Path, "outbox.json");
+        var json = JsonSerializer.Serialize(Summary(Guid.CreateVersion7()))
+            .Replace("\"ClientVersion\":\"0.1.0\"", "\"ClientVersion\":null", StringComparison.Ordinal);
+        await File.WriteAllTextAsync(path, $"[{json}]");
+        using var outbox = new TelemetryOutbox(path);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => outbox.CountAsync());
     }
 
     [Fact]

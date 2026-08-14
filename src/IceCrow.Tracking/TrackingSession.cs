@@ -109,6 +109,14 @@ public sealed class TrackingSession
                 exception.Message,
                 exception);
         }
+        catch (InvalidDataException exception)
+        {
+            throw new TrackingSafetyLimitExceededException(
+                TrackingSafetyLimit.RetainedText,
+                EntityStore.MaximumEntityNameLength,
+                exception.Message,
+                exception);
+        }
         var entity = TryCreateEventEntitySnapshot(gameEvent);
         if (entity is not null)
         {

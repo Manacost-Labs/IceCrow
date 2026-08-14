@@ -6,6 +6,7 @@ public enum TrackingSafetyLimit
     TagsPerEntity,
     TotalTags,
     LobbyPlayers,
+    RetainedText,
 }
 
 public sealed class TrackingSafetyLimitExceededException : InvalidOperationException

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Text.Json.Nodes;
 using IceCrow.Hearthstone.Data;
 using Xunit;
 
@@ -46,6 +47,48 @@ public sealed class ManacostDataTests
         { BaseAddress = ManacostApiOptions.ProductionBaseAddress };
         var malformed = new ManacostDatasetClient(malformedClient);
         await Assert.ThrowsAsync<ManacostApiException>(() => malformed.DownloadAsync());
+    }
+
+    [Fact]
+    public async Task AggregateDatasetResponseBudgetSpansEveryPageAndResource()
+    {
+        using var httpClient = new HttpClient(new StubHandler(request =>
+            Json(
+                HttpStatusCode.OK,
+                PadToLength(
+                    request.RequestUri!.AbsolutePath.EndsWith("/cards", StringComparison.Ordinal)
+                        ? CardPage
+                        : HeroPage,
+                    900))))
+        { BaseAddress = ManacostApiOptions.ProductionBaseAddress };
+        var client = new ManacostDatasetClient(
+            httpClient,
+            new ManacostApiOptions
+            {
+                MaximumResponseBytes = 1024,
+                MaximumTotalResponseBytes = 1500,
+            });
+
+        var exception = await Assert.ThrowsAsync<ManacostApiException>(() => client.DownloadAsync());
+
+        Assert.Contains("aggregate", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CrossOriginFinalResponseIsRejected()
+    {
+        using var httpClient = new HttpClient(new StubHandler(_ =>
+        {
+            var response = Json(HttpStatusCode.OK, CardPage);
+            response.RequestMessage = new HttpRequestMessage(HttpMethod.Get, "https://localhost/internal");
+            return response;
+        }))
+        { BaseAddress = ManacostApiOptions.ProductionBaseAddress };
+        var client = new ManacostDatasetClient(httpClient);
+
+        var exception = await Assert.ThrowsAsync<ManacostApiException>(() => client.DownloadAsync());
+
+        Assert.Contains("origin", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -166,6 +209,36 @@ public sealed class ManacostDataTests
     }
 
     [Fact]
+    public async Task NullRequiredCacheCollectionIsReportedAsInvalidData()
+    {
+        using var temporary = new TemporaryDirectory();
+        var path = Path.Combine(temporary.Path, "cache.json");
+        var store = new JsonHearthstoneDataStore(path);
+        await store.SaveAsync(Snapshot("v1", "BG_OLD", 1));
+        var document = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+        document["cards"] = null;
+        await File.WriteAllTextAsync(path, document.ToJsonString());
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => store.LoadAsync());
+
+        Assert.Contains("null required values", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task NullRequiredNestedCacheMemberIsReportedAsInvalidData()
+    {
+        using var temporary = new TemporaryDirectory();
+        var path = Path.Combine(temporary.Path, "cache.json");
+        var store = new JsonHearthstoneDataStore(path);
+        await store.SaveAsync(Snapshot("v1", "BG_OLD", 1));
+        var document = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
+        document["cards"]![0]!["creatureTypes"] = null;
+        await File.WriteAllTextAsync(path, document.ToJsonString());
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => store.LoadAsync());
+    }
+
+    [Fact]
     public async Task ImageCacheDeduplicatesDownloadsAndRejectsUnapprovedHosts()
     {
         using var temporary = new TemporaryDirectory();
@@ -198,6 +271,9 @@ public sealed class ManacostDataTests
         Content = new StringContent(json, Encoding.UTF8, "application/json"),
     };
 
+    private static string PadToLength(string value, int length) =>
+        value.Length >= length ? value : value + new string(' ', length - value.Length);
+
     private static HearthstoneDataSnapshot Snapshot(string version, string cardId, int dbf) =>
         HearthstoneDataSnapshotFactory.Create(version, null, new[] { Card(cardId, dbf) }, []);
 
@@ -216,7 +292,9 @@ public sealed class ManacostDataTests
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult(responder(request));
+            var response = responder(request);
+            response.RequestMessage ??= request;
+            return Task.FromResult(response);
         }
     }
 

@@ -10,6 +10,8 @@ public sealed record ManacostApiOptions
 
     public int MaximumResponseBytes { get; init; } = 8 * 1024 * 1024;
 
+    public int MaximumTotalResponseBytes { get; init; } = 32 * 1024 * 1024;
+
     public int MaximumPages { get; init; } = 100;
 
     public int PageSize { get; init; } = 200;
@@ -29,6 +31,12 @@ public sealed record ManacostApiOptions
         if (MaximumResponseBytes is < 1024 or > 64 * 1024 * 1024)
         {
             throw new ArgumentOutOfRangeException(nameof(MaximumResponseBytes));
+        }
+
+        if (MaximumTotalResponseBytes < MaximumResponseBytes ||
+            MaximumTotalResponseBytes > 256 * 1024 * 1024)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MaximumTotalResponseBytes));
         }
 
         if (MaximumPages is < 1 or > 1000)
