@@ -5,15 +5,18 @@ namespace IceCrow.Battlegrounds.Memory;
 public sealed class PlayerTimeline
 {
     private readonly List<LobbyTimelineEvent> _events = [];
+    private readonly int _maximumEvents;
     private readonly ReadOnlyCollection<LobbyTimelineEvent> _readOnlyEvents;
     private bool _hasBaseline;
     private int _health;
     private int _armor;
     private bool _isAlive;
 
-    internal PlayerTimeline(int playerId)
+    internal PlayerTimeline(int playerId, int maximumEvents)
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumEvents);
         PlayerId = playerId;
+        _maximumEvents = maximumEvents;
         _readOnlyEvents = _events.AsReadOnly();
     }
 
@@ -143,7 +146,21 @@ public sealed class PlayerTimeline
 
     private void Add(LobbyTimelineEvent timelineEvent)
     {
-        _events.Add(timelineEvent);
-        _events.Sort(LobbyTimelineEventComparer.Instance);
+        if (_events.Count == _maximumEvents)
+        {
+            _events.RemoveAt(0);
+        }
+
+        if (_events.Count == 0 ||
+            LobbyTimelineEventComparer.Instance.Compare(_events[^1], timelineEvent) <= 0)
+        {
+            _events.Add(timelineEvent);
+            return;
+        }
+
+        var insertionIndex = _events.BinarySearch(
+            timelineEvent,
+            LobbyTimelineEventComparer.Instance);
+        _events.Insert(insertionIndex < 0 ? ~insertionIndex : insertionIndex, timelineEvent);
     }
 }

@@ -1,6 +1,9 @@
 using IceCrow.Battlegrounds;
+using IceCrow.Battlegrounds.Memory;
+using IceCrow.Hearthstone.Entities;
 using IceCrow.Hearthstone.Protocol.Events;
 using IceCrow.Recording.Tests.Fixtures;
+using IceCrow.Tracking;
 
 namespace IceCrow.Recording.Tests;
 
@@ -37,6 +40,7 @@ public sealed class ReplayRunnerTests
         Assert.Equal("Reno", state.Battlegrounds.Lobby.GetPlayer(1)?.HeroName);
         Assert.Equal("Millhouse", state.Battlegrounds.Lobby.GetPlayer(2)?.HeroName);
         Assert.Equal(7, state.OpponentMemory.GetLatest(2)?.Minions.Count);
+        Assert.Single(state.LobbyTimeline.Events.OfType<OpponentObserved>());
     }
 
     [Fact]
@@ -65,6 +69,42 @@ public sealed class ReplayRunnerTests
         var second = Project(new ReplayRunner(match).RunAll());
 
         Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public void DirectTrackingAndReplayProduceEquivalentMatchState()
+    {
+        var match = DeterministicMatchFixture.Create();
+        var tracking = new TrackingSession();
+        foreach (var recordedEvent in match.Events)
+        {
+            switch (recordedEvent.Type)
+            {
+                case RecordedEventType.MatchStarted:
+                    _ = tracking.StartBattlegroundsMatch(
+                        recordedEvent.Timestamp,
+                        recordedEvent.PlayerId);
+                    break;
+                case RecordedEventType.MatchEnded:
+                    _ = tracking.EndMatch(recordedEvent.Timestamp);
+                    break;
+                default:
+                    _ = tracking.Apply(recordedEvent.ToGameEvent());
+                    break;
+            }
+        }
+
+        var direct = tracking.Current;
+        var replay = new ReplayRunner(match).RunAll();
+
+        Assert.Equal(direct.Battlegrounds, replay.Battlegrounds);
+        Assert.Equal(
+            ProjectMemory(direct.OpponentMemory),
+            ProjectMemory(replay.OpponentMemory));
+        Assert.Equal(direct.LobbyTimeline.Events, replay.LobbyTimeline.Events);
+        Assert.Equal(
+            tracking.CreateEntitySnapshots().Select(ProjectEntity),
+            replay.Entities.Select(ProjectEntity));
     }
 
     [Fact]
@@ -133,6 +173,16 @@ public sealed class ReplayRunnerTests
         var timestamp = new DateTimeOffset(2026, 8, 13, 21, 0, 0, TimeSpan.Zero);
         var recorder = new MatchRecorder(timestamp);
         recorder.RecordMatchStarted(timestamp);
+        recorder.Record(new RawTagChanged(timestamp, null, 1, null, "PLAYER_ID", "1", false));
+        recorder.Record(new RawTagChanged(timestamp, null, 1, null, "CURRENT_PLAYER", "1", false));
+        recorder.Record(new RawTagChanged(
+            timestamp,
+            null,
+            1,
+            null,
+            "NEXT_OPPONENT_PLAYER_ID",
+            "2",
+            false));
         for (var combat = 0; combat <= ReplayRunner.MaximumOpponentSnapshots; combat++)
         {
             recorder.Record(new RawTagChanged(
@@ -280,11 +330,27 @@ public sealed class ReplayRunnerTests
         string.Join(
             "|",
             state.OpponentMemory.GetLatest(2)?.Minions.Select(minion =>
-                $"{minion.EntityId}:{minion.CardId}:{minion.Attack}:{minion.Health}:{minion.ZonePosition}") ?? []));
+                $"{minion.EntityId}:{minion.CardId}:{minion.Attack}:{minion.Health}:{minion.ZonePosition}") ?? []),
+        string.Join("|", state.LobbyTimeline.Events));
+
+    private static string ProjectMemory(OpponentMemory memory) => string.Join(
+        "|",
+        memory.Histories
+            .OrderBy(static pair => pair.Key)
+            .SelectMany(static pair => pair.Value.Snapshots)
+            .Select(snapshot =>
+                $"{snapshot.PlayerId}:{snapshot.Turn}:{snapshot.Timestamp:O}:" +
+                string.Join(",", snapshot.Minions.Select(minion =>
+                    $"{minion.EntityId}:{minion.CardId}:{minion.Attack}:{minion.Health}:{minion.ZonePosition}"))));
+
+    private static string ProjectEntity(EntitySnapshot entity) =>
+        $"{entity.Id}:{entity.CardId}:{entity.Name}:" +
+        string.Join(",", entity.Tags.OrderBy(static tag => tag.Key));
 
     private sealed record ReplayProjection(
         int EventIndex,
         BattlegroundsState Battlegrounds,
         string Entities,
-        string Minions);
+        string Minions,
+        string Timeline);
 }

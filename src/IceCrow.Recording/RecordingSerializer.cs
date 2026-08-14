@@ -217,6 +217,7 @@ public static class RecordingSerializer
         {
             case RecordedEventType.MatchStarted:
             case RecordedEventType.MatchEnded:
+            case RecordedEventType.GameCreated:
                 break;
             case RecordedEventType.GameEntityDeclared:
                 RequireValue(recordedEvent.EntityId, nameof(recordedEvent.EntityId));

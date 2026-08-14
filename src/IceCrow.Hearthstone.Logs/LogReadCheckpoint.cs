@@ -5,12 +5,16 @@ public sealed record LogReadCheckpoint(
     long ByteOffset,
     DateTimeOffset FileCreatedAt,
     long ObservedLength,
-    DateTimeOffset LastWriteAt)
+    DateTimeOffset LastWriteAt,
+    ulong PrefixFingerprint,
+    int PrefixFingerprintLength)
 {
     public static LogReadCheckpoint Empty { get; } = new(
         null,
         0,
         DateTimeOffset.MinValue,
         0,
-        DateTimeOffset.MinValue);
+        DateTimeOffset.MinValue,
+        0,
+        0);
 }

@@ -1,0 +1,101 @@
+{
+  "formatVersion": 1,
+  "startedAt": "2026-08-14T12:00:00+00:00",
+  "events": [
+    {
+      "type": "matchStarted",
+      "timestamp": "2026-08-14T12:00:00+00:00",
+      "playerId": 1
+    },
+    {
+      "type": "rawTagChanged",
+      "timestamp": "2026-08-14T12:00:00.001+00:00",
+      "entityId": 1,
+      "tag": "PLAYER_ID",
+      "value": "1",
+      "isCreationTag": false
+    },
+    {
+      "type": "rawTagChanged",
+      "timestamp": "2026-08-14T12:00:00.002+00:00",
+      "entityId": 1,
+      "tag": "CARDTYPE",
+      "value": "PLAYER",
+      "isCreationTag": false
+    },
+    {
+      "type": "rawTagChanged",
+      "timestamp": "2026-08-14T12:00:00.003+00:00",
+      "entityId": 1,
+      "tag": "PLAYER_TECH_LEVEL",
+      "value": "2",
+      "isCreationTag": false
+    },
+    {
+      "type": "rawTagChanged",
+      "timestamp": "2026-08-14T12:00:00.004+00:00",
+      "entityId": 1,
+      "tag": "NEXT_OPPONENT_PLAYER_ID",
+      "value": "2",
+      "isCreationTag": false
+    },
+    {
+      "type": "rawTagChanged",
+      "timestamp": "2026-08-14T12:00:00.005+00:00",
+      "entityId": 2,
+      "tag": "PLAYER_ID",
+      "value": "2",
+      "isCreationTag": false
+    },
+    {
+      "type": "rawTagChanged",
+      "timestamp": "2026-08-14T12:00:00.006+00:00",
+      "entityId": 2,
+      "tag": "CARDTYPE",
+      "value": "PLAYER",
+      "isCreationTag": false
+    },
+    {
+      "type": "rawTagChanged",
+      "timestamp": "2026-08-14T12:00:00.007+00:00",
+      "entityId": 2,
+      "tag": "PLAYER_TECH_LEVEL",
+      "value": "3",
+      "isCreationTag": false
+    },
+    {
+      "type": "rawTagChanged",
+      "timestamp": "2026-08-14T12:00:00.008+00:00",
+      "entityId": 500,
+      "tag": "TURN",
+      "value": "3",
+      "isCreationTag": false
+    },
+    {
+      "type": "rawTagChanged",
+      "timestamp": "2026-08-14T12:00:00.009+00:00",
+      "entityId": 500,
+      "tag": "2022",
+      "value": "1",
+      "isCreationTag": false
+    },
+    {
+      "type": "rawTagChanged",
+      "timestamp": "2026-08-14T12:00:00.010+00:00",
+      "entityId": 500,
+      "tag": "2022",
+      "value": "0",
+      "isCreationTag": false
+    },
+    {
+      "type": "matchEnded",
+      "timestamp": "2026-08-14T12:00:00.011+00:00"
+    }
+  ],
+  "checkpoints": [
+    { "name": "HeroSelection", "eventIndex": 0 },
+    { "name": "Turn2Recruit", "eventIndex": 8 },
+    { "name": "Turn2Combat", "eventIndex": 10 },
+    { "name": "GameEnd", "eventIndex": 11 }
+  ]
+}

@@ -8,6 +8,7 @@ public enum RecordedEventType
 {
     MatchStarted,
     MatchEnded,
+    GameCreated,
     GameEntityDeclared,
     PlayerEntityDeclared,
     EntityCreated,
@@ -69,6 +70,7 @@ public sealed record RecordedEvent
 
         return gameEvent switch
         {
+            GameCreated created => Base(RecordedEventType.GameCreated, created),
             GameEntityDeclared declared => Base(
                 RecordedEventType.GameEntityDeclared,
                 declared) with
@@ -139,8 +141,9 @@ public sealed record RecordedEvent
         };
     }
 
-    internal GameEvent ToGameEvent() => Type switch
+    public GameEvent ToGameEvent() => Type switch
     {
+        RecordedEventType.GameCreated => new GameCreated(Timestamp),
         RecordedEventType.GameEntityDeclared => new GameEntityDeclared(
             Timestamp,
             BlockId,

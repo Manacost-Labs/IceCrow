@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "name": "synthetic-raw-lifecycle",
+  "sourceType": "synthetic",
+  "iceCrowFormatVersion": 1,
+  "reason": "Catches parser and live-lifecycle regressions before normalized replay.",
+  "inputType": "raw-power-log",
+  "inputFile": "power.log.txt",
+  "rawStartedAt": "2026-08-14T12:00:00+00:00",
+  "expectedCheckpoints": [
+    {
+      "name": "BattlegroundsDetected",
+      "eventIndex": 4,
+      "state": {
+        "sessionState": "Active",
+        "isActive": true,
+        "phase": "HeroSelection"
+      }
+    },
+    {
+      "name": "Turn2Recruit",
+      "eventIndex": 7,
+      "state": {
+        "sessionState": "Active",
+        "turn": 2,
+        "phase": "Recruit",
+        "localPlayerId": 1,
+        "currentOpponentPlayerId": 2,
+        "lobbyCount": 2
+      }
+    },
+    {
+      "name": "Turn2Combat",
+      "eventIndex": 9,
+      "state": {
+        "sessionState": "Active",
+        "phase": "Combat",
+        "currentOpponentPlayerId": 2,
+        "opponentMemory": [
+          { "playerId": 2, "minionCount": 0, "lastSeenTurn": 2 }
+        ]
+      }
+    },
+    {
+      "name": "GameEnd",
+      "eventIndex": 10,
+      "state": {
+        "sessionState": "Ended",
+        "isActive": false,
+        "turn": 2,
+        "phase": "GameOver"
+      }
+    }
+  ]
+}

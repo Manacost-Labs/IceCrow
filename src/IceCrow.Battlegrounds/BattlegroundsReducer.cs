@@ -77,7 +77,9 @@ public static class BattlegroundsReducer
 
         var playerId = PositiveOrNull(entity.PlayerId);
         var localPlayerId = state.LocalPlayerId;
-        if (playerId is int observedPlayerId && entity.GetTag(GameTag.CurrentPlayer) > 0)
+        if (localPlayerId is null &&
+            playerId is int observedPlayerId &&
+            entity.GetTag(GameTag.CurrentPlayer) > 0)
         {
             localPlayerId = observedPlayerId;
         }
@@ -123,8 +125,13 @@ public static class BattlegroundsReducer
         }
 
         var currentOpponentPlayerId = state.CurrentOpponentPlayerId;
-        if (playerId == localPlayerId && HasTag(entity, GameTag.NextOpponentPlayerId))
+        if (playerId is int nextOpponentOwner &&
+            HasTag(entity, GameTag.NextOpponentPlayerId))
         {
+            // HDT TagChangeActions.OnNextOpponentPlayerId at revision
+            // d73b3a8220bbc88e836af8cd67a15c44a1fb7021, inspected 2026-08-14,
+            // accepts this tag only when it belongs to game.PlayerEntity.
+            localPlayerId = nextOpponentOwner;
             currentOpponentPlayerId = PositiveOrNull(
                 entity.GetTag(GameTag.NextOpponentPlayerId));
         }
@@ -164,17 +171,17 @@ public static class BattlegroundsReducer
     }
 
     private static bool IsTerminalPlayState(int playState) => playState is
-        (int)HearthstonePlayState.Won or
-        (int)HearthstonePlayState.Lost or
-        (int)HearthstonePlayState.Tied or
-        (int)HearthstonePlayState.Disconnected or
-        (int)HearthstonePlayState.Conceded;
+        (int)GamePlayState.Won or
+        (int)GamePlayState.Lost or
+        (int)GamePlayState.Tied or
+        (int)GamePlayState.Disconnected or
+        (int)GamePlayState.Conceded;
 
     private static bool IsAlivePlayState(int playState) => playState is not
-        (int)HearthstonePlayState.Lost and not
-        (int)HearthstonePlayState.Tied and not
-        (int)HearthstonePlayState.Disconnected and not
-        (int)HearthstonePlayState.Conceded;
+        (int)GamePlayState.Lost and not
+        (int)GamePlayState.Tied and not
+        (int)GamePlayState.Disconnected and not
+        (int)GamePlayState.Conceded;
 
     private static bool HasTag(EntitySnapshot entity, GameTag tag) =>
         entity.Tags.ContainsKey(tag);
@@ -184,14 +191,4 @@ public static class BattlegroundsReducer
 
     private static int? PositiveOrNull(int? value) => value > 0 ? value : null;
 
-    // Values verified against HearthDb Enums.cs at revision
-    // 37981c80d9b8c164db8cdb5cfa18c708c32d111e on 2026-08-13.
-    private enum HearthstonePlayState
-    {
-        Won = 4,
-        Lost = 5,
-        Tied = 6,
-        Disconnected = 7,
-        Conceded = 8,
-    }
 }

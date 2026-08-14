@@ -26,9 +26,10 @@ public sealed class OpponentBoardHistory
         return new OpponentBoardHistory(snapshot.PlayerId, [snapshot]);
     }
 
-    public OpponentBoardHistory Add(BoardSnapshot snapshot)
+    public OpponentBoardHistory Add(BoardSnapshot snapshot, int maximumSnapshots)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumSnapshots);
         if (snapshot.PlayerId != PlayerId)
         {
             throw new ArgumentException(
@@ -36,8 +37,11 @@ public sealed class OpponentBoardHistory
                 nameof(snapshot));
         }
 
-        var updated = new BoardSnapshot[_snapshots.Length + 1];
-        Array.Copy(_snapshots, updated, _snapshots.Length);
+        var updatedLength = Math.Min(_snapshots.Length + 1, maximumSnapshots);
+        var updated = new BoardSnapshot[updatedLength];
+        var retainedCount = updatedLength - 1;
+        var sourceIndex = Math.Max(0, _snapshots.Length - retainedCount);
+        Array.Copy(_snapshots, sourceIndex, updated, 0, retainedCount);
         updated[^1] = snapshot;
         return new OpponentBoardHistory(PlayerId, updated);
     }

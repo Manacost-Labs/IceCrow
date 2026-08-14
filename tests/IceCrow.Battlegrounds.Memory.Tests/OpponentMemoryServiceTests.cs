@@ -20,7 +20,7 @@ public sealed class OpponentMemoryServiceTests
     {
         var fixture = new EntityFixture();
         fixture.AddMinion(101, playerId: 2, zonePosition: 1, attack: 3, health: 4);
-        var service = EnterCombat(fixture, opponentPlayerId: 2, turn: 1);
+        var service = CaptureBoard(fixture, opponentPlayerId: 2, turn: 1);
 
         var latest = Assert.IsType<BoardSnapshot>(service.Memory.GetLatest(2));
         var history = Assert.IsType<OpponentBoardHistory>(service.Memory.GetHistory(2));
@@ -46,7 +46,7 @@ public sealed class OpponentMemoryServiceTests
                 health: position + 1);
         }
 
-        var service = EnterCombat(fixture, opponentPlayerId: 2, turn: 3);
+        var service = CaptureBoard(fixture, opponentPlayerId: 2, turn: 3);
 
         var board = Assert.IsType<BoardSnapshot>(service.Memory.GetLatest(2));
         Assert.Equal(7, board.Minions.Count);
@@ -64,7 +64,7 @@ public sealed class OpponentMemoryServiceTests
         fixture.AddMinion(103, playerId: 2, zonePosition: 3, attack: 7, health: 8);
         fixture.SetTag(103, "ZONE", "HAND");
 
-        var service = EnterCombat(fixture, opponentPlayerId: 2, turn: 3);
+        var service = CaptureBoard(fixture, opponentPlayerId: 2, turn: 3);
 
         var board = Assert.IsType<BoardSnapshot>(service.Memory.GetLatest(2));
         Assert.Equal(101, Assert.Single(board.Minions).EntityId);
@@ -75,7 +75,7 @@ public sealed class OpponentMemoryServiceTests
     {
         var fixture = new EntityFixture();
 
-        var service = EnterCombat(fixture, opponentPlayerId: 2, turn: 2);
+        var service = CaptureBoard(fixture, opponentPlayerId: 2, turn: 2);
 
         var board = Assert.IsType<BoardSnapshot>(service.Memory.GetLatest(2));
         Assert.Empty(board.Minions);
@@ -86,12 +86,11 @@ public sealed class OpponentMemoryServiceTests
     {
         var fixture = new EntityFixture();
         fixture.AddMinion(101, playerId: 2, zonePosition: 1, attack: 2, health: 3);
-        var service = EnterCombat(fixture, opponentPlayerId: 2, turn: 1);
+        var service = CaptureBoard(fixture, opponentPlayerId: 2, turn: 1);
         var first = service.Memory.GetLatest(2);
 
-        _ = service.Update(RecruitState(opponentPlayerId: 2, turn: 2), fixture.Snapshots, Timestamp.AddMinutes(1));
         fixture.SetTag(101, "ATK", "8");
-        _ = service.Update(CombatState(opponentPlayerId: 2, turn: 2), fixture.Snapshots, Timestamp.AddMinutes(2));
+        _ = service.Capture(2, 2, fixture.Snapshots, Timestamp.AddMinutes(2));
 
         var latest = Assert.IsType<BoardSnapshot>(service.Memory.GetLatest(2));
         Assert.NotSame(first, latest);
@@ -104,12 +103,11 @@ public sealed class OpponentMemoryServiceTests
     {
         var fixture = new EntityFixture();
         fixture.AddMinion(101, playerId: 2, zonePosition: 1, attack: 2, health: 3);
-        var service = EnterCombat(fixture, opponentPlayerId: 2, turn: 1);
+        var service = CaptureBoard(fixture, opponentPlayerId: 2, turn: 1);
         var first = service.Memory.GetLatest(2);
 
-        _ = service.Update(RecruitState(opponentPlayerId: 2, turn: 2), fixture.Snapshots, Timestamp.AddMinutes(1));
         fixture.SetTag(101, "ATK", "8");
-        _ = service.Update(CombatState(opponentPlayerId: 2, turn: 2), fixture.Snapshots, Timestamp.AddMinutes(2));
+        _ = service.Capture(2, 2, fixture.Snapshots, Timestamp.AddMinutes(2));
 
         var history = Assert.IsType<OpponentBoardHistory>(service.Memory.GetHistory(2));
         Assert.Equal(2, history.Snapshots.Count);
@@ -123,7 +121,7 @@ public sealed class OpponentMemoryServiceTests
     {
         var fixture = new EntityFixture();
         fixture.AddMinion(101, playerId: 2, zonePosition: 1, attack: 2, health: 6);
-        var service = EnterCombat(fixture, opponentPlayerId: 2, turn: 1);
+        var service = CaptureBoard(fixture, opponentPlayerId: 2, turn: 1);
         var captured = Assert.Single(
             Assert.IsType<BoardSnapshot>(service.Memory.GetLatest(2)).Minions);
 
@@ -140,17 +138,10 @@ public sealed class OpponentMemoryServiceTests
     {
         var fixture = new EntityFixture();
         fixture.AddMinion(101, playerId: 2, zonePosition: 1, attack: 2, health: 3);
-        var service = EnterCombat(fixture, opponentPlayerId: 2, turn: 1);
+        var service = CaptureBoard(fixture, opponentPlayerId: 2, turn: 1);
         Assert.NotNull(service.Memory.GetLatest(2));
 
-        _ = service.Update(
-            BattlegroundsState.Empty with { Phase = BattlegroundsPhase.GameOver },
-            fixture.Snapshots,
-            Timestamp.AddMinutes(10));
-        _ = service.Update(
-            ActiveState(BattlegroundsPhase.HeroSelection, opponentPlayerId: null, turn: 0),
-            fixture.Snapshots,
-            Timestamp.AddMinutes(20));
+        service.Reset();
 
         Assert.Empty(service.Memory.Histories);
     }
@@ -158,51 +149,48 @@ public sealed class OpponentMemoryServiceTests
     [Fact]
     public void NeverFoughtPlayerHasNoSnapshot()
     {
-        var fixture = new EntityFixture();
         var service = new OpponentMemoryService();
-
-        _ = service.Update(
-            RecruitState(opponentPlayerId: 3, turn: 4),
-            fixture.Snapshots,
-            Timestamp);
 
         Assert.Null(service.Memory.GetLatest(3));
         Assert.Null(service.Memory.GetHistory(3));
     }
 
-    private static OpponentMemoryService EnterCombat(
+    [Fact]
+    public void SnapshotHistoryAndOpponentCountRemainBounded()
+    {
+        var service = new OpponentMemoryService(
+            maximumOpponents: 2,
+            maximumSnapshotsPerOpponent: 3);
+
+        for (var turn = 1; turn <= 6; turn++)
+        {
+            _ = service.Capture(2, turn, [], Timestamp.AddMinutes(turn));
+        }
+
+        _ = service.Capture(3, 1, [], Timestamp);
+        _ = service.Capture(4, 1, [], Timestamp);
+
+        var history = Assert.IsType<OpponentBoardHistory>(service.Memory.GetHistory(2));
+        Assert.Equal([4, 5, 6], history.Snapshots.Select(static snapshot => snapshot.Turn));
+        Assert.Equal(2, service.Memory.Histories.Count);
+        Assert.Null(service.Memory.GetHistory(4));
+        Assert.Equal(4, service.SnapshotCount);
+        Assert.Equal(3, service.MaximumSnapshotCount);
+    }
+
+    private static OpponentMemoryService CaptureBoard(
         EntityFixture fixture,
         int opponentPlayerId,
         int turn)
     {
         var service = new OpponentMemoryService();
-        _ = service.Update(
-            RecruitState(opponentPlayerId, turn),
-            fixture.Snapshots,
-            Timestamp.AddMinutes(-1));
-        _ = service.Update(
-            CombatState(opponentPlayerId, turn),
+        _ = service.Capture(
+            opponentPlayerId,
+            turn,
             fixture.Snapshots,
             Timestamp);
         return service;
     }
-
-    private static BattlegroundsState RecruitState(int opponentPlayerId, int turn) =>
-        ActiveState(BattlegroundsPhase.Recruit, opponentPlayerId, turn);
-
-    private static BattlegroundsState CombatState(int opponentPlayerId, int turn) =>
-        ActiveState(BattlegroundsPhase.Combat, opponentPlayerId, turn);
-
-    private static BattlegroundsState ActiveState(
-        BattlegroundsPhase phase,
-        int? opponentPlayerId,
-        int turn) => new(
-            IsActive: true,
-            Turn: turn,
-            Phase: phase,
-            LocalPlayerId: 1,
-            CurrentOpponentPlayerId: opponentPlayerId,
-            Lobby: LobbyState.Empty);
 
     private sealed class EntityFixture
     {

@@ -144,6 +144,36 @@ public sealed class BattlegroundsReducerTests
         Assert.Equal(0, state.Lobby.Count);
     }
 
+    [Fact]
+    public void NextOpponentTagIdentifiesLocalPlayerWithoutCurrentPlayerTag()
+    {
+        var fixture = new NormalizedEventFixture();
+        var state = Apply(
+            BattlegroundsState.Empty,
+            new BattlegroundsGameStarted(Timestamp));
+
+        state = Apply(state, fixture.Tag(7, "PLAYER_ID", "7"));
+        state = Apply(state, fixture.Tag(7, "NEXT_OPPONENT_PLAYER_ID", "8"));
+
+        Assert.Equal(7, state.LocalPlayerId);
+        Assert.Equal(8, state.CurrentOpponentPlayerId);
+    }
+
+    [Fact]
+    public void SymbolicTerminalPlayStateEndsLocalGame()
+    {
+        var fixture = new NormalizedEventFixture();
+        var state = Apply(
+            BattlegroundsState.Empty,
+            new BattlegroundsGameStarted(Timestamp, LocalPlayerId: 1));
+
+        state = Apply(state, fixture.Tag(1, "PLAYER_ID", "1"));
+        state = Apply(state, fixture.Tag(1, "PLAYSTATE", "WON"));
+
+        Assert.False(state.IsActive);
+        Assert.Equal(BattlegroundsPhase.GameOver, state.Phase);
+    }
+
     private static BattlegroundsState Replay(IReadOnlyList<BattlegroundsEvent> events) =>
         ApplyAll(BattlegroundsState.Empty, events);
 

@@ -5,11 +5,13 @@ namespace IceCrow.Hearthstone.Entities;
 public sealed class GameEntity
 {
     private readonly Dictionary<GameTag, int> _tags = [];
+    private readonly int _maximumTags;
     private readonly ReadOnlyDictionary<GameTag, int> _readOnlyTags;
 
-    internal GameEntity(int id)
+    internal GameEntity(int id, int maximumTags)
     {
         Id = id;
+        _maximumTags = maximumTags;
         _readOnlyTags = new ReadOnlyDictionary<GameTag, int>(_tags);
     }
 
@@ -59,6 +61,11 @@ public sealed class GameEntity
         if (previousValue == value)
         {
             return null;
+        }
+
+        if (!_tags.ContainsKey(tag) && _tags.Count >= _maximumTags)
+        {
+            throw new EntityTagLimitExceededException(Id, _maximumTags);
         }
 
         _tags[tag] = value;

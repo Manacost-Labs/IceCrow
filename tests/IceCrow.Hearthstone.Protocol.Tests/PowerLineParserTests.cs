@@ -98,6 +98,25 @@ public sealed class PowerLineParserTests
     }
 
     [Fact]
+    public void CreateGameClearsEntityAndBlockContext()
+    {
+        var parser = new PowerLineParser();
+        _ = parser.Parse("FULL_ENTITY - Creating ID=221 CardID=");
+        _ = parser.Parse(
+            "BLOCK_START BlockType=TRIGGER Entity=GameEntity EffectCardId= " +
+            "EffectIndex=0 Target=0 SubOption=-1");
+
+        var result = parser.Parse(
+            "PowerTaskList.DebugPrintPower() - CREATE_GAME",
+            PowerProtocolFixtures.Timestamp);
+
+        Assert.Equal(new GameCreated(PowerProtocolFixtures.Timestamp), result.Event);
+        Assert.Null(parser.Context.CurrentEntityId);
+        Assert.Null(parser.Context.CurrentCreationEntityId);
+        Assert.Empty(parser.Context.BlockStack);
+    }
+
+    [Fact]
     public void MalformedRecognizedLineDoesNotThrowAndDeduplicatesDiagnostic()
     {
         var parser = new PowerLineParser();

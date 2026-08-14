@@ -77,6 +77,13 @@ public sealed class PowerParserContext
         CurrentCreationEntityId = null;
     }
 
+    internal void ResetForNewGame()
+    {
+        _blocks.Clear();
+        _rejectedBlockDepth = 0;
+        ResetEntityContext();
+    }
+
     internal PowerBlock PushBlock(
         string type,
         int? entityId,

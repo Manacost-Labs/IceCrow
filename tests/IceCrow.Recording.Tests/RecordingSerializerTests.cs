@@ -52,6 +52,7 @@ public sealed class RecordingSerializerTests
             TriggerKeyword: null);
         GameEvent[] normalizedEvents =
         [
+            new GameCreated(Timestamp),
             new GameEntityDeclared(Timestamp, null, 1),
             new PlayerEntityDeclared(Timestamp, null, 2, 1, "account"),
             new EntityCreated(Timestamp, null, 3, string.Empty),

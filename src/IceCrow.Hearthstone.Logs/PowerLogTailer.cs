@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Channels;
 
@@ -16,6 +17,7 @@ public sealed class PowerLogTailer
     private const int MaximumChannelCapacity = 256;
     private const int ReadBufferBytes = 16 * 1024;
     private const int MaximumLineBytes = 64 * 1024;
+    private const int FingerprintBytes = 4 * 1024;
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private static readonly string[] AcceptedPrefixes =
     [
@@ -198,26 +200,48 @@ public sealed class PowerLogTailer
         }
 
         var createdAt = new DateTimeOffset(file.CreationTimeUtc, TimeSpan.Zero);
-        if (!string.Equals(_checkpoint.FilePath, file.FullName, StringComparison.OrdinalIgnoreCase) ||
+        var lastWriteAt = new DateTimeOffset(file.LastWriteTimeUtc, TimeSpan.Zero);
+        await using var stream = new FileStream(
+            file.FullName,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete,
+            bufferSize: ReadBufferBytes,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        var samePath = string.Equals(
+            _checkpoint.FilePath,
+            file.FullName,
+            StringComparison.OrdinalIgnoreCase);
+        var prefixChanged = samePath &&
+                            _checkpoint.PrefixFingerprintLength > 0 &&
+                            (stream.Length < _checkpoint.PrefixFingerprintLength ||
+                             await ComputePrefixFingerprintAsync(
+                                 stream,
+                                 _checkpoint.PrefixFingerprintLength,
+                                 cancellationToken).ConfigureAwait(false) != _checkpoint.PrefixFingerprint);
+        var samePathRewrite =
+            samePath &&
+            _checkpoint.FileCreatedAt == createdAt &&
+            file.Length <= _checkpoint.ByteOffset &&
+            file.Length <= _checkpoint.ObservedLength &&
+            lastWriteAt > _checkpoint.LastWriteAt;
+        if (!samePath ||
             _checkpoint.FileCreatedAt != createdAt ||
-            file.Length < _checkpoint.ByteOffset)
+            file.Length < _checkpoint.ByteOffset ||
+            prefixChanged ||
+            samePathRewrite)
         {
             _checkpoint = new LogReadCheckpoint(
                 file.FullName,
                 0,
                 createdAt,
                 file.Length,
-                new DateTimeOffset(file.LastWriteTimeUtc, TimeSpan.Zero));
+                lastWriteAt,
+                0,
+                0);
             _discardingOversizedLine = false;
         }
 
-        await using var stream = new FileStream(
-            file.FullName,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.ReadWrite,
-            bufferSize: ReadBufferBytes,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
         stream.Seek(_checkpoint.ByteOffset, SeekOrigin.Begin);
 
         var rentedBuffer = ArrayPool<byte>.Shared.Rent(ReadBufferBytes);
@@ -275,17 +299,63 @@ public sealed class PowerLogTailer
             }
 
             file.Refresh();
+            var fingerprintLength = checked((int)Math.Min(
+                FingerprintBytes,
+                Math.Min(_checkpoint.ByteOffset, stream.Length)));
+            var fingerprint = await ComputePrefixFingerprintAsync(
+                stream,
+                fingerprintLength,
+                cancellationToken).ConfigureAwait(false);
             _checkpoint = _checkpoint with
             {
                 ObservedLength = file.Exists ? file.Length : _checkpoint.ObservedLength,
                 LastWriteAt = file.Exists
                     ? new DateTimeOffset(file.LastWriteTimeUtc, TimeSpan.Zero)
                     : _checkpoint.LastWriteAt,
+                PrefixFingerprint = fingerprint,
+                PrefixFingerprintLength = fingerprintLength,
             };
         }
         finally
         {
             ArrayPool<byte>.Shared.Return(rentedBuffer);
+        }
+    }
+
+    private static async Task<ulong> ComputePrefixFingerprintAsync(
+        FileStream stream,
+        int length,
+        CancellationToken cancellationToken)
+    {
+        if (length == 0)
+        {
+            return 0;
+        }
+
+        var buffer = ArrayPool<byte>.Shared.Rent(length);
+        try
+        {
+            stream.Seek(0, SeekOrigin.Begin);
+            var total = 0;
+            while (total < length)
+            {
+                var read = await stream.ReadAsync(
+                    buffer.AsMemory(total, length - total),
+                    cancellationToken).ConfigureAwait(false);
+                if (read == 0)
+                {
+                    break;
+                }
+
+                total += read;
+            }
+
+            var hash = SHA256.HashData(buffer.AsSpan(0, total));
+            return BitConverter.ToUInt64(hash);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
         }
     }
 

@@ -12,17 +12,26 @@ HDT is behavioral reference material only. It may be inspected to understand Hea
 
 | Project | Responsibility | Allowed IceCrow dependencies |
 | --- | --- | --- |
-| `IceCrow.App` | WPF composition root and application lifetime | `Overlay`, `Platform.Windows`, `Hearthstone.Logs`, `Recording` |
+| `IceCrow.App` | WPF composition root and application lifetime | `Overlay`, `Platform.Windows`, `Hearthstone.Logs`, `Live`, `Recording` |
 | `IceCrow.Platform.Windows` | Win32 and Windows-specific integration | None |
 | `IceCrow.Overlay` | Overlay presentation boundary | `Battlegrounds`, `Battlegrounds.Memory`, `Platform.Windows` |
 | `IceCrow.Hearthstone.Logs` | Raw Hearthstone log input | None |
 | `IceCrow.Hearthstone.Protocol` | Normalized game events and protocol compatibility | None |
+| `IceCrow.Hearthstone.ClientState` | Optional current-client contracts and semantic change coordination | None |
 | `IceCrow.Hearthstone.Entities` | Hearthstone entity state | `Hearthstone.Protocol` |
 | `IceCrow.Battlegrounds` | Battlegrounds state and reducers | `Hearthstone.Entities`, `Hearthstone.Protocol` |
 | `IceCrow.Battlegrounds.Memory` | Immutable historical Battlegrounds snapshots | `Battlegrounds` |
-| `IceCrow.Recording` | Offline capture and deterministic replay composition | `Hearthstone.Logs`, `Hearthstone.Protocol`, `Hearthstone.Entities`, `Battlegrounds`, `Battlegrounds.Memory` |
+| `IceCrow.Tracking` | Authoritative deterministic match state processing | `Hearthstone.Protocol`, `Hearthstone.Entities`, `Battlegrounds`, `Battlegrounds.Memory` |
+| `IceCrow.Live` | Non-UI live parsing, lifecycle detection, and tracking orchestration | `Hearthstone.Logs`, `Hearthstone.Protocol`, `Tracking` |
+| `IceCrow.Recording` | Offline capture, replay navigation, and replay-specific safety limits | `Hearthstone.Protocol`, `Hearthstone.Entities`, `Battlegrounds`, `Battlegrounds.Memory`, `Tracking` |
 
-Test projects may reference only the production project under test and its transitive dependencies.
+Test projects may reference only the production or developer-tool project under
+test and its transitive dependencies.
+
+Developer-only tooling lives under `tools/` and must not be referenced by any
+runtime project. `IceCrow.FixtureTool` may depend on `Recording` and `Live` to
+build and validate regression candidates, but it must never auto-commit a
+fixture or treat synthetic input as real evidence.
 
 ## Dependency rules
 
@@ -30,6 +39,10 @@ Test projects may reference only the production project under test and its trans
 - UI code must never parse `Power.log` directly.
 - Raw log readers and parsers must never manipulate WPF directly.
 - Keep normalized events between parsing and state reduction.
+- Client-state snapshots are supplemental current UI state. They must not create
+  or rewrite authoritative `TrackingSession` history.
+- HearthMirror types, if a separately licensed adapter is added later, must stay
+  inside `IceCrow.Hearthstone.ClientState.HearthMirror`.
 - Avoid global mutable state and prefer immutable snapshots for historical data.
 - Keep numeric GameTag compatibility values inside explicit compatibility types.
 - Core tracking must not require a network or backend service.

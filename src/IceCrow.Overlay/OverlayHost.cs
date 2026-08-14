@@ -60,7 +60,7 @@ public sealed class OverlayHost : IDisposable
     public void ApplyBattlegroundsState(
         BattlegroundsState state,
         OpponentMemory memory,
-        LobbyTimeline? timeline = null)
+        LobbyTimelineSnapshot? timeline = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         _overlayWindow.Dispatcher.VerifyAccess();

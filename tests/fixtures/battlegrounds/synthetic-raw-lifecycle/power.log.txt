@@ -1,0 +1,11 @@
+CREATE_GAME
+GameEntity EntityID=500
+Player EntityID=1 PlayerID=1 GameAccountId=Account_1
+Player EntityID=2 PlayerID=2 GameAccountId=Account_2
+TAG_CHANGE Entity=1 tag=PLAYER_TECH_LEVEL value=2
+TAG_CHANGE Entity=1 tag=NEXT_OPPONENT_PLAYER_ID value=2
+TAG_CHANGE Entity=2 tag=PLAYER_TECH_LEVEL value=3
+TAG_CHANGE Entity=500 tag=TURN value=3
+TAG_CHANGE Entity=500 tag=2022 value=1
+TAG_CHANGE Entity=500 tag=2022 value=0
+TAG_CHANGE Entity=1 tag=PLAYSTATE value=WON

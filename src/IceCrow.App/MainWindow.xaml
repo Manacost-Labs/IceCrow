@@ -53,8 +53,33 @@
                            Foreground="#D8E0E8"
                            Text="Players: 0" />
                 <TextBlock x:Name="BattlegroundsOpponent"
+                           Margin="0,0,0,18"
                            Foreground="#D8E0E8"
                            Text="Opponent: PlayerId -" />
+                <TextBlock Margin="0,0,0,8"
+                           FontWeight="SemiBold"
+                           Foreground="#F4F7FA"
+                           Text="Live pipeline" />
+                <TextBlock x:Name="LiveRawLines"
+                           Margin="0,0,0,4"
+                           Foreground="#9BA7B4"
+                           Text="Raw / parsed: 0 / 0" />
+                <TextBlock x:Name="LiveRejectedLines"
+                           Margin="0,0,0,4"
+                           Foreground="#9BA7B4"
+                           Text="Ignored / unknown / malformed: 0 / 0 / 0"
+                           TextWrapping="Wrap" />
+                <TextBlock x:Name="LiveAppliedEvents"
+                           Margin="0,0,0,4"
+                           Foreground="#9BA7B4"
+                           Text="Applied: 0" />
+                <TextBlock x:Name="LiveTrackingState"
+                           Margin="0,0,0,4"
+                           Foreground="#9BA7B4"
+                           Text="Tracking: Inactive" />
+                <TextBlock x:Name="LiveLastUpdate"
+                           Foreground="#9BA7B4"
+                           Text="Last update: -" />
             </StackPanel>
         </Border>
 

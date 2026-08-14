@@ -17,6 +17,11 @@ public static class PowerProtocolFixtures
     {
         yield return
         [
+            "PowerTaskList.DebugPrintPower() - CREATE_GAME",
+            new GameCreated(Timestamp),
+        ];
+        yield return
+        [
             "PowerTaskList.DebugPrintPower() - GameEntity EntityID=1",
             new GameEntityDeclared(Timestamp, BlockId: null, EntityId: 1),
         ];

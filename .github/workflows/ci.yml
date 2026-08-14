@@ -1,0 +1,127 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      run_soak:
+        description: Run the long deterministic soak suite
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Windows quality gate
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore
+        run: dotnet restore IceCrow.sln
+
+      - name: Build Debug
+        run: dotnet build IceCrow.sln -c Debug --no-restore
+
+      - name: Test Debug
+        run: dotnet test IceCrow.sln -c Debug --no-build --no-restore --filter "Category!=Soak" --logger "console;verbosity=normal" --logger "trx;LogFilePrefix=Debug"
+
+      - name: Build Release
+        run: dotnet build IceCrow.sln -c Release --no-restore
+
+      - name: Test Release
+        run: dotnet test IceCrow.sln -c Release --no-build --no-restore --filter "Category!=Soak" --logger "console;verbosity=normal" --logger "trx;LogFilePrefix=Release"
+
+      - name: Verify formatting
+        run: dotnet format IceCrow.sln --verify-no-changes --no-restore
+
+      - name: Verify repository whitespace
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "pull_request") {
+            $baseSha = "${{ github.event.pull_request.base.sha }}"
+          }
+          else {
+            $baseSha = "${{ github.event.before }}"
+          }
+
+          if ([string]::IsNullOrWhiteSpace($baseSha) -or $baseSha -eq ("0" * 40)) {
+            git diff --check
+          }
+          else {
+            git diff --check "$baseSha..${{ github.sha }}"
+          }
+
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: failed-test-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: '**/TestResults/*.trx'
+          if-no-files-found: ignore
+          retention-days: 7
+
+  soak:
+    name: Windows long-run soak
+    if: github.event_name == 'workflow_dispatch' && inputs.run_soak
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore
+        run: dotnet restore IceCrow.sln
+
+      - name: Build Release
+        run: dotnet build IceCrow.sln -c Release --no-restore
+
+      - name: Run soak tests
+        run: dotnet test IceCrow.sln -c Release --no-build --no-restore --filter "Category=Soak" --logger "console;verbosity=normal" --logger "trx;LogFilePrefix=Soak"
+
+      - name: Upload soak results on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: failed-soak-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: '**/TestResults/*.trx'
+          if-no-files-found: ignore
+          retention-days: 7

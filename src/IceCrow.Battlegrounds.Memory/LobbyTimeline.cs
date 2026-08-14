@@ -3,8 +3,26 @@ namespace IceCrow.Battlegrounds.Memory;
 public sealed class LobbyTimeline
 {
     private readonly Dictionary<int, PlayerTimeline> _players = [];
+    private readonly int _maximumPlayers;
+    private readonly int _maximumEventsPerPlayer;
     private bool _matchActive;
     private BattlegroundsPhase _previousPhase = BattlegroundsPhase.Unknown;
+
+    public LobbyTimeline(
+        int maximumPlayers = 16,
+        int maximumEventsPerPlayer = 512)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumPlayers);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumEventsPerPlayer);
+        _maximumPlayers = maximumPlayers;
+        _maximumEventsPerPlayer = maximumEventsPerPlayer;
+    }
+
+    public int EventCount => _players.Values.Sum(static player => player.Events.Count);
+
+    public int MaximumPlayerEventCount => _players.Count == 0
+        ? 0
+        : _players.Values.Max(static player => player.Events.Count);
 
     public IReadOnlyList<PlayerTimeline> Players => _players.Values
         .OrderBy(static player => player.PlayerId)
@@ -19,6 +37,8 @@ public sealed class LobbyTimeline
 
     public bool TryGetPlayer(int playerId, out PlayerTimeline? timeline) =>
         _players.TryGetValue(playerId, out timeline);
+
+    public LobbyTimelineSnapshot CreateSnapshot() => new(_players.Values);
 
     public void Update(
         BattlegroundsState state,
@@ -51,12 +71,12 @@ public sealed class LobbyTimeline
                 continue;
             }
 
-            GetOrCreate(player.PlayerId).Observe(player, state.Turn, timestamp);
+            GetOrCreate(player.PlayerId)?.Observe(player, state.Turn, timestamp);
         }
 
         if (observedBoard is not null)
         {
-            GetOrCreate(observedBoard.PlayerId).RecordOpponentObserved(observedBoard);
+            GetOrCreate(observedBoard.PlayerId)?.RecordOpponentObserved(observedBoard);
         }
 
         _previousPhase = state.Phase;
@@ -69,14 +89,19 @@ public sealed class LobbyTimeline
         _previousPhase = BattlegroundsPhase.Unknown;
     }
 
-    private PlayerTimeline GetOrCreate(int playerId)
+    private PlayerTimeline? GetOrCreate(int playerId)
     {
         if (_players.TryGetValue(playerId, out var timeline))
         {
             return timeline;
         }
 
-        timeline = new PlayerTimeline(playerId);
+        if (_players.Count >= _maximumPlayers)
+        {
+            return null;
+        }
+
+        timeline = new PlayerTimeline(playerId, _maximumEventsPerPlayer);
         _players.Add(playerId, timeline);
         return timeline;
     }

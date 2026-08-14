@@ -18,7 +18,7 @@ internal sealed record OpponentLobbyTileViewState(
     public static IReadOnlyList<OpponentLobbyTileViewState> Create(
         BattlegroundsState state,
         OpponentMemory memory,
-        LobbyTimeline? timeline = null)
+        LobbyTimelineSnapshot? timeline = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(memory);
@@ -36,7 +36,7 @@ internal sealed record OpponentLobbyTileViewState(
     private static OpponentLobbyTileViewState Create(
         LobbyPlayer player,
         BoardSnapshot? board,
-        PlayerTimeline? timeline,
+        PlayerTimelineSnapshot? timeline,
         int currentTurn)
     {
         var heroDisplay = FirstAvailable(
@@ -64,7 +64,7 @@ internal sealed record OpponentLobbyTileViewState(
             boardRows);
     }
 
-    private static string[] CreateProgressionRows(PlayerTimeline? timeline) =>
+    private static string[] CreateProgressionRows(PlayerTimelineSnapshot? timeline) =>
         timeline?.Events
             .OfType<TavernUpgraded>()
             .Select(upgrade => $"T{upgrade.TavernTier} → Turn {upgrade.Turn}")

@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "name": "synthetic-basic-solo",
+  "sourceType": "synthetic",
+  "iceCrowFormatVersion": 1,
+  "reason": "Exercises compact semantic checkpoints through normalized ReplayRunner input.",
+  "inputType": "normalized-recording",
+  "inputFile": "recording.icecrow.json",
+  "expectedCheckpoints": [
+    {
+      "name": "HeroSelection",
+      "eventIndex": 0,
+      "state": {
+        "sessionState": "Active",
+        "isActive": true,
+        "turn": 0,
+        "phase": "HeroSelection",
+        "lobbyCount": 0
+      }
+    },
+    {
+      "name": "Turn2Recruit",
+      "eventIndex": 8,
+      "state": {
+        "sessionState": "Active",
+        "isActive": true,
+        "turn": 2,
+        "phase": "Recruit",
+        "localPlayerId": 1,
+        "currentOpponentPlayerId": 2,
+        "lobbyCount": 2
+      }
+    },
+    {
+      "name": "Turn2Combat",
+      "eventIndex": 10,
+      "state": {
+        "sessionState": "Active",
+        "isActive": true,
+        "turn": 2,
+        "phase": "Combat",
+        "currentOpponentPlayerId": 2,
+        "opponentMemory": [
+          { "playerId": 2, "minionCount": 0, "lastSeenTurn": 2 }
+        ]
+      }
+    },
+    {
+      "name": "GameEnd",
+      "eventIndex": 11,
+      "state": {
+        "sessionState": "Ended",
+        "isActive": false,
+        "turn": 2,
+        "phase": "GameOver"
+      }
+    }
+  ]
+}

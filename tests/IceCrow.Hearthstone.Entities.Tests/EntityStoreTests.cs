@@ -108,6 +108,18 @@ public sealed class EntityStoreTests
     }
 
     [Fact]
+    public void ParsesSymbolicTerminalPlayState()
+    {
+        var store = new EntityStore();
+
+        var mutation = ApplyTag(store, 20, "PLAYSTATE", "WON");
+
+        Assert.Equal(
+            new EntityMutation(20, GameTag.PlayState, 0, (int)GamePlayState.Won),
+            mutation);
+    }
+
+    [Fact]
     public void ExposesZonePositionAndCardTypeFlags()
     {
         var store = new EntityStore();

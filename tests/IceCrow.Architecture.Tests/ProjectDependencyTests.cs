@@ -10,6 +10,7 @@ public sealed class ProjectDependencyTests
             ["IceCrow.App"] =
             [
                 "IceCrow.Hearthstone.Logs",
+                "IceCrow.Live",
                 "IceCrow.Overlay",
                 "IceCrow.Platform.Windows",
                 "IceCrow.Recording",
@@ -21,8 +22,15 @@ public sealed class ProjectDependencyTests
             ],
             ["IceCrow.Battlegrounds.Memory"] = ["IceCrow.Battlegrounds"],
             ["IceCrow.Hearthstone.Entities"] = ["IceCrow.Hearthstone.Protocol"],
+            ["IceCrow.Hearthstone.ClientState"] = [],
             ["IceCrow.Hearthstone.Logs"] = [],
             ["IceCrow.Hearthstone.Protocol"] = [],
+            ["IceCrow.Live"] =
+            [
+                "IceCrow.Hearthstone.Logs",
+                "IceCrow.Hearthstone.Protocol",
+                "IceCrow.Tracking",
+            ],
             ["IceCrow.Overlay"] =
             [
                 "IceCrow.Battlegrounds",
@@ -35,7 +43,14 @@ public sealed class ProjectDependencyTests
                 "IceCrow.Battlegrounds",
                 "IceCrow.Battlegrounds.Memory",
                 "IceCrow.Hearthstone.Entities",
-                "IceCrow.Hearthstone.Logs",
+                "IceCrow.Hearthstone.Protocol",
+                "IceCrow.Tracking",
+            ],
+            ["IceCrow.Tracking"] =
+            [
+                "IceCrow.Battlegrounds",
+                "IceCrow.Battlegrounds.Memory",
+                "IceCrow.Hearthstone.Entities",
                 "IceCrow.Hearthstone.Protocol",
             ],
         };
@@ -45,9 +60,12 @@ public sealed class ProjectDependencyTests
         "IceCrow.Battlegrounds",
         "IceCrow.Battlegrounds.Memory",
         "IceCrow.Hearthstone.Entities",
+        "IceCrow.Hearthstone.ClientState",
         "IceCrow.Hearthstone.Logs",
         "IceCrow.Hearthstone.Protocol",
+        "IceCrow.Live",
         "IceCrow.Recording",
+        "IceCrow.Tracking",
     ];
 
     private static readonly string[] ForbiddenDomainSourceTokens =
@@ -143,6 +161,44 @@ public sealed class ProjectDependencyTests
                 references.Count <= 1,
                 $"{Path.GetFileNameWithoutExtension(testProject)} directly references multiple production modules: " +
                 string.Join(", ", references));
+        }
+    }
+
+    [Fact]
+    public void HearthMirrorTypesStayInsideTheOptionalAdapterBoundary()
+    {
+        var root = FindRepositoryRoot();
+        var productionProjects = Directory.EnumerateFiles(
+            Path.Combine(root, "src"),
+            "*.csproj",
+            SearchOption.AllDirectories);
+
+        foreach (var projectFile in productionProjects)
+        {
+            var project = Path.GetFileNameWithoutExtension(projectFile);
+            if (string.Equals(
+                    project,
+                    "IceCrow.Hearthstone.ClientState.HearthMirror",
+                    StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var projectXml = XDocument.Load(projectFile);
+            Assert.DoesNotContain(
+                projectXml.Descendants(),
+                element =>
+                    (element.Name.LocalName is "PackageReference" or "Reference" or "ProjectReference") &&
+                    element.Attribute("Include")?.Value.Contains(
+                        "HearthMirror",
+                        StringComparison.OrdinalIgnoreCase) == true);
+
+            foreach (var sourceFile in EnumerateSourceFiles(Path.GetDirectoryName(projectFile)!))
+            {
+                var source = File.ReadAllText(sourceFile);
+                Assert.DoesNotContain("using HearthMirror", source, StringComparison.Ordinal);
+                Assert.DoesNotContain("HearthMirror.", source, StringComparison.Ordinal);
+            }
         }
     }
 

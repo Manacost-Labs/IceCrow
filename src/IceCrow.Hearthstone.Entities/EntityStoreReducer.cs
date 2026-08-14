@@ -42,8 +42,7 @@ public static class EntityStoreReducer
         EntityStore store,
         PlayerEntityDeclared declared)
     {
-        var entity = store.GetOrCreate(declared.EntityId);
-        return entity.ApplyTag(GameTag.PlayerId, declared.PlayerId);
+        return store.ApplyTag(declared.EntityId, GameTag.PlayerId, declared.PlayerId);
     }
 
     private static EntityMutation? ApplyCreatedEntity(
@@ -81,7 +80,7 @@ public static class EntityStoreReducer
             return null;
         }
 
-        return store.GetOrCreate(entityId).ApplyTag(tag, value);
+        return store.ApplyTag(entityId, tag, value);
     }
 
     private static bool TryParseTag(string rawTag, out GameTag tag)
@@ -142,6 +141,12 @@ public static class EntityStoreReducer
             return true;
         }
 
+        if (tag == GameTag.PlayState && TryParsePlayState(rawValue, out var playState))
+        {
+            value = (int)playState;
+            return true;
+        }
+
         value = default;
         return false;
     }
@@ -183,6 +188,24 @@ public static class EntityStoreReducer
             _ => default,
         };
         return cardType != default || rawValue == "INVALID";
+    }
+
+    private static bool TryParsePlayState(string rawValue, out GamePlayState playState)
+    {
+        playState = rawValue switch
+        {
+            "INVALID" => GamePlayState.Invalid,
+            "PLAYING" => GamePlayState.Playing,
+            "WINNING" => GamePlayState.Winning,
+            "LOSING" => GamePlayState.Losing,
+            "WON" => GamePlayState.Won,
+            "LOST" => GamePlayState.Lost,
+            "TIED" => GamePlayState.Tied,
+            "DISCONNECTED" => GamePlayState.Disconnected,
+            "CONCEDED" => GamePlayState.Conceded,
+            _ => default,
+        };
+        return playState != default || rawValue == "INVALID";
     }
 
     private static string? NullIfEmpty(string? value) =>

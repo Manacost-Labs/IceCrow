@@ -163,6 +163,28 @@ public sealed class LobbyTimelineTests
         Assert.Empty(timeline.Players);
     }
 
+    [Fact]
+    public void PerPlayerTimelineRetainsOnlyTheNewestConfiguredEvents()
+    {
+        var timeline = new LobbyTimeline(maximumPlayers: 2, maximumEventsPerPlayer: 3);
+        timeline.Update(State(Player(tavernTier: 1), turn: 1), Timestamp);
+
+        for (var tier = 2; tier <= 6; tier++)
+        {
+            timeline.Update(
+                State(Player(tavernTier: tier), turn: tier),
+                Timestamp.AddMinutes(tier));
+        }
+
+        Assert.Equal(
+            [4, 5, 6],
+            timeline.GetPlayer(2)!.Events
+                .OfType<TavernUpgraded>()
+                .Select(static upgrade => upgrade.TavernTier));
+        Assert.Equal(3, timeline.EventCount);
+        Assert.Equal(3, timeline.MaximumPlayerEventCount);
+    }
+
     private static LobbyTimeline StartTimeline(LobbyPlayer player)
     {
         var timeline = new LobbyTimeline();

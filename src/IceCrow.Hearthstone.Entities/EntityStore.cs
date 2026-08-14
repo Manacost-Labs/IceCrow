@@ -4,9 +4,31 @@ namespace IceCrow.Hearthstone.Entities;
 
 public sealed class EntityStore
 {
+    public const int DefaultMaximumTagsPerEntity = 256;
+    public const int DefaultMaximumTotalTags = 1_000_000;
+
     private readonly Dictionary<int, GameEntity> _entities = [];
+    private readonly int _maximumTagsPerEntity;
+    private readonly int _maximumTotalTags;
+    private int _tagCount;
+
+    public EntityStore(
+        int maximumTagsPerEntity = DefaultMaximumTagsPerEntity,
+        int maximumTotalTags = DefaultMaximumTotalTags)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumTagsPerEntity);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumTotalTags);
+        _maximumTagsPerEntity = maximumTagsPerEntity;
+        _maximumTotalTags = maximumTotalTags;
+    }
 
     public int Count => _entities.Count;
+
+    public int TagCount => _tagCount;
+
+    public int MaximumTagCount => _entities.Count == 0
+        ? 0
+        : _entities.Values.Max(static entity => entity.Tags.Count);
 
     public long SnapshotWorkUnits
     {
@@ -30,7 +52,7 @@ public sealed class EntityStore
     {
         if (!_entities.TryGetValue(id, out var entity))
         {
-            entity = new GameEntity(id);
+            entity = new GameEntity(id, _maximumTagsPerEntity);
             _entities.Add(id, entity);
         }
 
@@ -39,7 +61,30 @@ public sealed class EntityStore
 
     public EntityMutation? Apply(GameEvent gameEvent) => EntityStoreReducer.Apply(this, gameEvent);
 
-    public void Reset() => _entities.Clear();
+    internal EntityMutation? ApplyTag(int entityId, GameTag tag, int value)
+    {
+        var hasEntity = _entities.TryGetValue(entityId, out var entity);
+        var isNewTag = !hasEntity || !entity!.Tags.ContainsKey(tag);
+        if (isNewTag && _tagCount >= _maximumTotalTags)
+        {
+            throw new EntityStoreTagLimitExceededException(_maximumTotalTags);
+        }
+
+        entity ??= GetOrCreate(entityId);
+        var mutation = entity.ApplyTag(tag, value);
+        if (mutation is not null && isNewTag)
+        {
+            _tagCount = checked(_tagCount + 1);
+        }
+
+        return mutation;
+    }
+
+    public void Reset()
+    {
+        _entities.Clear();
+        _tagCount = 0;
+    }
 
     public EntitySnapshot CreateSnapshot(int id) => new(Get(id));
 
@@ -47,6 +92,20 @@ public sealed class EntityStore
     {
         var snapshots = _entities.Values
             .OrderBy(static entity => entity.Id)
+            .Select(static entity => new EntitySnapshot(entity))
+            .ToArray();
+        return Array.AsReadOnly(snapshots);
+    }
+
+    public IReadOnlyList<EntitySnapshot> CreateBoardSnapshots(int controllerId)
+    {
+        var snapshots = _entities.Values
+            .Where(entity =>
+                entity.IsMinion &&
+                entity.IsInPlay &&
+                entity.Controller == controllerId)
+            .OrderBy(static entity => entity.ZonePosition)
+            .ThenBy(static entity => entity.Id)
             .Select(static entity => new EntitySnapshot(entity))
             .ToArray();
         return Array.AsReadOnly(snapshots);

@@ -68,7 +68,7 @@ public sealed partial class OverlayWindow : Window
     public void ApplyBattlegroundsState(
         BattlegroundsState state,
         OpponentMemory memory,
-        LobbyTimeline? timeline = null)
+        LobbyTimelineSnapshot? timeline = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(memory);

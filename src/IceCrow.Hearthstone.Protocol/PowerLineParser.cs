@@ -11,6 +11,7 @@ public sealed class PowerLineParser
     private const string PowerTaskListPrefix = "PowerTaskList.DebugPrintPower() -";
     private const string GameStatePrefix = "GameState.DebugPrintPower() -";
     private const string EndCurrentTaskListPrefix = "PowerProcessor.EndCurrentTaskList";
+    private const string CreateGamePayload = "CREATE_GAME";
 
     private readonly PowerParserContext _context;
 
@@ -44,6 +45,12 @@ public sealed class PowerLineParser
             {
                 ClearCreationContext();
                 return _context.RecordIgnored();
+            }
+
+            if (string.Equals(payload, CreateGamePayload, StringComparison.Ordinal))
+            {
+                _context.ResetForNewGame();
+                return _context.RecordParsed(new GameCreated(timestamp));
             }
 
             if (_context.IsRecoveringBlock &&
