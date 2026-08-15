@@ -332,6 +332,18 @@
                                    Text="{Binding AgeBadge}" />
             </Grid>
 
+            <TextBlock Margin="0,2,0,0" Text="{Binding Changes.PreviousSeenLine}">
+                <TextBlock.Style>
+                    <Style BasedOn="{StaticResource IceCrow.Text.Caption}" TargetType="TextBlock">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Changes}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
             <ItemsControl Margin="0,12,0,0" ItemsSource="{Binding Board}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -356,6 +368,79 @@
                     </Style>
                 </TextBlock.Style>
             </TextBlock>
+
+            <!--
+                Since last fight: what moved between the two most recent boards.
+                Restrained semantics — accent plus for arrivals, muted minus for
+                departures, plain numeric text for stat transitions.
+            -->
+            <StackPanel Margin="0,14,0,0">
+                <StackPanel.Style>
+                    <Style TargetType="StackPanel">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Changes}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </StackPanel.Style>
+                <TextBlock Margin="0,0,0,4"
+                           Style="{StaticResource IceCrow.Text.SectionTitle}"
+                           Text="Since last fight" />
+                <ItemsControl ItemsSource="{Binding Changes.Rows}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,0,0,3">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="Marker"
+                                           Grid.Column="0"
+                                           FontFamily="{StaticResource IceCrow.FontFamily.Numeric}"
+                                           FontSize="{StaticResource IceCrow.FontSize.Label}"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource IceCrow.Brush.AccentStrong}"
+                                           Text="{Binding Marker}" />
+                                <TextBlock Grid.Column="1"
+                                           Style="{StaticResource IceCrow.Text.Label}"
+                                           Text="{Binding DisplayName}" />
+                                <TextBlock Grid.Column="2"
+                                           Margin="8,0,0,0"
+                                           FontFamily="{StaticResource IceCrow.FontFamily.Numeric}"
+                                           FontSize="{StaticResource IceCrow.FontSize.Label}"
+                                           Foreground="{StaticResource IceCrow.Brush.TextSecondary}"
+                                           Text="{Binding TransitionLine}" />
+                                <TextBlock Grid.Column="3"
+                                           Margin="6,0,0,0"
+                                           VerticalAlignment="Center"
+                                           FontFamily="{StaticResource IceCrow.FontFamily.Numeric}"
+                                           FontSize="{StaticResource IceCrow.FontSize.Caption}"
+                                           Foreground="{StaticResource IceCrow.Brush.TextMuted}"
+                                           Text="{Binding DeltaLine}" />
+                            </Grid>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding Kind}" Value="Removed">
+                                    <Setter TargetName="Marker" Property="Foreground" Value="{StaticResource IceCrow.Brush.TextMuted}" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="{Binding Changes.NoChangeLine}">
+                    <TextBlock.Style>
+                        <Style BasedOn="{StaticResource IceCrow.Text.Label}" TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Changes.NoChangeLine}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
 
             <StackPanel Margin="0,14,0,0" Orientation="Horizontal">
                 <controls:IceStat Margin="0,0,20,0"
@@ -449,6 +534,11 @@
                                                    Text="STALE"
                                                    Tone="Warning"
                                                    Visibility="Collapsed" />
+                                <TextBlock x:Name="ChangeLine"
+                                           Margin="6,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Style="{StaticResource IceCrow.Text.Caption}"
+                                           Text="{Binding ViewState.CompactChangeLine, RelativeSource={RelativeSource TemplatedParent}}" />
                             </StackPanel>
 
                             <TextBlock x:Name="SecondaryLine"
@@ -467,6 +557,9 @@
                         </DataTrigger>
                         <DataTrigger Binding="{Binding ViewState.IsStale, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
                             <Setter TargetName="StaleBadge" Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding ViewState.CompactChangeLine, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="ChangeLine" Property="Visibility" Value="Collapsed" />
                         </DataTrigger>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Root" Property="Background" Value="{StaticResource IceCrow.Brush.SurfaceHover}" />

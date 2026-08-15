@@ -50,6 +50,7 @@ public partial class DesignPreviewWindow : Window
         TileGallery.ItemsSource = CreateSampleBoard();
 
         DetailGallery.Children.Add(CreateDetailPanel("Seen recently", CreateSeenOpponent()));
+        DetailGallery.Children.Add(CreateDetailPanel("Fought twice · unchanged", CreateUnchangedOpponent()));
         DetailGallery.Children.Add(CreateDetailPanel("Never fought", CreateNotFoughtOpponent()));
     }
 
@@ -73,7 +74,36 @@ public partial class DesignPreviewWindow : Window
         turnsAgo: 2,
         triples: 2,
         progressionRows: ["T3·5", "T4·7", "T5·9"],
-        board: CreateSampleBoard());
+        board: CreateSampleBoard(),
+        changes: new OpponentChangesViewState(
+            previousTurn: 5,
+            currentTurn: 8,
+            isMajorChange: true,
+            rows:
+            [
+                MinionChangeViewState.Added("Kalecgos", 11, 13),
+                MinionChangeViewState.Changed("Bristleback Knight", 18, 22, 24, 31),
+                MinionChangeViewState.Removed("Murloc Tidehunter"),
+            ]));
+
+    private static OpponentOverlayViewState CreateUnchangedOpponent() => new(
+        playerId: 5,
+        heroName: "Patchwerk",
+        heroCardId: null,
+        tavernTier: 4,
+        health: 40,
+        armor: 0,
+        presence: OpponentPresence.Seen,
+        lastSeenTurn: 9,
+        turnsAgo: 1,
+        triples: 1,
+        progressionRows: ["T3·5", "T4·8"],
+        board: [MinionTileViewState.Create(1, "TILE_1", "Cave Hydra", 8, 8, 4, null)],
+        changes: new OpponentChangesViewState(
+            previousTurn: 6,
+            currentTurn: 9,
+            isMajorChange: false,
+            rows: []));
 
     private static OpponentOverlayViewState CreateStaleOpponent() => new(
         playerId: 3,

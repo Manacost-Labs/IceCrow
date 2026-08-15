@@ -39,6 +39,50 @@ public sealed class OverlayWindowDesignSystemTests
         });
 
     [Fact]
+    public void OpponentDetailTemplateRendersTheSinceLastFightSection() =>
+        StaTestRunner.Run(() =>
+        {
+            using var host = new TemplateHostFixture(CreateOpponent(
+                2,
+                triples: 2,
+                changes: CreateChanges()));
+
+            var textBlocks = host.FindVisualChildren<TextBlock>();
+            Assert.Contains(textBlocks, text => text.Text == "Since last fight");
+            Assert.Contains(textBlocks, text => text.Text == "Previous · Turn 7");
+            Assert.Contains(textBlocks, text => text.Text == "18/22 → 24/31");
+            Assert.Contains(textBlocks, text => text.Text == "+6/+9");
+            Assert.Contains(textBlocks, text => text.Text == "Malchezaar");
+        });
+
+    [Fact]
+    public void OpponentDetailTemplateHidesTheSectionBeforeASecondFight() =>
+        StaTestRunner.Run(() =>
+        {
+            using var host = new TemplateHostFixture(CreateOpponent(2, triples: 2));
+
+            Assert.DoesNotContain(
+                host.FindVisualChildren<TextBlock>(),
+                text => text.Text == "Since last fight" && text.IsVisible);
+        });
+
+    [Fact]
+    public void LobbyRowShowsTheCompactChangeSummary() =>
+        StaTestRunner.Run(() =>
+        {
+            using var host = new OverlayWindowFixture();
+
+            host.Window.ApplyViewState(new BattlegroundsOverlayViewState(
+                true,
+                [CreateOpponent(2, triples: 1, changes: CreateChanges())]));
+            host.Render();
+
+            Assert.Contains(
+                host.FindVisualChildren<TextBlock>(),
+                text => text.Text == "2 changes");
+        });
+
+    [Fact]
     public void ValueEqualViewStatesAreSkippedInsteadOfRebuildingTheTree() =>
         StaTestRunner.Run(() =>
         {
@@ -118,7 +162,10 @@ public sealed class OverlayWindowDesignSystemTests
     private static BattlegroundsOverlayViewState CreateViewState(int triples) =>
         new(true, [CreateOpponent(2, triples)]);
 
-    private static OpponentOverlayViewState CreateOpponent(int playerId, int triples) => new(
+    private static OpponentOverlayViewState CreateOpponent(
+        int playerId,
+        int triples,
+        OpponentChangesViewState? changes = null) => new(
         playerId,
         heroName: "Reno Jackson",
         heroCardId: "TB_BaconShop_HERO_41",
@@ -130,7 +177,18 @@ public sealed class OverlayWindowDesignSystemTests
         turnsAgo: 2,
         triples: triples,
         progressionRows: ["T3·5", "T4·7"],
-        board: [MinionTileViewState.Create(1, "MINION", "Alleycat", 3, 4, 1, null)]);
+        board: [MinionTileViewState.Create(1, "MINION", "Alleycat", 3, 4, 1, null)],
+        changes: changes);
+
+    private static OpponentChangesViewState CreateChanges() => new(
+        previousTurn: 7,
+        currentTurn: 8,
+        isMajorChange: false,
+        rows:
+        [
+            MinionChangeViewState.Added("Malchezaar", 9, 9),
+            MinionChangeViewState.Changed("Brann", 18, 22, 24, 31),
+        ]);
 
     private sealed class OverlayWindowFixture : IDisposable
     {
