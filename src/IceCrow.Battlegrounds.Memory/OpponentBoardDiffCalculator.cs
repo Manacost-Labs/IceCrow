@@ -92,19 +92,30 @@ public static class OpponentBoardDiffCalculator
         int[] previousMatch,
         MinionIdentity?[] currentIdentity)
     {
-        var previousGroup = CollectUnmatched(
-            previousMinions,
-            cardId,
-            index => previousMatch[index] < 0);
+        var previousGroup = new List<int>();
+        for (var index = 0; index < previousMinions.Count; index++)
+        {
+            if (previousMatch[index] < 0 &&
+                string.Equals(previousMinions[index].CardId, cardId, StringComparison.Ordinal))
+            {
+                previousGroup.Add(index);
+            }
+        }
+
         if (previousGroup.Count == 0)
         {
             return;
         }
 
-        var currentGroup = CollectUnmatched(
-            currentMinions,
-            cardId,
-            index => currentIdentity[index] is null);
+        var currentGroup = new List<int>();
+        for (var index = 0; index < currentMinions.Count; index++)
+        {
+            if (currentIdentity[index] is null &&
+                string.Equals(currentMinions[index].CardId, cardId, StringComparison.Ordinal))
+            {
+                currentGroup.Add(index);
+            }
+        }
         if (previousGroup.Count == 1 && currentGroup.Count == 1)
         {
             previousMatch[previousGroup[0]] = currentGroup[0];
@@ -144,23 +155,6 @@ public static class OpponentBoardDiffCalculator
         }
     }
 
-    private static List<int> CollectUnmatched(
-        IReadOnlyList<MinionSnapshot> minions,
-        string cardId,
-        Func<int, bool> isUnmatched)
-    {
-        var group = new List<int>();
-        for (var index = 0; index < minions.Count; index++)
-        {
-            if (isUnmatched(index) &&
-                string.Equals(minions[index].CardId, cardId, StringComparison.Ordinal))
-            {
-                group.Add(index);
-            }
-        }
-
-        return group;
-    }
 
     private static BoardChangeSet Collect(
         BoardSnapshot previous,
