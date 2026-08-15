@@ -20,6 +20,9 @@ public sealed class OpponentBoardHistory
 
     public BoardSnapshot Latest => _snapshots[^1];
 
+    /// <summary>The fight before <see cref="Latest"/>, if the opponent was fought twice.</summary>
+    public BoardSnapshot? Previous => _snapshots.Length > 1 ? _snapshots[^2] : null;
+
     public static OpponentBoardHistory Start(BoardSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
