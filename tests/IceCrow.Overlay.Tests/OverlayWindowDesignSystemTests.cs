@@ -56,6 +56,41 @@ public sealed class OverlayWindowDesignSystemTests
         });
 
     [Fact]
+    public void OpponentDetailTemplateKeepsUncertaintyVisibleInChangeRows() =>
+        StaTestRunner.Run(() =>
+        {
+            using var host = new TemplateHostFixture(CreateOpponent(
+                2,
+                triples: 2,
+                changes: new OpponentChangesViewState(
+                    previousTurn: 7,
+                    currentTurn: 9,
+                    isMajorChange: false,
+                    rows:
+                    [
+                        MinionChangeViewState.Changed(
+                            "Cave Hydra",
+                            12,
+                            14,
+                            18,
+                            20,
+                            MinionChangeConfidence.Likely),
+                        MinionChangeViewState.Changed(
+                            "Alleycat",
+                            2,
+                            2,
+                            45,
+                            45,
+                            MinionChangeConfidence.Ambiguous),
+                    ])));
+
+            var textBlocks = host.FindVisualChildren<TextBlock>();
+            Assert.Contains(textBlocks, text => text.Text == "~+6/+6");
+            Assert.Contains(textBlocks, text => text.Text == "now 45/45");
+            Assert.DoesNotContain(textBlocks, text => text.Text == "2/2 → 45/45");
+        });
+
+    [Fact]
     public void OpponentDetailTemplateHidesTheSectionBeforeASecondFight() =>
         StaTestRunner.Run(() =>
         {
