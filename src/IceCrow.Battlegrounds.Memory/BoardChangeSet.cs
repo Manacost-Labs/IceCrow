@@ -46,7 +46,11 @@ public sealed class BoardChangeSet
     /// <summary>Matched minions whose stats or position changed.</summary>
     public IReadOnlyList<MinionChange> ChangedMinions => _changed;
 
-    /// <summary>Sum of the positive attack and health deltas across matched minions.</summary>
+    /// <summary>
+    /// Sum of the positive attack and health deltas across confidently matched
+    /// minions. Ambiguous duplicate pairings are excluded because their
+    /// per-minion deltas are arbitrary and would fabricate growth.
+    /// </summary>
     public int StatGrowth { get; }
 
     public bool HasChanges =>
@@ -65,7 +69,10 @@ public sealed class BoardChangeSet
         var growth = 0;
         foreach (var change in changed)
         {
-            growth += Math.Max(0, change.AttackDelta) + Math.Max(0, change.HealthDelta);
+            if (change.Identity != MinionIdentity.AmbiguousCardCopy)
+            {
+                growth += Math.Max(0, change.AttackDelta) + Math.Max(0, change.HealthDelta);
+            }
         }
 
         return growth;

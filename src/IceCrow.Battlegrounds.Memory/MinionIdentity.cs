@@ -10,6 +10,16 @@ public enum MinionIdentity
     /// <summary>Both observations carry the same entity id and card id.</summary>
     SameEntity,
 
-    /// <summary>Matched by card id only; the entity was likely recreated between fights.</summary>
+    /// <summary>
+    /// Matched by card id only, and exactly one copy existed on each side, so
+    /// the pairing is well-evidenced even though the entity was recreated.
+    /// </summary>
     LikelySameCard,
+
+    /// <summary>
+    /// Matched by card id inside a group of duplicate copies. The pairing is
+    /// deterministic but arbitrary: per-minion deltas must not be presented as
+    /// facts, only the roster arithmetic is certain.
+    /// </summary>
+    AmbiguousCardCopy,
 }

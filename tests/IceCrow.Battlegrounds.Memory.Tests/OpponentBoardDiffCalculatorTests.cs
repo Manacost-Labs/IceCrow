@@ -217,6 +217,179 @@ public sealed class OpponentBoardDiffCalculatorTests
     }
 
     [Fact]
+    public void DuplicateCopiesWithDifferentStatsAreMarkedAmbiguous()
+    {
+        var previous = CreateBoard(
+            turn: 7,
+            (101, "BG_RAT", 1, 2, 2),
+            (102, "BG_RAT", 2, 40, 40));
+        var current = CreateBoard(
+            turn: 10,
+            (301, "BG_RAT", 1, 45, 45),
+            (302, "BG_RAT", 2, 3, 3));
+
+        var changes = OpponentBoardDiffCalculator.Compare(previous, current);
+
+        Assert.Equal(2, changes.ChangedMinions.Count);
+        Assert.All(
+            changes.ChangedMinions,
+            change => Assert.Equal(MinionIdentity.AmbiguousCardCopy, change.Identity));
+        Assert.Empty(changes.AddedMinions);
+        Assert.Empty(changes.RemovedMinions);
+        Assert.Equal(0, changes.StatGrowth);
+        Assert.Equal(BoardChangeSignificance.Minor, changes.Significance);
+    }
+
+    [Fact]
+    public void SwappedDuplicateStatsProduceNoPhantomStatTransition()
+    {
+        var previous = CreateBoard(
+            turn: 7,
+            (101, "BG_RAT", 1, 2, 2),
+            (102, "BG_RAT", 2, 40, 40));
+        var current = CreateBoard(
+            turn: 9,
+            (301, "BG_RAT", 1, 40, 40),
+            (302, "BG_RAT", 2, 2, 2));
+
+        var changes = OpponentBoardDiffCalculator.Compare(previous, current);
+
+        // Stat-identical copies pair first, so no pair claims 2/2 → 40/40.
+        Assert.DoesNotContain(changes.ChangedMinions, change => change.HasStatChange);
+        Assert.Empty(changes.AddedMinions);
+        Assert.Empty(changes.RemovedMinions);
+    }
+
+    [Fact]
+    public void DuplicateGroupPairsIdenticalStatsBeforeArbitraryLeftovers()
+    {
+        var previous = CreateBoard(
+            turn: 7,
+            (101, "BG_RAT", 1, 2, 2),
+            (102, "BG_RAT", 2, 40, 40));
+        var current = CreateBoard(
+            turn: 9,
+            (301, "BG_RAT", 1, 40, 40),
+            (302, "BG_RAT", 2, 3, 3));
+
+        var changes = OpponentBoardDiffCalculator.Compare(previous, current);
+
+        var change = Assert.Single(changes.ChangedMinions, static change => change.HasStatChange);
+        Assert.Equal(MinionIdentity.AmbiguousCardCopy, change.Identity);
+        Assert.Equal(2, change.Previous.Attack);
+        Assert.Equal(3, change.Current.Attack);
+    }
+
+    [Fact]
+    public void ThreeDuplicateCopiesKeepRosterArithmeticExact()
+    {
+        var previous = CreateBoard(
+            turn: 7,
+            (101, "BG_RAT", 1, 1, 1),
+            (102, "BG_RAT", 2, 2, 2),
+            (103, "BG_RAT", 3, 3, 3));
+        var current = CreateBoard(
+            turn: 10,
+            (301, "BG_RAT", 1, 2, 2),
+            (302, "BG_RAT", 2, 9, 9));
+
+        var changes = OpponentBoardDiffCalculator.Compare(previous, current);
+
+        Assert.Empty(changes.AddedMinions);
+        var removed = Assert.Single(changes.RemovedMinions);
+        Assert.Equal("BG_RAT", removed.CardId);
+        var change = Assert.Single(changes.ChangedMinions, static change => change.HasStatChange);
+        Assert.Equal(MinionIdentity.AmbiguousCardCopy, change.Identity);
+        Assert.Equal(9, change.Current.Attack);
+    }
+
+    [Fact]
+    public void UniqueLeftoverCopyAfterEntityMatchStaysLikely()
+    {
+        var previous = CreateBoard(
+            turn: 7,
+            (101, "BG_RAT", 1, 2, 2),
+            (102, "BG_RAT", 2, 5, 5));
+        var current = CreateBoard(
+            turn: 9,
+            (101, "BG_RAT", 1, 2, 2),
+            (301, "BG_RAT", 2, 8, 8));
+
+        var changes = OpponentBoardDiffCalculator.Compare(previous, current);
+
+        var change = Assert.Single(changes.ChangedMinions);
+        Assert.Equal(MinionIdentity.LikelySameCard, change.Identity);
+        Assert.Equal(3, change.AttackDelta);
+        Assert.Equal(6, changes.StatGrowth);
+    }
+
+    [Fact]
+    public void ReusedEntityIdWithDifferentCardIsATransformNotAMatch()
+    {
+        var previous = CreateBoard(turn: 7, (101, "BG_RAT", 1, 2, 2));
+        var current = CreateBoard(turn: 8, (101, "BG_WOLF", 1, 6, 6));
+
+        var changes = OpponentBoardDiffCalculator.Compare(previous, current);
+
+        Assert.Equal("BG_WOLF", Assert.Single(changes.AddedMinions).CardId);
+        Assert.Equal("BG_RAT", Assert.Single(changes.RemovedMinions).CardId);
+        Assert.Empty(changes.ChangedMinions);
+    }
+
+    [Fact]
+    public void ComparingABoardWithItselfReportsNoChanges()
+    {
+        var board = CreateBoard(
+            turn: 7,
+            (101, "BG_BRANN", 1, 4, 6),
+            (102, "BG_RAT", 2, 2, 2),
+            (103, "BG_RAT", 3, 2, 2));
+
+        var changes = OpponentBoardDiffCalculator.Compare(board, board);
+
+        Assert.False(changes.HasChanges);
+        Assert.Equal(BoardChangeSignificance.NoChange, changes.Significance);
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(0, 7)]
+    [InlineData(7, 0)]
+    [InlineData(7, 7)]
+    [InlineData(3, 7)]
+    [InlineData(7, 4)]
+    public void RosterArithmeticStaysConsistentAcrossBoardSizes(
+        int previousCount,
+        int currentCount)
+    {
+        // Duplicate-heavy boards: every second minion shares a card id.
+        var previous = CreateBoard(
+            turn: 6,
+            Enumerable.Range(1, previousCount)
+                .Select(index => (100 + index, (string?)$"BG_CARD_{index % 2}", index, index, index + 1))
+                .ToArray());
+        var current = CreateBoard(
+            turn: 9,
+            Enumerable.Range(1, currentCount)
+                .Select(index => (300 + index, (string?)$"BG_CARD_{index % 2}", index, index * 2, index + 3))
+                .ToArray());
+
+        var changes = OpponentBoardDiffCalculator.Compare(previous, current);
+
+        var matchedFromPrevious = previousCount - changes.RemovedMinions.Count;
+        var matchedFromCurrent = currentCount - changes.AddedMinions.Count;
+        Assert.Equal(matchedFromPrevious, matchedFromCurrent);
+        Assert.True(matchedFromPrevious >= 0);
+        Assert.True(changes.ChangedMinions.Count <= matchedFromPrevious);
+        Assert.Equal(
+            changes.ChangedMinions.Count,
+            changes.ChangedMinions.DistinctBy(static change => change.Current.EntityId).Count());
+        Assert.Equal(
+            changes.ChangedMinions.Count,
+            changes.ChangedMinions.DistinctBy(static change => change.Previous.EntityId).Count());
+    }
+
+    [Fact]
     public void MinionsWithoutCardIdAreNeverMatchedAcrossEntities()
     {
         var previous = CreateBoard(turn: 7, (101, null, 1, 3, 3));

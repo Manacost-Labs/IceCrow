@@ -69,18 +69,97 @@ public static class OpponentBoardDiffCalculator
                 continue;
             }
 
-            for (var previousIndex = 0; previousIndex < previousMinions.Count; previousIndex++)
+            MatchCardGroup(
+                minion.CardId,
+                previousMinions,
+                currentMinions,
+                previousMatch,
+                currentIdentity);
+        }
+    }
+
+    /// <summary>
+    /// Matches every remaining copy of one card at once so all pairings in the
+    /// group carry the same confidence. A single copy on each side is real
+    /// evidence; several identical copies make any pairing arbitrary, so those
+    /// pairs are marked ambiguous, with stat-identical copies paired first to
+    /// avoid claiming stat transitions that never happened.
+    /// </summary>
+    private static void MatchCardGroup(
+        string cardId,
+        IReadOnlyList<MinionSnapshot> previousMinions,
+        IReadOnlyList<MinionSnapshot> currentMinions,
+        int[] previousMatch,
+        MinionIdentity?[] currentIdentity)
+    {
+        var previousGroup = CollectUnmatched(
+            previousMinions,
+            cardId,
+            index => previousMatch[index] < 0);
+        if (previousGroup.Count == 0)
+        {
+            return;
+        }
+
+        var currentGroup = CollectUnmatched(
+            currentMinions,
+            cardId,
+            index => currentIdentity[index] is null);
+        if (previousGroup.Count == 1 && currentGroup.Count == 1)
+        {
+            previousMatch[previousGroup[0]] = currentGroup[0];
+            currentIdentity[currentGroup[0]] = MinionIdentity.LikelySameCard;
+            return;
+        }
+
+        foreach (var currentIndex in currentGroup)
+        {
+            var minion = currentMinions[currentIndex];
+            var pairedIndex = previousGroup.FindIndex(previousIndex =>
+                previousMatch[previousIndex] < 0 &&
+                previousMinions[previousIndex].Attack == minion.Attack &&
+                previousMinions[previousIndex].Health == minion.Health);
+            if (pairedIndex >= 0)
             {
-                var candidate = previousMinions[previousIndex];
-                if (previousMatch[previousIndex] < 0 &&
-                    string.Equals(candidate.CardId, minion.CardId, StringComparison.Ordinal))
-                {
-                    previousMatch[previousIndex] = currentIndex;
-                    currentIdentity[currentIndex] = MinionIdentity.LikelySameCard;
-                    break;
-                }
+                previousMatch[previousGroup[pairedIndex]] = currentIndex;
+                currentIdentity[currentIndex] = MinionIdentity.AmbiguousCardCopy;
             }
         }
+
+        foreach (var currentIndex in currentGroup)
+        {
+            if (currentIdentity[currentIndex] is not null)
+            {
+                continue;
+            }
+
+            var pairedIndex = previousGroup.FindIndex(previousIndex => previousMatch[previousIndex] < 0);
+            if (pairedIndex < 0)
+            {
+                return;
+            }
+
+            previousMatch[previousGroup[pairedIndex]] = currentIndex;
+            currentIdentity[currentIndex] = MinionIdentity.AmbiguousCardCopy;
+        }
+    }
+
+    private static List<int> CollectUnmatched(
+        IReadOnlyList<MinionSnapshot> minions,
+        string cardId,
+        Func<int, bool> isUnmatched)
+    {
+        var group = new List<int>();
+        for (var index = 0; index < minions.Count; index++)
+        {
+            if (isUnmatched(index) &&
+                string.Equals(minions[index].CardId, cardId, StringComparison.Ordinal))
+            {
+                group.Add(index);
+            }
+        }
+
+        return group;
     }
 
     private static BoardChangeSet Collect(
