@@ -43,7 +43,8 @@ public sealed class OpponentChangesViewStateTests
         Assert.Equal("BG_MALCHEZAAR", changes.Rows[0].DisplayName);
         Assert.Equal("9/9", changes.Rows[0].TransitionLine);
         Assert.Equal("2/3 → 8/9", changes.Rows[1].TransitionLine);
-        Assert.Equal("+6/+6", changes.Rows[1].DeltaLine);
+        Assert.Equal("~+6/+6", changes.Rows[1].DeltaLine);
+        Assert.Equal(MinionChangeConfidence.Likely, changes.Rows[1].Confidence);
         Assert.Equal("BG_IMP", changes.Rows[2].DisplayName);
         Assert.Null(changes.NoChangeLine);
     }
@@ -81,11 +82,80 @@ public sealed class OpponentChangesViewStateTests
     [Fact]
     public void ChangedRowFormatsNegativeDeltasAsObserved()
     {
-        var row = MinionChangeViewState.Changed("Brann", 10, 10, 6, 7);
+        var row = MinionChangeViewState.Changed(
+            "Brann",
+            10,
+            10,
+            6,
+            7,
+            MinionChangeConfidence.Exact);
 
         Assert.Equal("10/10 → 6/7", row.TransitionLine);
         Assert.Equal("−4/−3", row.DeltaLine);
         Assert.Equal(string.Empty, row.Marker);
+    }
+
+    [Fact]
+    public void ExactIdentityMayDisplayAnExactTransition()
+    {
+        var memory = CaptureBoards(
+            (Turn: 5, Minions: [(101, "BG_BRANN", 1, 12, 18)]),
+            (Turn: 8, Minions: [(101, "BG_BRANN", 1, 31, 42)]));
+
+        var row = Assert.Single(CreateOpponentTile(memory, currentTurn: 8).Changes!.Rows);
+
+        Assert.Equal(MinionChangeConfidence.Exact, row.Confidence);
+        Assert.Equal("12/18 → 31/42", row.TransitionLine);
+        Assert.Equal("+19/+24", row.DeltaLine);
+    }
+
+    [Fact]
+    public void LikelyIdentityKeepsUncertaintyVisibleInTheDelta()
+    {
+        var row = MinionChangeViewState.Changed(
+            "Brann",
+            2,
+            3,
+            8,
+            9,
+            MinionChangeConfidence.Likely);
+
+        Assert.Equal("2/3 → 8/9", row.TransitionLine);
+        Assert.Equal("~+6/+6", row.DeltaLine);
+    }
+
+    [Fact]
+    public void AmbiguousDuplicatesNeverDisplayAFalseExactTransition()
+    {
+        var memory = CaptureBoards(
+            (Turn: 5, Minions: [(101, "BG_RAT", 1, 2, 2), (102, "BG_RAT", 2, 40, 40)]),
+            (Turn: 8, Minions: [(301, "BG_RAT", 1, 45, 45), (302, "BG_RAT", 2, 3, 3)]));
+
+        var changes = CreateOpponentTile(memory, currentTurn: 8).Changes;
+
+        Assert.NotNull(changes);
+        Assert.Equal(2, changes.Rows.Count);
+        Assert.All(changes.Rows, row =>
+        {
+            Assert.Equal(MinionChangeConfidence.Ambiguous, row.Confidence);
+            Assert.StartsWith("now ", row.TransitionLine, StringComparison.Ordinal);
+            Assert.DoesNotContain("→", row.TransitionLine, StringComparison.Ordinal);
+            Assert.Null(row.DeltaLine);
+        });
+        Assert.Contains(changes.Rows, row => row.TransitionLine == "now 45/45");
+        Assert.Contains(changes.Rows, row => row.TransitionLine == "now 3/3");
+    }
+
+    [Fact]
+    public void ConfidenceParticipatesInValueEquality()
+    {
+        var exact = MinionChangeViewState.Changed("Brann", 2, 3, 8, 9, MinionChangeConfidence.Exact);
+        var likely = MinionChangeViewState.Changed("Brann", 2, 3, 8, 9, MinionChangeConfidence.Likely);
+
+        Assert.NotEqual(exact, likely);
+        Assert.Equal(
+            exact,
+            MinionChangeViewState.Changed("Brann", 2, 3, 8, 9, MinionChangeConfidence.Exact));
     }
 
     [Fact]
@@ -168,7 +238,7 @@ public sealed class OpponentChangesViewStateTests
             7,
             10,
             isMajorChange: false,
-            [MinionChangeViewState.Changed("Brann", 2, 3, 8, 9)]);
+            [MinionChangeViewState.Changed("Brann", 2, 3, 8, 9, MinionChangeConfidence.Exact)]);
 
         Assert.NotEqual(CreateChanges(), withGrowth);
         Assert.NotEqual(

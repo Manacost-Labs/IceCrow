@@ -11,11 +11,28 @@ public enum MinionChangeKind
 }
 
 /// <summary>
+/// How reliable the identity behind a change row is. Presentation may simplify
+/// wording, but it must never display more certainty than the domain observed.
+/// </summary>
+public enum MinionChangeConfidence
+{
+    /// <summary>The same entity was observed in both fights.</summary>
+    Exact,
+
+    /// <summary>A unique card copy links the fights; the entity was recreated.</summary>
+    Likely,
+
+    /// <summary>Duplicate copies made the pairing arbitrary; only the current observation is factual.</summary>
+    Ambiguous,
+}
+
+/// <summary>
 /// One ready-to-render row of the "since last fight" list. All strings are
 /// precomputed so the overlay only places text.
 /// </summary>
 public sealed record MinionChangeViewState(
     MinionChangeKind Kind,
+    MinionChangeConfidence Confidence,
     string DisplayName,
     string? TransitionLine,
     string? DeltaLine)
@@ -29,26 +46,51 @@ public sealed record MinionChangeViewState(
     };
 
     public static MinionChangeViewState Added(string displayName, int attack, int health) =>
-        new(MinionChangeKind.Added, Validated(displayName), FormatStats(attack, health), null);
+        new(
+            MinionChangeKind.Added,
+            MinionChangeConfidence.Exact,
+            Validated(displayName),
+            FormatStats(attack, health),
+            null);
 
     public static MinionChangeViewState Removed(string displayName) =>
-        new(MinionChangeKind.Removed, Validated(displayName), null, null);
+        new(
+            MinionChangeKind.Removed,
+            MinionChangeConfidence.Exact,
+            Validated(displayName),
+            null,
+            null);
 
     public static MinionChangeViewState Changed(
         string displayName,
         int previousAttack,
         int previousHealth,
         int currentAttack,
-        int currentHealth) =>
-        new(
+        int currentHealth,
+        MinionChangeConfidence confidence)
+    {
+        // An ambiguous pairing may only state the current observation; a
+        // "from → to" line would present an arbitrary pairing as a fact.
+        var transition = confidence == MinionChangeConfidence.Ambiguous
+            ? string.Create(
+                CultureInfo.InvariantCulture,
+                $"now {FormatStats(currentAttack, currentHealth)}")
+            : string.Create(
+                CultureInfo.InvariantCulture,
+                $"{FormatStats(previousAttack, previousHealth)} → {FormatStats(currentAttack, currentHealth)}");
+        var delta = confidence == MinionChangeConfidence.Ambiguous
+            ? null
+            : string.Create(
+                CultureInfo.InvariantCulture,
+                $"{(confidence == MinionChangeConfidence.Likely ? "~" : string.Empty)}{FormatSigned(currentAttack - previousAttack)}/{FormatSigned(currentHealth - previousHealth)}");
+
+        return new MinionChangeViewState(
             MinionChangeKind.Changed,
+            confidence,
             Validated(displayName),
-            string.Create(
-                CultureInfo.InvariantCulture,
-                $"{FormatStats(previousAttack, previousHealth)} → {FormatStats(currentAttack, currentHealth)}"),
-            string.Create(
-                CultureInfo.InvariantCulture,
-                $"{FormatSigned(currentAttack - previousAttack)}/{FormatSigned(currentHealth - previousHealth)}"));
+            transition,
+            delta);
+    }
 
     private static string Validated(string displayName)
     {

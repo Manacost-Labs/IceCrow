@@ -82,7 +82,27 @@ public partial class DesignPreviewWindow : Window
             rows:
             [
                 MinionChangeViewState.Added("Kalecgos", 11, 13),
-                MinionChangeViewState.Changed("Bristleback Knight", 18, 22, 24, 31),
+                MinionChangeViewState.Changed(
+                    "Bristleback Knight",
+                    18,
+                    22,
+                    24,
+                    31,
+                    MinionChangeConfidence.Exact),
+                MinionChangeViewState.Changed(
+                    "Cave Hydra",
+                    12,
+                    14,
+                    18,
+                    20,
+                    MinionChangeConfidence.Likely),
+                MinionChangeViewState.Changed(
+                    "Alleycat",
+                    0,
+                    0,
+                    9,
+                    9,
+                    MinionChangeConfidence.Ambiguous),
                 MinionChangeViewState.Removed("Murloc Tidehunter"),
             ]));
 

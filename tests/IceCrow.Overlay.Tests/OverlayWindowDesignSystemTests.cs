@@ -187,7 +187,7 @@ public sealed class OverlayWindowDesignSystemTests
         rows:
         [
             MinionChangeViewState.Added("Malchezaar", 9, 9),
-            MinionChangeViewState.Changed("Brann", 18, 22, 24, 31),
+            MinionChangeViewState.Changed("Brann", 18, 22, 24, 31, MinionChangeConfidence.Exact),
         ]);
 
     private sealed class OverlayWindowFixture : IDisposable

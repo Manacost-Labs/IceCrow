@@ -97,7 +97,8 @@ public static class BattlegroundsOverlayViewStateFactory
                     change.Previous.Attack,
                     change.Previous.Health,
                     change.Current.Attack,
-                    change.Current.Health));
+                    change.Current.Health,
+                    ToConfidence(change.Identity)));
             }
         }
 
@@ -112,6 +113,14 @@ public static class BattlegroundsOverlayViewStateFactory
             changes.Significance == BoardChangeSignificance.Major,
             rows);
     }
+
+    /// <summary>Confidence may be renamed for the UI but never increased.</summary>
+    private static MinionChangeConfidence ToConfidence(MinionIdentity identity) => identity switch
+    {
+        MinionIdentity.SameEntity => MinionChangeConfidence.Exact,
+        MinionIdentity.LikelySameCard => MinionChangeConfidence.Likely,
+        _ => MinionChangeConfidence.Ambiguous,
+    };
 
     private static string ResolveMinionName(MinionSnapshot minion, ICardDatabase? cardDatabase)
     {
