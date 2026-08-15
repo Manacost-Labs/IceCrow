@@ -15,6 +15,9 @@ public sealed class OpponentOverlayViewState : IEquatable<OpponentOverlayViewSta
     /// <summary>Turns after which recorded board information is treated as outdated.</summary>
     public const int StaleTurnThreshold = 3;
 
+    /// <summary>Turns after which recorded board information is historical background only.</summary>
+    public const int VeryStaleTurnThreshold = 6;
+
     /// <summary>Tavern tier at which an opponent is highlighted as dangerous.</summary>
     public const int AttentionTavernTier = 5;
 
@@ -36,7 +39,8 @@ public sealed class OpponentOverlayViewState : IEquatable<OpponentOverlayViewSta
         int? turnsAgo,
         int triples,
         IEnumerable<string> progressionRows,
-        IEnumerable<MinionTileViewState> board)
+        IEnumerable<MinionTileViewState> board,
+        OpponentChangesViewState? changes = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(playerId);
         ArgumentException.ThrowIfNullOrWhiteSpace(heroName);
@@ -59,6 +63,7 @@ public sealed class OpponentOverlayViewState : IEquatable<OpponentOverlayViewSta
         ProgressionRows = Array.AsReadOnly(_progressionRows);
         _board = board.ToArray();
         Board = Array.AsReadOnly(_board);
+        Changes = changes;
     }
 
     public int PlayerId { get; }
@@ -84,6 +89,9 @@ public sealed class OpponentOverlayViewState : IEquatable<OpponentOverlayViewSta
     public IReadOnlyList<string> ProgressionRows { get; }
 
     public IReadOnlyList<MinionTileViewState> Board { get; }
+
+    /// <summary>Board movement since the previous fight; <see langword="null"/> before a second fight.</summary>
+    public OpponentChangesViewState? Changes { get; }
 
     /// <summary>Primary tier marker, for example <c>T5</c>.</summary>
     public string TierBadge => TavernTier > 0
@@ -130,6 +138,25 @@ public sealed class OpponentOverlayViewState : IEquatable<OpponentOverlayViewSta
     /// <summary>Recorded information is old enough that it may no longer be accurate.</summary>
     public bool IsStale => TurnsAgo >= StaleTurnThreshold;
 
+    /// <summary>Age of the recorded board; <see langword="null"/> when never fought.</summary>
+    public OpponentStaleness? Staleness => Presence == OpponentPresence.NotFought
+        ? null
+        : TurnsAgo switch
+        {
+            null or 0 => OpponentStaleness.Fresh,
+            < StaleTurnThreshold => OpponentStaleness.Recent,
+            < VeryStaleTurnThreshold => OpponentStaleness.Stale,
+            _ => OpponentStaleness.VeryStale,
+        };
+
+    /// <summary>Change summary for the lobby row, for example <c>3 changes</c>.</summary>
+    public string? CompactChangeLine => Changes?.ChangeCount switch
+    {
+        null or 0 => null,
+        1 => "1 change",
+        int count => string.Create(CultureInfo.InvariantCulture, $"{count} changes"),
+    };
+
     public string TriplesLine => Triples switch
     {
         0 => "No triples",
@@ -169,6 +196,7 @@ public sealed class OpponentOverlayViewState : IEquatable<OpponentOverlayViewSta
                LastSeenTurn == other.LastSeenTurn &&
                TurnsAgo == other.TurnsAgo &&
                Triples == other.Triples &&
+               Equals(Changes, other.Changes) &&
                ViewStateComparison.ListEquals(ProgressionRows, other.ProgressionRows) &&
                ViewStateComparison.ListEquals(Board, other.Board);
     }
@@ -187,6 +215,7 @@ public sealed class OpponentOverlayViewState : IEquatable<OpponentOverlayViewSta
         hash.Add(LastSeenTurn);
         hash.Add(TurnsAgo);
         hash.Add(Triples);
+        hash.Add(Changes);
         hash.Add(ViewStateComparison.ListHash(ProgressionRows));
         hash.Add(ViewStateComparison.ListHash(Board));
         return hash.ToHashCode();

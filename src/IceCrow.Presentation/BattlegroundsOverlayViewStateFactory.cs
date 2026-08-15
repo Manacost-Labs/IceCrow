@@ -20,7 +20,7 @@ public static class BattlegroundsOverlayViewStateFactory
             .Where(player => player.PlayerId != state.LocalPlayerId)
             .Select(player => CreateOpponent(
                 player,
-                snapshot.OpponentMemory.GetLatest(player.PlayerId),
+                snapshot.OpponentMemory.GetHistory(player.PlayerId),
                 snapshot.LobbyTimeline.GetPlayer(player.PlayerId),
                 state.Turn,
                 cardDatabase,
@@ -33,12 +33,13 @@ public static class BattlegroundsOverlayViewStateFactory
 
     private static OpponentOverlayViewState CreateOpponent(
         LobbyPlayer player,
-        BoardSnapshot? board,
+        OpponentBoardHistory? history,
         PlayerTimelineSnapshot? timeline,
         int currentTurn,
         ICardDatabase? cardDatabase,
         ICardArtSource? cardArtSource)
     {
+        var board = history?.Latest;
         var heroName = FirstAvailable(
             player.HeroName,
             player.HeroCardId,
@@ -62,7 +63,65 @@ public static class BattlegroundsOverlayViewStateFactory
             board?.GetAge(currentTurn),
             timeline?.Triples ?? player.Triples,
             CreateProgressionRows(timeline),
-            CreateBoard(board, cardDatabase, cardArtSource));
+            CreateBoard(board, cardDatabase, cardArtSource),
+            CreateChanges(history, cardDatabase));
+    }
+
+    private static OpponentChangesViewState? CreateChanges(
+        OpponentBoardHistory? history,
+        ICardDatabase? cardDatabase)
+    {
+        if (history?.Previous is not BoardSnapshot previous)
+        {
+            return null;
+        }
+
+        var changes = OpponentBoardDiffCalculator.Compare(previous, history.Latest);
+        var rows = new List<MinionChangeViewState>(
+            changes.AddedMinions.Count + changes.ChangedMinions.Count + changes.RemovedMinions.Count);
+        foreach (var added in changes.AddedMinions)
+        {
+            rows.Add(MinionChangeViewState.Added(
+                ResolveMinionName(added, cardDatabase),
+                added.Attack,
+                added.Health));
+        }
+
+        foreach (var change in changes.ChangedMinions)
+        {
+            // Position-only movement stays out of the v1 list on purpose.
+            if (change.HasStatChange)
+            {
+                rows.Add(MinionChangeViewState.Changed(
+                    ResolveMinionName(change.Current, cardDatabase),
+                    change.Previous.Attack,
+                    change.Previous.Health,
+                    change.Current.Attack,
+                    change.Current.Health));
+            }
+        }
+
+        foreach (var removed in changes.RemovedMinions)
+        {
+            rows.Add(MinionChangeViewState.Removed(ResolveMinionName(removed, cardDatabase)));
+        }
+
+        return new OpponentChangesViewState(
+            changes.PreviousTurn,
+            changes.CurrentTurn,
+            changes.Significance == BoardChangeSignificance.Major,
+            rows);
+    }
+
+    private static string ResolveMinionName(MinionSnapshot minion, ICardDatabase? cardDatabase)
+    {
+        var definition = string.IsNullOrWhiteSpace(minion.CardId)
+            ? null
+            : cardDatabase?.GetByCardId(minion.CardId);
+        return FirstAvailable(
+            definition?.Name,
+            minion.CardId,
+            string.Create(CultureInfo.InvariantCulture, $"Entity {minion.EntityId}"));
     }
 
     private static IEnumerable<string> CreateProgressionRows(PlayerTimelineSnapshot? timeline) =>
@@ -87,15 +146,11 @@ public static class BattlegroundsOverlayViewStateFactory
             var definition = string.IsNullOrWhiteSpace(minion.CardId)
                 ? null
                 : cardDatabase?.GetByCardId(minion.CardId);
-            var displayName = FirstAvailable(
-                definition?.Name,
-                minion.CardId,
-                string.Create(CultureInfo.InvariantCulture, $"Entity {minion.EntityId}"));
 
             return MinionTileViewState.Create(
                 minion.ZonePosition,
                 minion.CardId,
-                displayName,
+                ResolveMinionName(minion, cardDatabase),
                 minion.Attack,
                 minion.Health,
                 definition?.TavernTier,
