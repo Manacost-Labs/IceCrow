@@ -98,6 +98,9 @@ Before adding an overlay component:
 - No shared API token or admin credential may be embedded in IceCrow.
 - Prefer the .NET BCL over new packages. Verify the version, license, and provenance before adding any package.
 - Do not silently swallow important parser failures. Unknown Hearthstone events must not crash the tracker.
+- Preserve uncertainty across layers: when a lower layer reports Exact/Likely/
+  Unknown, a higher layer may simplify wording but must never silently increase
+  certainty (see `docs/architecture.md`, "Uncertainty preservation").
 - Do not introduce `Common`, `Utils`, service locators, global event buses, or
   generic repositories. Add a project only when it removes a forbidden
   dependency edge or protects a distinct platform/security boundary.

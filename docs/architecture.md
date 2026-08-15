@@ -173,3 +173,26 @@ interop out of portable projects, isolate HearthMirror, prevent runtime
 references to developer tools, and allow each ordinary test assembly one direct
 production dependency. See [the feature extension guide](feature-extension-guide.md)
 before adding a feature or project.
+
+## Uncertainty preservation
+
+When a lower layer exposes graded certainty — Exact / Likely / Unknown /
+Partial / Unsupported — a higher layer may simplify the wording but must never
+silently increase the certainty. `LikelySameCard` is not `SameEntity`, partial
+simulator support is not an exact win probability, and unknown metadata is
+never fabricated. Three kinds of statement must stay distinguishable end to
+end:
+
+- **FACT** — derived deterministically from authoritative state
+  (roster counts, an entity observed in both fights).
+- **INFERENCE** — derived from incomplete evidence
+  (a card-id match across recreated entities, an ambiguous duplicate pairing).
+- **PRESENTATION** — the human-facing rendering of a fact or inference; it may
+  rename confidence levels but may not upgrade them.
+
+The Opponent Memory board diff is the reference implementation:
+`MinionIdentity` (domain) flows into `MinionChangeConfidence` (presentation)
+one way down, ambiguous duplicate pairings never render an exact stat
+transition, and `BoardChangeSet.StatGrowth` ignores deltas that an arbitrary
+pairing would fabricate. Apply the same rule to future composition detection,
+threat estimation, combat simulation, and telemetry analysis.
