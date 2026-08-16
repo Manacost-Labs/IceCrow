@@ -93,6 +93,31 @@ public sealed class NamedEntityResolutionTests
     }
 
     [Fact]
+    public void PlayerNamedGameEntityPoisonsTheLiteralInsteadOfHijackingIt()
+    {
+        // "GameEntity" is a valid BattleTag. Once a different entity claims
+        // that name, the literal must stop resolving rather than misattribute
+        // either party's tags with false certainty.
+        var store = new EntityStore();
+        _ = store.Apply(new GameEntityDeclared(Timestamp, null, EntityId: 10));
+        _ = store.Apply(new RawTagChanged(
+            Timestamp,
+            BlockId: null,
+            EntityId: 2,
+            EntityName: "GameEntity",
+            Tag: "PLAYER_ID",
+            Value: "4",
+            IsCreationTag: false));
+
+        var mutation = store.Apply(NamedTag("GameEntity", "TURN", "5"));
+
+        Assert.Null(mutation);
+        Assert.Equal(1, store.UnresolvedNamedReferences);
+        Assert.Equal(0, store.Get(10).GetTag(GameTag.Turn));
+        Assert.Equal(0, store.Get(2).GetTag(GameTag.Turn));
+    }
+
+    [Fact]
     public void UnknownNameIsCountedAndDropped()
     {
         var store = new EntityStore();

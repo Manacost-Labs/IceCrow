@@ -20,6 +20,7 @@ public sealed class EntityStore
     private readonly int _maximumTagsPerEntity;
     private readonly int _maximumTotalTags;
     private int? _gameEntityId;
+    private bool _gameEntityNameAmbiguous;
     private long _unresolvedNamedReferences;
     private int _tagCount;
     private int _maximumTagCount;
@@ -123,6 +124,19 @@ public sealed class EntityStore
             return;
         }
 
+        // "GameEntity" is a valid BattleTag: a player carrying it must poison
+        // the literal shortcut or their tags would be misattributed to the
+        // game entity with false certainty.
+        if (string.Equals(entityName, GameEntityReference, StringComparison.Ordinal))
+        {
+            if (_gameEntityId != entityId)
+            {
+                _gameEntityNameAmbiguous = true;
+            }
+
+            return;
+        }
+
         if (_entityIdsByName.TryGetValue(entityName, out var existing))
         {
             if (existing != entityId && existing != AmbiguousEntityName)
@@ -140,7 +154,7 @@ public sealed class EntityStore
     {
         if (string.Equals(entityName, GameEntityReference, StringComparison.Ordinal))
         {
-            return _gameEntityId;
+            return _gameEntityNameAmbiguous ? null : _gameEntityId;
         }
 
         return _entityIdsByName.TryGetValue(entityName, out var entityId) &&
@@ -157,6 +171,7 @@ public sealed class EntityStore
         _entities.Clear();
         _entityIdsByName.Clear();
         _gameEntityId = null;
+        _gameEntityNameAmbiguous = false;
         _unresolvedNamedReferences = 0;
         _tagCount = 0;
         _maximumTagCount = 0;
