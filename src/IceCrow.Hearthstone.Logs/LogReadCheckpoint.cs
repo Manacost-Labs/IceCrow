@@ -18,5 +18,5 @@ public sealed record LogReadCheckpoint(
         DateTimeOffset.MinValue,
         0,
         0,
-        PowerLogTailer.InitialContentFingerprint);
+        LogCheckpointContinuity.InitialContentFingerprint);
 }

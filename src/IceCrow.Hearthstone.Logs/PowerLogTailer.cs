@@ -1,6 +1,5 @@
 using System.Buffers;
 using System.Globalization;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Channels;
 
@@ -17,10 +16,7 @@ public sealed class PowerLogTailer
     private const int MaximumChannelCapacity = 256;
     private const int ReadBufferBytes = 16 * 1024;
     private const int MaximumLineBytes = 64 * 1024;
-    private const int FingerprintBytes = 4 * 1024;
-    private const int RewriteFingerprintBytes = 64 * 1024;
-    private const ulong ContentFingerprintPrime = 1099511628211;
-    internal const ulong InitialContentFingerprint = 14695981039346656037;
+    private const int FingerprintBytes = LogCheckpointContinuity.PrefixFingerprintBytes;
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private static readonly string[] AcceptedPrefixes =
     [
@@ -214,58 +210,51 @@ public sealed class PowerLogTailer
             FileShare.ReadWrite | FileShare.Delete,
             bufferSize: ReadBufferBytes,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
-        var openedLength = stream.Length;
-        var samePath = string.Equals(
-            _checkpoint.FilePath,
-            file.FullName,
-            StringComparison.OrdinalIgnoreCase);
-        var prefixChanged = samePath &&
-                            _checkpoint.PrefixFingerprintLength > 0 &&
-                            (stream.Length < _checkpoint.PrefixFingerprintLength ||
-                             await ComputePrefixFingerprintAsync(
-                                 stream,
-                                 _checkpoint.PrefixFingerprintLength,
-                                 cancellationToken).ConfigureAwait(false) != _checkpoint.PrefixFingerprint);
-        var possibleSameLengthRewrite =
-            samePath &&
-            _checkpoint.FileCreatedAt == createdAt &&
-            file.Length == _checkpoint.ByteOffset &&
-            file.Length == _checkpoint.ObservedLength;
-        var openedContentFingerprint = possibleSameLengthRewrite
-            ? await ComputeContentFingerprintAsync(
-                stream,
-                _checkpoint.ByteOffset,
-                cancellationToken).ConfigureAwait(false)
-            : (ulong?)null;
-        var contentChangedAtEndOfFile = openedContentFingerprint.HasValue &&
-            openedContentFingerprint.Value != _checkpoint.ContentFingerprint;
-        if (!samePath ||
-            _checkpoint.FileCreatedAt != createdAt ||
-            file.Length < _checkpoint.ByteOffset ||
-            prefixChanged ||
-            contentChangedAtEndOfFile)
+
+        // All length decisions use the open handle; FileInfo directory metadata
+        // can lag behind the true end-of-file while Hearthstone holds the file.
+        if (_checkpoint.FilePath is not null)
         {
-            RecordReset(
-                !samePath ? LogResetReason.PathChanged
-                : _checkpoint.FileCreatedAt != createdAt ? LogResetReason.CreationTimeChanged
-                : file.Length < _checkpoint.ByteOffset ? LogResetReason.FileShrank
-                : prefixChanged ? LogResetReason.PrefixChangedBeforeRead
-                : LogResetReason.ContentChangedAtEnd,
-                file.Length);
+            var continuity = await LogCheckpointContinuity.VerifyAsync(
+                stream,
+                file.FullName,
+                _checkpoint,
+                cancellationToken).ConfigureAwait(false);
+            if (!continuity.IsContinuous)
+            {
+                RecordReset(continuity.ResetReason!.Value, stream.Length);
+                _checkpoint = new LogReadCheckpoint(
+                    file.FullName,
+                    0,
+                    createdAt,
+                    stream.Length,
+                    lastWriteAt,
+                    0,
+                    0,
+                    LogCheckpointContinuity.InitialContentFingerprint);
+                _discardingOversizedLine = false;
+            }
+        }
+        else
+        {
             _checkpoint = new LogReadCheckpoint(
                 file.FullName,
                 0,
                 createdAt,
-                file.Length,
+                stream.Length,
                 lastWriteAt,
                 0,
                 0,
-                InitialContentFingerprint);
-            _discardingOversizedLine = false;
+                LogCheckpointContinuity.InitialContentFingerprint);
         }
 
+        // Pin the pre-read state: the prefix and the window ending at the
+        // starting offset must be unchanged after the read, no matter how far
+        // the offset advances meanwhile.
+        var startingOffset = _checkpoint.ByteOffset;
+        var pinnedWindowFingerprint = _checkpoint.ContentFingerprint;
         var openedPrefixLength = checked((int)Math.Min(FingerprintBytes, stream.Length));
-        var openedPrefixFingerprint = await ComputePrefixFingerprintAsync(
+        var openedPrefixFingerprint = await LogCheckpointContinuity.ComputePrefixFingerprintAsync(
             stream,
             openedPrefixLength,
             cancellationToken).ConfigureAwait(false);
@@ -333,77 +322,75 @@ public sealed class PowerLogTailer
             }
 
             file.Refresh();
+            var bytesWereConsumed = _checkpoint.ByteOffset > startingOffset;
             var prefixChangedWhileReading =
                 stream.Length < openedPrefixLength ||
-                await ComputePrefixFingerprintAsync(
+                await LogCheckpointContinuity.ComputePrefixFingerprintAsync(
                     stream,
                     openedPrefixLength,
                     cancellationToken).ConfigureAwait(false) != openedPrefixFingerprint;
             if (prefixChangedWhileReading)
             {
-                RecordReset(
+                ResetAfterMidReadRewrite(
                     LogResetReason.PrefixChangedDuringRead,
-                    file.Exists ? file.Length : 0);
-                _checkpoint = new LogReadCheckpoint(
-                    file.FullName,
-                    0,
+                    file,
                     createdAt,
-                    file.Exists ? file.Length : 0,
-                    file.Exists
-                        ? new DateTimeOffset(file.LastWriteTimeUtc, TimeSpan.Zero)
-                        : lastWriteAt,
-                    0,
-                    0,
-                    InitialContentFingerprint);
-                _discardingOversizedLine = false;
-                Signal();
+                    lastWriteAt,
+                    stream.Length);
                 return;
             }
 
-            var fingerprintLength = checked((int)Math.Min(
-                FingerprintBytes,
-                Math.Min(_checkpoint.ByteOffset, stream.Length)));
-            var fingerprint = await ComputePrefixFingerprintAsync(
-                stream,
-                fingerprintLength,
-                cancellationToken).ConfigureAwait(false);
-            var contentFingerprint = await ComputeContentFingerprintAsync(
-                stream,
-                _checkpoint.ByteOffset,
-                cancellationToken).ConfigureAwait(false);
-            if (openedContentFingerprint.HasValue &&
-                stream.Length == openedLength &&
-                contentFingerprint != openedContentFingerprint.Value)
+            if (startingOffset > 0 && bytesWereConsumed)
             {
-                RecordReset(
-                    LogResetReason.ContentChangedDuringRead,
-                    file.Exists ? file.Length : 0);
-                _checkpoint = new LogReadCheckpoint(
-                    file.FullName,
-                    0,
-                    createdAt,
-                    file.Exists ? file.Length : 0,
-                    file.Exists
-                        ? new DateTimeOffset(file.LastWriteTimeUtc, TimeSpan.Zero)
-                        : lastWriteAt,
-                    0,
-                    0,
-                    InitialContentFingerprint);
-                _discardingOversizedLine = false;
-                Signal();
-                return;
+                var startingWindowFingerprint = await LogCheckpointContinuity
+                    .ComputeWindowFingerprintAsync(stream, startingOffset, cancellationToken)
+                    .ConfigureAwait(false);
+                if (startingWindowFingerprint != pinnedWindowFingerprint)
+                {
+                    ResetAfterMidReadRewrite(
+                        LogResetReason.ContentChangedDuringRead,
+                        file,
+                        createdAt,
+                        lastWriteAt,
+                        stream.Length);
+                    return;
+                }
             }
 
-            _checkpoint = _checkpoint with
+            if (bytesWereConsumed)
             {
-                ObservedLength = file.Exists ? file.Length : _checkpoint.ObservedLength,
-                LastWriteAt = file.Exists
-                    ? new DateTimeOffset(file.LastWriteTimeUtc, TimeSpan.Zero)
-                    : _checkpoint.LastWriteAt,
-                PrefixFingerprint = fingerprint,
-                PrefixFingerprintLength = fingerprintLength,
-                ContentFingerprint = contentFingerprint,
-            };
+                var fingerprintLength = checked((int)Math.Min(
+                    FingerprintBytes,
+                    Math.Min(_checkpoint.ByteOffset, stream.Length)));
+                var fingerprint = await LogCheckpointContinuity.ComputePrefixFingerprintAsync(
+                    stream,
+                    fingerprintLength,
+                    cancellationToken).ConfigureAwait(false);
+                var contentFingerprint = await LogCheckpointContinuity.ComputeWindowFingerprintAsync(
+                    stream,
+                    _checkpoint.ByteOffset,
+                    cancellationToken).ConfigureAwait(false);
+                _checkpoint = _checkpoint with
+                {
+                    ObservedLength = stream.Length,
+                    LastWriteAt = file.Exists
+                        ? new DateTimeOffset(file.LastWriteTimeUtc, TimeSpan.Zero)
+                        : _checkpoint.LastWriteAt,
+                    PrefixFingerprint = fingerprint,
+                    PrefixFingerprintLength = fingerprintLength,
+                    ContentFingerprint = contentFingerprint,
+                };
+            }
+            else
+            {
+                _checkpoint = _checkpoint with
+                {
+                    ObservedLength = stream.Length,
+                    LastWriteAt = file.Exists
+                        ? new DateTimeOffset(file.LastWriteTimeUtc, TimeSpan.Zero)
+                        : _checkpoint.LastWriteAt,
+                };
+            }
         }
         finally
         {
@@ -411,87 +398,27 @@ public sealed class PowerLogTailer
         }
     }
 
-    private static async Task<ulong> ComputeContentFingerprintAsync(
-        FileStream stream,
-        long length,
-        CancellationToken cancellationToken)
+    private void ResetAfterMidReadRewrite(
+        LogResetReason reason,
+        FileInfo file,
+        DateTimeOffset createdAt,
+        DateTimeOffset lastWriteAt,
+        long observedLength)
     {
-        var fingerprint = InitialContentFingerprint;
-        if (length == 0)
-        {
-            return fingerprint;
-        }
-
-        var buffer = ArrayPool<byte>.Shared.Rent(ReadBufferBytes);
-        try
-        {
-            var fingerprintStart = Math.Max(0, length - RewriteFingerprintBytes);
-            stream.Seek(fingerprintStart, SeekOrigin.Begin);
-            var remaining = length - fingerprintStart;
-            while (remaining > 0)
-            {
-                var read = await stream.ReadAsync(
-                    buffer.AsMemory(0, checked((int)Math.Min(buffer.Length, remaining))),
-                    cancellationToken).ConfigureAwait(false);
-                if (read == 0)
-                {
-                    break;
-                }
-
-                for (var index = 0; index < read; index++)
-                {
-                    fingerprint = AppendContentFingerprint(fingerprint, buffer[index]);
-                }
-
-                remaining -= read;
-            }
-
-            return fingerprint;
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(buffer);
-        }
-    }
-
-    private static ulong AppendContentFingerprint(ulong fingerprint, byte value) =>
-        unchecked((fingerprint ^ value) * ContentFingerprintPrime);
-
-    private static async Task<ulong> ComputePrefixFingerprintAsync(
-        FileStream stream,
-        int length,
-        CancellationToken cancellationToken)
-    {
-        if (length == 0)
-        {
-            return 0;
-        }
-
-        var buffer = ArrayPool<byte>.Shared.Rent(length);
-        try
-        {
-            stream.Seek(0, SeekOrigin.Begin);
-            var total = 0;
-            while (total < length)
-            {
-                var read = await stream.ReadAsync(
-                    buffer.AsMemory(total, length - total),
-                    cancellationToken).ConfigureAwait(false);
-                if (read == 0)
-                {
-                    break;
-                }
-
-                total += read;
-            }
-
-            var hash = SHA256.HashData(buffer.AsSpan(0, total));
-            return BitConverter.ToUInt64(hash);
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(buffer);
-        }
+        RecordReset(reason, observedLength);
+        _checkpoint = new LogReadCheckpoint(
+            file.FullName,
+            0,
+            createdAt,
+            observedLength,
+            file.Exists
+                ? new DateTimeOffset(file.LastWriteTimeUtc, TimeSpan.Zero)
+                : lastWriteAt,
+            0,
+            0,
+            LogCheckpointContinuity.InitialContentFingerprint);
+        _discardingOversizedLine = false;
+        Signal();
     }
 
     private async Task ProcessCompleteLineAsync(
