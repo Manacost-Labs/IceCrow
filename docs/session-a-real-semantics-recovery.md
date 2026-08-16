@@ -123,7 +123,11 @@ order-of-magnitude regressions observed in the suite.
 `analyze-recording` prints aggregates only (names classified, unsafe
 values redacted). Preflight remains a hostile-input bound: ≤ 64 MiB file,
 ≤ 256 MiB estimated token materialization, event/string/depth limits
-unchanged. Diff-scoped security scan: see final session report.
+unchanged. The diff-scoped security scan produced one finding — a player
+carrying the valid BattleTag `GameEntity` could hijack the literal
+resolution shortcut and have their tags misattributed to the game entity
+with false certainty — fixed in `fc4e9de` by poisoning the literal once
+any other entity claims the name, with a regression test.
 
 ## COMMITS
 
@@ -132,7 +136,8 @@ unchanged. Diff-scoped security scan: see final session report.
 3. `26249df` — Replace the replay timeline guard with actual bounded work accounting
 4. `b2202d5` — Resolve bare-name entity references from proven associations
 5. `f0bee4c` — Drive turn, phase, and board semantics from resolved mutations
-6. (this report + resource budgets)
+6. `2476892` — Record Session A results and integration handoff
+7. `fc4e9de` — Poison the GameEntity literal when a player claims the name
 
 ## OUT-OF-SCOPE NEEDS / HANDOFF TO SESSION B
 
