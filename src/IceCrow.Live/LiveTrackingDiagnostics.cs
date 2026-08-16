@@ -27,7 +27,8 @@ public sealed record LiveTrackingDiagnostics(
     int MaximumOpponentSnapshotsOnPlayer,
     LiveTrackingWarnings Warnings,
     int? CurrentOpponentPlayerId,
-    DateTimeOffset? LastStateUpdateTimestamp);
+    DateTimeOffset? LastStateUpdateTimestamp,
+    long UnresolvedNamedReferences);
 
 [Flags]
 public enum LiveTrackingWarnings
@@ -41,4 +42,5 @@ public enum LiveTrackingWarnings
     OpponentSnapshots = 1 << 5,
     LifecyclePlayerIdentities = 1 << 6,
     CaptureObserverDetached = 1 << 7,
+    UnresolvedNamedReferences = 1 << 8,
 }

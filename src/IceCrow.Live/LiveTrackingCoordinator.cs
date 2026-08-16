@@ -334,6 +334,12 @@ public sealed class LiveTrackingCoordinator
             warnings |= LiveTrackingWarnings.CaptureObserverDetached;
         }
 
+        var unresolvedNamedReferences = _tracking.UnresolvedNamedReferenceCount;
+        if (unresolvedNamedReferences > 0)
+        {
+            warnings |= LiveTrackingWarnings.UnresolvedNamedReferences;
+        }
+
         return new LiveTrackingDiagnostics(
             _rawLinesReceived,
             _parsedEvents,
@@ -358,7 +364,8 @@ public sealed class LiveTrackingCoordinator
             _tracking.MaximumOpponentSnapshotsOnPlayer,
             warnings,
             battlegrounds.CurrentOpponentPlayerId,
-            _lastStateUpdateTimestamp);
+            _lastStateUpdateTimestamp,
+            unresolvedNamedReferences);
     }
 
     private void NotifyMatchStarted(DateTimeOffset timestamp, int? localPlayerId)

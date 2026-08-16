@@ -92,6 +92,12 @@ public partial class MainWindow : Window
         {
             LiveAppliedEvents.Text += " · capture observer detached";
         }
+
+        if (diagnostics.Warnings.HasFlag(LiveTrackingWarnings.UnresolvedNamedReferences))
+        {
+            LiveAppliedEvents.Text +=
+                $" · unresolved named refs: {diagnostics.UnresolvedNamedReferences}";
+        }
         LiveTrackingState.Text = $"Tracking: {diagnostics.TrackingState}";
         LiveLastUpdate.Text = diagnostics.LastStateUpdateTimestamp is DateTimeOffset timestamp
             ? $"Last update: {timestamp:HH:mm:ss.fff}"

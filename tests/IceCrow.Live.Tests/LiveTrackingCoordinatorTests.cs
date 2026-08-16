@@ -171,6 +171,36 @@ public sealed class LiveTrackingCoordinatorTests
     }
 
     [Fact]
+    public void UnresolvedNamedReferencesAreCountedFlaggedAndResetPerMatch()
+    {
+        var coordinator = new LiveTrackingCoordinator();
+
+        // Confirmed match with a declared game entity.
+        _ = coordinator.Process(Line("CREATE_GAME"));
+        _ = coordinator.Process(Line("GameEntity EntityID=500"));
+        _ = coordinator.Process(Line("TAG_CHANGE Entity=1 tag=PLAYER_TECH_LEVEL value=1"));
+        _ = coordinator.Process(Line("TAG_CHANGE Entity=1 tag=STEP value=MAIN_READY"));
+
+        // A resolvable bare-name reference does not count as unresolved...
+        var resolved = coordinator.Process(Line("TAG_CHANGE Entity=GameEntity tag=TURN value=1"));
+        Assert.Equal(0, resolved.Diagnostics.UnresolvedNamedReferences);
+        Assert.False(resolved.Diagnostics.Warnings.HasFlag(
+            LiveTrackingWarnings.UnresolvedNamedReferences));
+
+        // ...while an unknown bare name is counted and flagged, never guessed.
+        var unresolved = coordinator.Process(Line("TAG_CHANGE Entity=Mystery tag=ATK value=5"));
+        Assert.Equal(1, unresolved.Diagnostics.UnresolvedNamedReferences);
+        Assert.True(unresolved.Diagnostics.Warnings.HasFlag(
+            LiveTrackingWarnings.UnresolvedNamedReferences));
+
+        // A new confirmed match resets the counter with the match state.
+        _ = coordinator.Process(Line("CREATE_GAME"));
+        _ = coordinator.Process(Line("TAG_CHANGE Entity=1 tag=PLAYER_TECH_LEVEL value=1"));
+        var secondMatch = coordinator.Process(Line("TAG_CHANGE Entity=1 tag=STEP value=MAIN_READY"));
+        Assert.Equal(0, secondMatch.Diagnostics.UnresolvedNamedReferences);
+    }
+
+    [Fact]
     public void LifecyclePlayerIdentityCacheUsesBoundedEviction()
     {
         var lifecycle = new BattlegroundsLifecycleDetector(
