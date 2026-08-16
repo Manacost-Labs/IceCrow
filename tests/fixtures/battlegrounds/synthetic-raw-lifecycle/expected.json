@@ -10,7 +10,7 @@
   "expectedCheckpoints": [
     {
       "name": "BattlegroundsDetected",
-      "eventIndex": 4,
+      "eventIndex": 5,
       "state": {
         "sessionState": "Active",
         "isActive": true,

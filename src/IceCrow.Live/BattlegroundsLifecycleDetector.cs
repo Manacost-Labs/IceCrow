@@ -3,6 +3,15 @@ using IceCrow.Hearthstone.Protocol.Events;
 
 namespace IceCrow.Live;
 
+/// <summary>
+/// Sole lifecycle authority for Battlegrounds match detection. A Battlegrounds
+/// tag is only <em>candidate</em> evidence: the client's catch-up dump after a
+/// live <c>log.config</c> change replays the current UI context as a burst of
+/// tags that all share one log timestamp and never progress. A match is
+/// <em>confirmed</em> only when a later-timestamped event follows the armed
+/// evidence — real matches advance log time immediately, a catch-up snapshot
+/// never does.
+/// </summary>
 public sealed class BattlegroundsLifecycleDetector
 {
     public const int DefaultMaximumPlayerIdentities = 256;
@@ -15,6 +24,8 @@ public sealed class BattlegroundsLifecycleDetector
     private bool _battlegroundsDetected;
     private int? _localPlayerEntityId;
     private DateTimeOffset? _candidateStartedAt;
+    private BattlegroundsLifecycleEvidence _pendingEvidence;
+    private DateTimeOffset? _pendingEvidenceAt;
 
     public BattlegroundsLifecycleDetector(
         int maximumPlayerIdentities = DefaultMaximumPlayerIdentities,
@@ -62,12 +73,15 @@ public sealed class BattlegroundsLifecycleDetector
 
         if (gameEvent is not RawTagChanged tagChanged)
         {
-            return None(gameEvent.Timestamp);
+            return ConfirmPendingOrNone(gameEvent.Timestamp);
         }
 
         ObservePlayerIdentity(tagChanged);
         if (IsCompleteGameState(tagChanged))
         {
+            // A complete-state tag inside an unconfirmed burst is snapshot
+            // residue of an already-finished game, never live match evidence.
+            ClearPendingEvidence();
             return new BattlegroundsLifecycleObservation(
                 BattlegroundsLifecycleAction.EndMatch,
                 _candidateStartedAt ?? gameEvent.Timestamp,
@@ -76,17 +90,16 @@ public sealed class BattlegroundsLifecycleDetector
         }
 
         var evidence = GetBattlegroundsEvidence(tagChanged);
-        if (evidence == BattlegroundsLifecycleEvidence.None || _battlegroundsDetected)
+        if (!_battlegroundsDetected &&
+            _pendingEvidence == BattlegroundsLifecycleEvidence.None &&
+            evidence != BattlegroundsLifecycleEvidence.None)
         {
+            _pendingEvidence = evidence;
+            _pendingEvidenceAt = gameEvent.Timestamp;
             return None(gameEvent.Timestamp);
         }
 
-        _battlegroundsDetected = true;
-        return new BattlegroundsLifecycleObservation(
-            BattlegroundsLifecycleAction.StartBattlegrounds,
-            _candidateStartedAt ?? gameEvent.Timestamp,
-            GetLocalPlayerId(),
-            evidence);
+        return ConfirmPendingOrNone(gameEvent.Timestamp);
     }
 
     public void Reset()
@@ -96,6 +109,33 @@ public sealed class BattlegroundsLifecycleDetector
         _battlegroundsDetected = false;
         _localPlayerEntityId = null;
         _candidateStartedAt = null;
+        ClearPendingEvidence();
+    }
+
+    private BattlegroundsLifecycleObservation ConfirmPendingOrNone(DateTimeOffset timestamp)
+    {
+        if (_battlegroundsDetected ||
+            _pendingEvidence == BattlegroundsLifecycleEvidence.None ||
+            _pendingEvidenceAt is not DateTimeOffset armedAt ||
+            timestamp <= armedAt)
+        {
+            return None(timestamp);
+        }
+
+        var evidence = _pendingEvidence;
+        ClearPendingEvidence();
+        _battlegroundsDetected = true;
+        return new BattlegroundsLifecycleObservation(
+            BattlegroundsLifecycleAction.StartBattlegrounds,
+            _candidateStartedAt ?? timestamp,
+            GetLocalPlayerId(),
+            evidence);
+    }
+
+    private void ClearPendingEvidence()
+    {
+        _pendingEvidence = BattlegroundsLifecycleEvidence.None;
+        _pendingEvidenceAt = null;
     }
 
     private void ResetCandidate(DateTimeOffset timestamp)

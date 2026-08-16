@@ -109,11 +109,15 @@ public sealed class TrackingSoakTests(ITestOutputHelper output)
         }
     }
 
-    private static void Process(LiveTrackingCoordinator coordinator, string payload) =>
+    private int _lineIndex;
+
+    private void Process(LiveTrackingCoordinator coordinator, string payload) =>
         _ = coordinator.Process(Line(payload));
 
-    private static RawLogLine Line(string payload) => new(
-        Timestamp,
+    // Advancing timestamps mirror real Power.log time so armed Battlegrounds
+    // evidence is confirmed as it would be in a live match.
+    private RawLogLine Line(string payload) => new(
+        Timestamp.AddMilliseconds(_lineIndex++),
         "Power",
         $"PowerTaskList.DebugPrintPower() - {payload}",
         payload);

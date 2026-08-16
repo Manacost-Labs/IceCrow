@@ -88,6 +88,7 @@ public sealed class LiveTrackingCoordinatorTests
         _ = coordinator.Process(Line("CREATE_GAME"));
         _ = coordinator.Process(Line("Player EntityID=9 PlayerID=9 GameAccountId=[hi=0 lo=9]"));
         _ = coordinator.Process(Line("TAG_CHANGE Entity=9 tag=PLAYER_TECH_LEVEL value=1"));
+        _ = coordinator.Process(Line("TAG_CHANGE Entity=9 tag=PLAYER_TECH_LEVEL value=2"));
 
         var snapshot = coordinator.CurrentSnapshot;
         Assert.Equal(TrackingSessionState.Active, snapshot.SessionState);
@@ -102,6 +103,7 @@ public sealed class LiveTrackingCoordinatorTests
         var coordinator = new LiveTrackingCoordinator();
         _ = coordinator.Process(Line("CREATE_GAME"));
         _ = coordinator.Process(Line("TAG_CHANGE Entity=1 tag=PLAYER_TECH_LEVEL value=1"));
+        _ = coordinator.Process(Line("TAG_CHANGE Entity=1 tag=PLAYER_TRIPLES value=0"));
 
         var update = coordinator.Process(Line("TAG_CHANGE Entity=1 tag=STATE value=COMPLETE"));
 
@@ -113,12 +115,13 @@ public sealed class LiveTrackingCoordinatorTests
     [Fact]
     public void PendingEventsAreBoundedAndUseDropOldestPolicy()
     {
-        var coordinator = new LiveTrackingCoordinator(pendingEventCapacity: 2);
+        var coordinator = new LiveTrackingCoordinator(pendingEventCapacity: 3);
 
         _ = coordinator.Process(Line("GameEntity EntityID=1"));
         _ = coordinator.Process(Line("GameEntity EntityID=2"));
         _ = coordinator.Process(Line("GameEntity EntityID=3"));
         _ = coordinator.Process(Line("TAG_CHANGE Entity=3 tag=PLAYER_TECH_LEVEL value=1"));
+        _ = coordinator.Process(Line("TAG_CHANGE Entity=3 tag=PLAYER_TRIPLES value=0"));
 
         Assert.Equal(2, coordinator.Diagnostics.BufferedEventsDropped);
         Assert.Equal(1, coordinator.CurrentSnapshot.EntityCount);
@@ -187,8 +190,13 @@ public sealed class LiveTrackingCoordinatorTests
         Assert.Equal(1, lifecycle.PlayerIdentityEvictions);
     }
 
-    private static RawLogLine Line(string payload) => new(
-        Timestamp,
+    private int _lineIndex;
+
+    // Real Power.log lines carry advancing timestamps; a same-timestamp burst
+    // is catch-up snapshot territory covered by the lifecycle confirmation
+    // tests, so every fed line here advances log time by one millisecond.
+    private RawLogLine Line(string payload) => new(
+        Timestamp.AddMilliseconds(_lineIndex++),
         "Power",
         $"PowerTaskList.DebugPrintPower() - {payload}",
         payload);

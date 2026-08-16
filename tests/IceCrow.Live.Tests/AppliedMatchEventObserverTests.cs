@@ -51,6 +51,9 @@ public sealed class AppliedMatchEventObserverTests
         Assert.Empty(observer.Sequence);
 
         _ = coordinator.Process(Line("TAG_CHANGE Entity=1 tag=PLAYER_TECH_LEVEL value=2"));
+        Assert.Empty(observer.Sequence);
+
+        _ = coordinator.Process(Line("TAG_CHANGE Entity=1 tag=PLAYER_TRIPLES value=0"));
 
         Assert.Equal("started", observer.Sequence.First());
         Assert.Contains(observer.Applied, gameEvent => gameEvent is GameEntityDeclared { EntityId: 500 });
@@ -104,10 +107,12 @@ public sealed class AppliedMatchEventObserverTests
             _ = coordinator.Process(Line(content));
         }
 
-        // A new game boundary ends match one; fresh evidence starts match two.
+        // A new game boundary ends match one; fresh confirmed evidence starts
+        // match two.
         _ = coordinator.Process(Line("CREATE_GAME"));
         _ = coordinator.Process(Line("Player EntityID=9 PlayerID=9 GameAccountId=[hi=0 lo=9]"));
         _ = coordinator.Process(Line("TAG_CHANGE Entity=9 tag=PLAYER_TECH_LEVEL value=1"));
+        _ = coordinator.Process(Line("TAG_CHANGE Entity=9 tag=PLAYER_TECH_LEVEL value=2"));
 
         var lifecycle = observer.Sequence
             .Where(entry => entry is "started" or "ended")
@@ -150,8 +155,12 @@ public sealed class AppliedMatchEventObserverTests
         Assert.Empty(observer.Rejected);
     }
 
-    private static RawLogLine Line(string payload) => new(
-        Timestamp,
+    private int _lineIndex;
+
+    // Real Power.log lines carry advancing timestamps; same-timestamp bursts
+    // are covered by the lifecycle confirmation tests.
+    private RawLogLine Line(string payload) => new(
+        Timestamp.AddMilliseconds(_lineIndex++),
         "Power",
         $"PowerTaskList.DebugPrintPower() - {payload}",
         payload);
