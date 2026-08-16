@@ -261,7 +261,7 @@ public sealed class ReplayRunnerTests
 
         var runner = new ReplayRunner(
             recorder.CreateMatch(),
-            maximumStateMaterializationWorkUnits: 4);
+            new ReplayLimits(MaximumStateMaterializationWorkUnits: 4));
 
         _ = runner.Step();
         _ = runner.Step();
@@ -286,7 +286,7 @@ public sealed class ReplayRunnerTests
 
         var runner = new ReplayRunner(
             recorder.CreateMatch(),
-            maximumEventSnapshotWorkUnits: 4);
+            new ReplayLimits(MaximumEventSnapshotWorkUnits: 4));
 
         _ = runner.Step();
         _ = runner.Step();
