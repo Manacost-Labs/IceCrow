@@ -483,3 +483,6 @@ $RECYCLE.BIN/
 
 # Private developer match captures must never enter the repository
 private-captures/
+
+# Local test-client publish output
+artifacts/

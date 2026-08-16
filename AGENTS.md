@@ -31,7 +31,9 @@ HDT is behavioral reference material only. It may be inspected to understand Hea
 | `IceCrow.Telemetry` | Consent-aware derived summaries and bounded offline outbox | `Tracking` |
 
 Test projects may reference only the production or developer-tool project under
-test and its transitive dependencies.
+test and its transitive dependencies. `IceCrow.App.Tests` is the Windows-only
+home for direct application-runtime tests; it references `IceCrow.App` through
+`InternalsVisibleTo` and no runtime project references it.
 
 Developer-only tooling lives under `tools/` and must not be referenced by any
 runtime project. `IceCrow.FixtureTool` may depend on `Recording` and `Live` to
