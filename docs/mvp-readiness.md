@@ -40,16 +40,22 @@ results come from a human operator following the
 - Remote long-run soak: PASS on `4e1915c` (dispatched run 31969148713 with
   `run_soak = true`; both the quality gate and the soak job succeeded).
 
-## Gate B — real client: PARTIAL
+## Gate B — real client: PARTIAL (major progress in session two)
 
 - Offline replay of the 2026-08-16 real evidence through the official
   pipeline: PASS (load, replay, turns, phases, opponent boards).
-- First live session results (what worked and what failed) are recorded in
-  [real-client-findings-2026-08-16.md](real-client-findings-2026-08-16.md);
-  every failure has an integrated offline fix with regression tests.
-- Fresh live verification of the integrated fixes (one complete match, two
-  consecutive matches, catch-up/late start, API offline): NOT RUN — needs a
-  human operator with the Hearthstone client running the runbook.
+- Second live session (2026-08-17,
+  [real-client-findings-2026-08-17.md](real-client-findings-2026-08-17.md)):
+  semantic lifecycle confirmation (`StepProgress`), boundary reset of
+  pre-start junk, fail-closed warning semantics, full-match live tracking
+  with opponent memory, and enable-mid-match capture semantics all
+  verified PASS against a real ~25-minute match; no false re-reads, no
+  false matches, no safety rejections.
+- Remaining live gap: a **saved** full-match capture. The real match
+  overflowed the old 100k-event recorder cap and was honestly discarded
+  (F8); budgets are recalibrated from that evidence (`e340063`), and one
+  post-fix captured match plus the two-consecutive-matches scenario are
+  what remain NOT RUN.
 
 ## Gate C — evidence: PARTIAL
 
