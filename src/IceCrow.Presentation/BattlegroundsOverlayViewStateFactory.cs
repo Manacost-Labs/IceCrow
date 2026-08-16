@@ -40,10 +40,7 @@ public static class BattlegroundsOverlayViewStateFactory
         ICardArtSource? cardArtSource)
     {
         var board = history?.Latest;
-        var heroName = FirstAvailable(
-            player.HeroName,
-            player.HeroCardId,
-            string.Create(CultureInfo.InvariantCulture, $"Player {player.PlayerId}"));
+        var heroName = ResolveHeroName(player, cardDatabase);
         var presence = board switch
         {
             null => OpponentPresence.NotFought,
@@ -65,6 +62,33 @@ public static class BattlegroundsOverlayViewStateFactory
             CreateProgressionRows(timeline),
             CreateBoard(board, cardDatabase, cardArtSource),
             CreateChanges(history, cardDatabase));
+    }
+
+    /// <summary>
+    /// Hero names come from card metadata first (which also resolves skin card
+    /// ids), then the entity name the log provided. A raw CardId is never shown
+    /// as a name: without metadata the row reads "Unknown hero" and the raw id
+    /// stays available on <see cref="OpponentOverlayViewState.HeroCardId"/> for
+    /// tooltips and diagnostics.
+    /// </summary>
+    private static string ResolveHeroName(LobbyPlayer player, ICardDatabase? cardDatabase)
+    {
+        var definition = string.IsNullOrWhiteSpace(player.HeroCardId)
+            ? null
+            : cardDatabase?.GetHeroByCardId(player.HeroCardId);
+        if (definition is not null)
+        {
+            return definition.Name;
+        }
+
+        if (!string.IsNullOrWhiteSpace(player.HeroName))
+        {
+            return player.HeroName;
+        }
+
+        return string.IsNullOrWhiteSpace(player.HeroCardId)
+            ? string.Create(CultureInfo.InvariantCulture, $"Player {player.PlayerId}")
+            : "Unknown hero";
     }
 
     private static OpponentChangesViewState? CreateChanges(

@@ -47,10 +47,59 @@ public sealed class InMemoryCardDatabaseTests
         Assert.Single(snapshot.Cards);
     }
 
+    [Fact]
+    public void HeroLookupResolvesSkinCardIdsToTheBaseHeroDefinition()
+    {
+        var database = new InMemoryCardDatabase();
+        database.Replace(SnapshotWithHeroes(
+            Hero("BG22_HERO_000", 100, "Ragnaros"),
+            Hero("TB_BaconShop_HERO_25", 101, "Yogg-Saron")));
+
+        Assert.Equal("Ragnaros", database.GetHeroByCardId("BG22_HERO_000")?.Name);
+        Assert.Equal("Ragnaros", database.GetHeroByCardId("BG22_HERO_000_SKIN_E")?.Name);
+        Assert.Equal("Yogg-Saron", database.GetHeroByCardId("TB_BaconShop_HERO_25")?.Name);
+        Assert.Null(database.GetHeroByCardId("BG99_HERO_UNKNOWN"));
+        Assert.Null(database.GetHeroByCardId("BG99_HERO_UNKNOWN_SKIN_B"));
+    }
+
+    [Fact]
+    public void SkinNormalizationOnlyStripsTheDocumentedSuffixPattern()
+    {
+        Assert.True(BattlegroundsHeroSkins.TryGetBaseHeroCardId(
+            "BG22_HERO_000_SKIN_E",
+            out var baseId));
+        Assert.Equal("BG22_HERO_000", baseId);
+
+        Assert.False(BattlegroundsHeroSkins.TryGetBaseHeroCardId("BG22_HERO_000", out _));
+        Assert.False(BattlegroundsHeroSkins.TryGetBaseHeroCardId("_SKIN_E", out _));
+        Assert.False(BattlegroundsHeroSkins.TryGetBaseHeroCardId("BG22_HERO_000_SKIN_", out _));
+        Assert.False(BattlegroundsHeroSkins.TryGetBaseHeroCardId(
+            "BG22_HERO_000_SKIN_e",
+            out _));
+    }
+
     private static HearthstoneDataSnapshot Snapshot(params CardDefinition[] cards) => new(
         new HearthstoneDataVersion(1, "v1", null, new string('0', 64), DateTimeOffset.UnixEpoch),
         cards,
         []);
+
+    private static HearthstoneDataSnapshot SnapshotWithHeroes(
+        params BattlegroundsHeroDefinition[] heroes) => new(
+        new HearthstoneDataVersion(1, "v1", null, new string('0', 64), DateTimeOffset.UnixEpoch),
+        [],
+        heroes);
+
+    private static BattlegroundsHeroDefinition Hero(string cardId, int dbfId, string name) => new(
+        dbfId,
+        cardId,
+        name,
+        name,
+        null,
+        null,
+        null,
+        null,
+        null,
+        CardImageInfo.Empty);
 
     private static CardDefinition Card(
         string cardId,

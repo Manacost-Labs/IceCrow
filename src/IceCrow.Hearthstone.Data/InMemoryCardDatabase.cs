@@ -34,7 +34,17 @@ public sealed class InMemoryCardDatabase : ICardDatabase
             return null;
         }
 
-        return Volatile.Read(ref _state).HeroesById.GetValueOrDefault(cardId);
+        var heroes = Volatile.Read(ref _state).HeroesById;
+        if (heroes.GetValueOrDefault(cardId) is { } exact)
+        {
+            return exact;
+        }
+
+        // The dataset keys heroes by their base card id; the client reports
+        // skin card ids for cosmetic hero variants.
+        return BattlegroundsHeroSkins.TryGetBaseHeroCardId(cardId, out var baseHeroCardId)
+            ? heroes.GetValueOrDefault(baseHeroCardId)
+            : null;
     }
 
     public IReadOnlyList<CardDefinition> QueryBattlegroundsCards(CardQuery query)

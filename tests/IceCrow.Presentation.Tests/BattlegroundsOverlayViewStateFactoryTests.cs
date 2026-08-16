@@ -123,6 +123,103 @@ public sealed class BattlegroundsOverlayViewStateFactoryTests
     }
 
     [Fact]
+    public void HeroNamesResolveThroughCardMetadataIncludingSkinCardIds()
+    {
+        var local = LobbyPlayer.Create(1) with { HeroName = "Local" };
+        var baseHero = LobbyPlayer.Create(2) with { HeroCardId = "TB_BaconShop_HERO_25", Health = 30 };
+        var skinHero = LobbyPlayer.Create(3) with { HeroCardId = "BG22_HERO_000_SKIN_E", Health = 30 };
+        var database = new IceCrow.Hearthstone.Data.InMemoryCardDatabase();
+        database.Replace(new IceCrow.Hearthstone.Data.HearthstoneDataSnapshot(
+            new IceCrow.Hearthstone.Data.HearthstoneDataVersion(
+                1, "v1", null, new string('0', 64), DateTimeOffset.UnixEpoch),
+            [],
+            [
+                Hero("TB_BaconShop_HERO_25", 100, "Yogg-Saron"),
+                Hero("BG22_HERO_000", 101, "Ragnaros"),
+            ]));
+        var state = new BattlegroundsState(
+            IsActive: true,
+            Turn: 5,
+            Phase: BattlegroundsPhase.Recruit,
+            LocalPlayerId: 1,
+            CurrentOpponentPlayerId: 2,
+            Lobby: LobbyState.Empty.SetPlayer(local).SetPlayer(baseHero).SetPlayer(skinHero));
+
+        var opponents = BattlegroundsOverlayViewStateFactory
+            .Create(CreateSnapshot(state), database)
+            .Opponents
+            .ToDictionary(tile => tile.PlayerId);
+
+        Assert.Equal("Yogg-Saron", opponents[2].HeroName);
+        Assert.Equal("Ragnaros", opponents[3].HeroName);
+        Assert.Equal("BG22_HERO_000_SKIN_E", opponents[3].HeroCardId);
+    }
+
+    [Fact]
+    public void UnresolvedHeroCardIdFallsBackToUnknownHeroNotTheRawId()
+    {
+        var local = LobbyPlayer.Create(1) with { HeroName = "Local" };
+        var unresolved = LobbyPlayer.Create(2) with { HeroCardId = "BG99_HERO_FUTURE", Health = 30 };
+        var anonymous = LobbyPlayer.Create(3) with { Health = 30 };
+        var state = new BattlegroundsState(
+            IsActive: true,
+            Turn: 5,
+            Phase: BattlegroundsPhase.Recruit,
+            LocalPlayerId: 1,
+            CurrentOpponentPlayerId: 2,
+            Lobby: LobbyState.Empty.SetPlayer(local).SetPlayer(unresolved).SetPlayer(anonymous));
+
+        var opponents = BattlegroundsOverlayViewStateFactory
+            .Create(CreateSnapshot(state), cardDatabase: null)
+            .Opponents
+            .ToDictionary(tile => tile.PlayerId);
+
+        Assert.Equal("Unknown hero", opponents[2].HeroName);
+        Assert.Equal("BG99_HERO_FUTURE", opponents[2].HeroCardId);
+        Assert.Equal("Player 3", opponents[3].HeroName);
+    }
+
+    [Fact]
+    public void EntityProvidedHeroNameWinsOverTheUnknownFallback()
+    {
+        var local = LobbyPlayer.Create(1) with { HeroName = "Local" };
+        var named = LobbyPlayer.Create(2) with
+        {
+            HeroName = "Reno Jackson",
+            HeroCardId = "BG99_HERO_FUTURE",
+            Health = 30,
+        };
+        var state = new BattlegroundsState(
+            IsActive: true,
+            Turn: 5,
+            Phase: BattlegroundsPhase.Recruit,
+            LocalPlayerId: 1,
+            CurrentOpponentPlayerId: 2,
+            Lobby: LobbyState.Empty.SetPlayer(local).SetPlayer(named));
+
+        var tile = Assert.Single(BattlegroundsOverlayViewStateFactory
+            .Create(CreateSnapshot(state), cardDatabase: null)
+            .Opponents);
+
+        Assert.Equal("Reno Jackson", tile.HeroName);
+    }
+
+    private static IceCrow.Hearthstone.Data.BattlegroundsHeroDefinition Hero(
+        string cardId,
+        int dbfId,
+        string name) => new(
+            dbfId,
+            cardId,
+            name,
+            name,
+            null,
+            null,
+            null,
+            null,
+            null,
+            IceCrow.Hearthstone.Data.CardImageInfo.Empty);
+
+    [Fact]
     public void ViewStateCopiesCallerOwnedCollections()
     {
         var progression = new List<string> { "T2·3" };
