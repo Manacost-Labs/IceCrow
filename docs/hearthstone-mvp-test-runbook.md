@@ -33,6 +33,15 @@ the end; do not reinterpret them as bugs.
 
 - [ ] Launch Hearthstone first, then IceCrow.
 - [ ] The existing log/session is discovered.
+- [ ] If IceCrow wrote `log.config`, the running client may apply it without
+      a restart (confirmed once on 2026-08-16, within ~1 minute); a restart
+      is still the guaranteed path.
+- [ ] The client's catch-up power dump (a same-timestamp burst emitted after
+      a live `log.config` change) must NOT start a match or produce a
+      capture; tracking activates only when log time progresses past armed
+      Battlegrounds evidence.
+- [ ] `Full rereads` in the developer window stays 0 for the whole session;
+      any non-zero value plus its reset reason is a finding to report.
 - [ ] If IceCrow attached after the decisive Battlegrounds signals, note
       honestly that classification may stay inactive (known limitation).
 
