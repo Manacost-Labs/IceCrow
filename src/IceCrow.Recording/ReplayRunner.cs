@@ -250,7 +250,8 @@ public sealed class ReplayRunner
                 _tracking.CreateEntitySnapshots(),
                 tracking.Battlegrounds,
                 tracking.OpponentMemory,
-                tracking.LobbyTimeline);
+                tracking.LobbyTimeline,
+                _tracking.UnresolvedNamedReferenceCount);
         }
         catch
         {
@@ -329,7 +330,8 @@ public sealed record ReplayState(
     IReadOnlyList<EntitySnapshot> Entities,
     BattlegroundsState Battlegrounds,
     OpponentMemory OpponentMemory,
-    LobbyTimelineSnapshot LobbyTimeline)
+    LobbyTimelineSnapshot LobbyTimeline,
+    long UnresolvedNamedReferences = 0)
 {
     public int ProcessedEventCount => CurrentEventIndex + 1;
 }

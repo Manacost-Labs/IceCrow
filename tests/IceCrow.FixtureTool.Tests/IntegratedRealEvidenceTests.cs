@@ -28,7 +28,7 @@ public sealed class IntegratedRealEvidenceTests
         TimeSpan.Zero);
 
     [Fact]
-    public void CatchUpThenRealProgressionProducesOneTruthfulReplayableMatch()
+    public async Task CatchUpThenRealProgressionProducesOneTruthfulReplayableMatch()
     {
         var observer = new SessionObserver();
         var coordinator = new LiveTrackingCoordinator(appliedEventObserver: observer);
@@ -85,20 +85,28 @@ public sealed class IntegratedRealEvidenceTests
         Assert.Equal(7, Assert.Single(board.Minions).Attack);
         Assert.Equal(0, coordinator.Diagnostics.UnresolvedNamedReferences);
 
-        // The capture is valid and replays to the same semantic state.
+        // The capture must survive the full official persistence boundary
+        // (serialize, then deserialize) before replay proves equivalence.
         var completion = Assert.Single(observer.Completions);
         var recording = Assert.IsType<RecordedMatch>(completion.Match);
         Assert.Equal(RecordedEventType.MatchStarted, recording.Events[0].Type);
         Assert.Equal(RecordedEventType.MatchEnded, recording.Events[^1].Type);
         Assert.Equal(confirmAt, recording.Events[0].Timestamp);
 
-        var replay = new ReplayRunner(recording).RunAll();
+        await using var stream = new MemoryStream();
+        await RecordingSerializer.SerializeAsync(stream, recording);
+        stream.Position = 0;
+        var loaded = await RecordingSerializer.DeserializeAsync(stream);
+        Assert.Equal(recording.Events, loaded.Events);
+
+        var replay = new ReplayRunner(loaded).RunAll();
         Assert.Equal(snapshot.Battlegrounds.Turn, replay.Battlegrounds.Turn);
         Assert.Equal(snapshot.Battlegrounds.Phase, replay.Battlegrounds.Phase);
         var replayBoard = Assert.IsType<BoardSnapshot>(replay.OpponentMemory.GetLatest(6));
         Assert.Equal(
             board.Minions.Select(static minion => (minion.EntityId, minion.Attack, minion.Health)),
             replayBoard.Minions.Select(static minion => (minion.EntityId, minion.Attack, minion.Health)));
+        Assert.Equal(0, replay.UnresolvedNamedReferences);
     }
 
     private static RawLogLine Line(string payload, DateTimeOffset timestamp) => new(

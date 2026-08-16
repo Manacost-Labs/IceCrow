@@ -48,6 +48,14 @@ public static class FixtureToolCli
                         .ConfigureAwait(false);
                     return 0;
 
+                case "validate-recording":
+                    var validation = await RecordingValidator.ValidateAsync(
+                            Require(options, "input"),
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    await output.WriteLineAsync(validation).ConfigureAwait(false);
+                    return 0;
+
                 case "analyze-recording":
                     var analysis = await RecordingAnalyzer.AnalyzeAsync(
                             Require(options, "input"),
@@ -157,6 +165,8 @@ public static class FixtureToolCli
         "[--hearthstone-version <version>]" + Environment.NewLine + Environment.NewLine +
         "Validate one candidate fixture:" + Environment.NewLine +
         "  validate --fixture <fixture-directory>" + Environment.NewLine + Environment.NewLine +
+        "Officially load, replay, and summarize a recording (privacy-safe):" + Environment.NewLine +
+        "  validate-recording --input <recording>" + Environment.NewLine + Environment.NewLine +
         "Analyze a recording with privacy-safe aggregates only:" + Environment.NewLine +
         "  analyze-recording --input <recording> [--tag <TAG>] [--top-tags <N>] " +
         "[--around-event <index>] [--around-window <N>]" + Environment.NewLine + Environment.NewLine +
