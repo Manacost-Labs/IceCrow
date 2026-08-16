@@ -120,8 +120,28 @@
                                Style="{StaticResource IceCrow.Text.SectionTitle}"
                                Text="Telemetry" />
                     <TextBlock x:Name="TelemetryStatus"
+                               Margin="0,0,0,16"
                                Style="{StaticResource IceCrow.Text.Caption}"
                                Text="Consent: Off · Queued: 0 · Last upload: -"
+                               TextWrapping="Wrap" />
+
+                    <TextBlock Margin="0,0,0,6"
+                               Style="{StaticResource IceCrow.Text.SectionTitle}"
+                               Text="Match capture" />
+                    <CheckBox x:Name="CaptureToggle"
+                              Margin="0,0,0,6"
+                              Checked="OnCaptureToggleChanged"
+                              Content="Record matches (private)"
+                              Foreground="{StaticResource IceCrow.Brush.TextSecondary}"
+                              Unchecked="OnCaptureToggleChanged" />
+                    <TextBlock x:Name="CaptureStatus"
+                               Margin="0,0,0,3"
+                               Style="{StaticResource IceCrow.Text.Caption}"
+                               Text="Status: Off"
+                               TextWrapping="Wrap" />
+                    <TextBlock x:Name="CaptureDetail"
+                               Style="{StaticResource IceCrow.Text.Caption}"
+                               Text="Captures: 0 · Last: -"
                                TextWrapping="Wrap" />
                 </StackPanel>
             </ScrollViewer>

@@ -9,7 +9,7 @@ internal sealed class LiveRuntime : IAsyncDisposable
 {
     private readonly LogConfigManager _logConfigManager = new();
     private readonly HearthstoneLogLocator _logLocator = new();
-    private readonly LiveTrackingCoordinator _coordinator = new();
+    private readonly LiveTrackingCoordinator _coordinator;
     private readonly PowerLogTailer _tailer;
     private readonly Action<LiveTrackingUpdate> _onProcessed;
     private readonly Action<Exception> _onRecoverableError;
@@ -18,11 +18,14 @@ internal sealed class LiveRuntime : IAsyncDisposable
     public LiveRuntime(
         Action<LiveTrackingUpdate> onProcessed,
         Action<Exception> onRecoverableError,
-        Action<string> onStatus)
+        Action<string> onStatus,
+        IAppliedMatchEventObserver? appliedEventObserver = null)
     {
         ArgumentNullException.ThrowIfNull(onProcessed);
         ArgumentNullException.ThrowIfNull(onRecoverableError);
         ArgumentNullException.ThrowIfNull(onStatus);
+        _coordinator = new LiveTrackingCoordinator(
+            appliedEventObserver: appliedEventObserver);
         _onProcessed = onProcessed;
         _onRecoverableError = onRecoverableError;
         _onStatus = onStatus;

@@ -37,6 +37,7 @@ public partial class App : Application, IAsyncDisposable
             OnLiveTrackingProcessed,
             OnManacostDataStatusChanged,
             OnTelemetryStatusChanged,
+            OnCaptureStatusChanged,
             ReportRecoverableLogError,
             ReportLogStatus,
             typeof(App).Assembly.GetName().Version?.ToString() ?? "0.0.0");
@@ -47,6 +48,7 @@ public partial class App : Application, IAsyncDisposable
             _runtime.OverlayDiagnostics);
         _developerDiagnosticsPresenter.PublishDeckstringsStatus(ManacostDeckCodec.PackageVersion, "Ready");
         _developerDiagnosticsPresenter.PublishTelemetryStatus(false, 0, null);
+        _developerWindow.CaptureToggleChanged += OnCaptureToggleChanged;
 #endif
 
         _runtime.Start();
@@ -109,6 +111,19 @@ public partial class App : Application, IAsyncDisposable
 #endif
     }
 
+    private void OnCaptureStatusChanged(RecordingCaptureStatus status)
+    {
+#if DEBUG
+        _developerDiagnosticsPresenter?.PublishCaptureStatus(status);
+#else
+        _ = status;
+#endif
+    }
+
+#if DEBUG
+    private void OnCaptureToggleChanged(bool enabled) => _runtime?.SetCaptureEnabled(enabled);
+#endif
+
     private void OnTelemetryStatusChanged(bool consent, int queued, DateTimeOffset? lastUpload)
     {
 #if DEBUG
@@ -150,6 +165,7 @@ public partial class App : Application, IAsyncDisposable
         _developerDiagnosticsPresenter = null;
         if (_developerWindow is not null)
         {
+            _developerWindow.CaptureToggleChanged -= OnCaptureToggleChanged;
             _developerWindow.Closed -= OnDeveloperWindowClosed;
             _developerWindow = null;
         }

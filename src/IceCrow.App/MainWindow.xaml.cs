@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows;
+using IceCrow.App.Runtime;
 using IceCrow.Hearthstone.Logs;
 using IceCrow.Live;
 using IceCrow.Infrastructure.ManacostApi;
@@ -130,6 +131,32 @@ public partial class MainWindow : Window
         Dispatcher.VerifyAccess();
         TelemetryStatus.Text =
             $"Consent: {(consent ? "On" : "Off")} · Queued: {queued} · Last upload: {(lastUpload is null ? "-" : lastUpload.Value.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture))}";
+    }
+
+    internal event Action<bool>? CaptureToggleChanged;
+
+    internal void SetCaptureStatus(RecordingCaptureStatus status)
+    {
+        ArgumentNullException.ThrowIfNull(status);
+        Dispatcher.VerifyAccess();
+
+        CaptureStatus.Text = status.Phase switch
+        {
+            RecordingCapturePhase.Recording =>
+                $"Status: Recording · events: {status.CurrentEventCount}",
+            RecordingCapturePhase.Failed =>
+                $"Status: Failed · {status.LastError ?? "unknown error"}",
+            _ => $"Status: {status.Phase}",
+        };
+        CaptureDetail.Text =
+            $"Captures: {status.SavedCaptureCount} · Last: {status.LastSavedFileName ?? "-"}";
+    }
+
+    private void OnCaptureToggleChanged(object sender, RoutedEventArgs eventArgs)
+    {
+        _ = sender;
+        eventArgs.Handled = true;
+        CaptureToggleChanged?.Invoke(CaptureToggle.IsChecked == true);
     }
 
     private void OnOpenDesignPreviewClicked(object sender, RoutedEventArgs eventArgs)

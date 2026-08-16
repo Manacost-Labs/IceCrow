@@ -11,6 +11,7 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
     private readonly DataRuntime _data;
     private readonly TelemetryRuntime _telemetry;
     private readonly PresentationRuntime _presentation;
+    private readonly RecordingRuntime _recording;
     private readonly LiveRuntime _live;
     private readonly Action<LiveTrackingUpdate> _onLiveTrackingProcessed;
     private Task[] _backgroundTasks = [];
@@ -24,6 +25,7 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
         Action<LiveTrackingUpdate> onLiveTrackingProcessed,
         Action<ManacostDataStatus> onDataStatusChanged,
         Action<bool, int, DateTimeOffset?> onTelemetryStatusChanged,
+        Action<RecordingCaptureStatus> onCaptureStatusChanged,
         Action<Exception> onRecoverableLogError,
         Action<string> onLogStatus,
         string clientVersion)
@@ -33,8 +35,15 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
         _data = new DataRuntime(localDataDirectory, onDataStatusChanged);
         _telemetry = new TelemetryRuntime(localDataDirectory, clientVersion, onTelemetryStatusChanged);
         _presentation = new PresentationRuntime(dispatcher, _data.Database);
-        _live = new LiveRuntime(OnLiveTrackingProcessed, onRecoverableLogError, onLogStatus);
+        _recording = new RecordingRuntime(localDataDirectory, onCaptureStatusChanged);
+        _live = new LiveRuntime(
+            OnLiveTrackingProcessed,
+            onRecoverableLogError,
+            onLogStatus,
+            _recording);
     }
+
+    public void SetCaptureEnabled(bool enabled) => _recording.SetEnabled(enabled);
 
     public OverlayRenderDiagnostics OverlayDiagnostics =>
         _presentation.OverlayDiagnostics;
@@ -73,6 +82,7 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
         finally
         {
             await _live.DisposeAsync().ConfigureAwait(false);
+            await _recording.DisposeAsync().ConfigureAwait(false);
             await _telemetry.DisposeAsync().ConfigureAwait(false);
             await _data.DisposeAsync().ConfigureAwait(false);
             await _presentation.DisposeAsync().ConfigureAwait(false);

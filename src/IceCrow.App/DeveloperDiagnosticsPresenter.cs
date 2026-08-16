@@ -1,4 +1,5 @@
 using System.Windows.Threading;
+using IceCrow.App.Runtime;
 using IceCrow.Hearthstone.Logs;
 using IceCrow.Live;
 using IceCrow.Infrastructure.ManacostApi;
@@ -22,6 +23,7 @@ internal sealed class DeveloperDiagnosticsPresenter : IDisposable
     private ManacostDataStatus? _latestDataStatus;
     private (string PackageVersion, string Status)? _latestDeckstringsStatus;
     private (bool Consent, int Queued, DateTimeOffset? LastUpload)? _latestTelemetryStatus;
+    private RecordingCaptureStatus? _latestCaptureStatus;
     private bool _disposed;
 
     public DeveloperDiagnosticsPresenter(
@@ -106,6 +108,18 @@ internal sealed class DeveloperDiagnosticsPresenter : IDisposable
         }
     }
 
+    public void PublishCaptureStatus(RecordingCaptureStatus status)
+    {
+        ArgumentNullException.ThrowIfNull(status);
+        lock (_gate)
+        {
+            if (!_disposed)
+            {
+                _latestCaptureStatus = status;
+            }
+        }
+    }
+
     public void Dispose()
     {
         _window.Dispatcher.VerifyAccess();
@@ -119,6 +133,7 @@ internal sealed class DeveloperDiagnosticsPresenter : IDisposable
             _latestDataStatus = null;
             _latestDeckstringsStatus = null;
             _latestTelemetryStatus = null;
+            _latestCaptureStatus = null;
         }
     }
 
@@ -133,6 +148,7 @@ internal sealed class DeveloperDiagnosticsPresenter : IDisposable
         ManacostDataStatus? dataStatus;
         (string PackageVersion, string Status)? deckstringsStatus;
         (bool Consent, int Queued, DateTimeOffset? LastUpload)? telemetryStatus;
+        RecordingCaptureStatus? captureStatus;
         lock (_gate)
         {
             lines = _pendingLines.ToArray();
@@ -147,6 +163,8 @@ internal sealed class DeveloperDiagnosticsPresenter : IDisposable
             _latestDeckstringsStatus = null;
             telemetryStatus = _latestTelemetryStatus;
             _latestTelemetryStatus = null;
+            captureStatus = _latestCaptureStatus;
+            _latestCaptureStatus = null;
         }
 
         foreach (var line in lines)
@@ -179,6 +197,11 @@ internal sealed class DeveloperDiagnosticsPresenter : IDisposable
         if (telemetryStatus is { } telemetry)
         {
             _window.SetTelemetryStatus(telemetry.Consent, telemetry.Queued, telemetry.LastUpload);
+        }
+
+        if (captureStatus is not null)
+        {
+            _window.SetCaptureStatus(captureStatus);
         }
     }
 }
