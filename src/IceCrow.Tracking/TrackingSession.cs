@@ -41,6 +41,9 @@ public sealed class TrackingSession
 
     public int MaximumTagsOnEntity => _entities.MaximumTagCount;
 
+    /// <summary>Named tag references that could not be resolved to a unique entity.</summary>
+    public long UnresolvedNamedReferenceCount => _entities.UnresolvedNamedReferences;
+
     public int TimelineEventCount => _lobbyTimeline.EventCount;
 
     public int MaximumTimelineEventsOnPlayer => _lobbyTimeline.MaximumPlayerEventCount;
@@ -117,7 +120,7 @@ public sealed class TrackingSession
                 exception.Message,
                 exception);
         }
-        var entity = TryCreateEventEntitySnapshot(gameEvent);
+        var entity = TryCreateEventEntitySnapshot(gameEvent, mutation);
         if (entity is not null)
         {
             _battlegrounds = mutation is null
@@ -223,14 +226,19 @@ public sealed class TrackingSession
             $"Tracking session exceeds the {_limits.MaximumLobbyPlayers} lobby-player limit.");
     }
 
-    private EntitySnapshot? TryCreateEventEntitySnapshot(GameEvent gameEvent)
+    private EntitySnapshot? TryCreateEventEntitySnapshot(
+        GameEvent gameEvent,
+        EntityMutation? mutation)
     {
-        if (TryGetEntityId(gameEvent) is not int entityId || !ContainsEntity(entityId))
+        // A mutation knows its entity even when the raw line referenced the
+        // entity by bare name and carried no numeric id.
+        var entityId = mutation?.EntityId ?? TryGetEntityId(gameEvent);
+        if (entityId is not int id || !ContainsEntity(id))
         {
             return null;
         }
 
-        return _entities.CreateSnapshot(entityId);
+        return _entities.CreateSnapshot(id);
     }
 
     private BoardSnapshot? CaptureOpponentBoardOnCombatEntry(

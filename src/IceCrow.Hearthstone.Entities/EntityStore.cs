@@ -8,10 +8,20 @@ public sealed class EntityStore
     public const int DefaultMaximumTotalTags = 1_000_000;
     public const int MaximumCardIdLength = 128;
     public const int MaximumEntityNameLength = 1_024;
+    public const int MaximumTrackedEntityNames = 8_192;
+
+    // The real client references the game entity by this literal instead of
+    // a numeric id in most TAG_CHANGE lines.
+    private const string GameEntityReference = "GameEntity";
+    private const int AmbiguousEntityName = -1;
 
     private readonly Dictionary<int, GameEntity> _entities = [];
+    private readonly Dictionary<string, int> _entityIdsByName = new(StringComparer.Ordinal);
     private readonly int _maximumTagsPerEntity;
     private readonly int _maximumTotalTags;
+    private int? _gameEntityId;
+    private bool _gameEntityNameAmbiguous;
+    private long _unresolvedNamedReferences;
     private int _tagCount;
     private int _maximumTagCount;
 
@@ -26,6 +36,15 @@ public sealed class EntityStore
     }
 
     public int Count => _entities.Count;
+
+    public int? GameEntityId => _gameEntityId;
+
+    /// <summary>
+    /// Named entity references that could not be resolved to a unique entity
+    /// id. Unresolved changes are dropped rather than applied to a guessed
+    /// entity, so this counter is the honest measure of lost evidence.
+    /// </summary>
+    public long UnresolvedNamedReferences => _unresolvedNamedReferences;
 
     public int TagCount => _tagCount;
 
@@ -87,9 +106,73 @@ public sealed class EntityStore
         return mutation;
     }
 
+    internal void DeclareGameEntity(int entityId)
+    {
+        _gameEntityId = entityId;
+        _ = GetOrCreate(entityId);
+    }
+
+    /// <summary>
+    /// Remembers a name-to-id association proven by an authoritative line
+    /// that carried both. A name claimed by two different ids becomes
+    /// permanently ambiguous and never resolves again.
+    /// </summary>
+    internal void AssociateEntityName(string entityName, int entityId)
+    {
+        if (entityName.Length is 0 or > MaximumEntityNameLength)
+        {
+            return;
+        }
+
+        // "GameEntity" is a valid BattleTag: a player carrying it must poison
+        // the literal shortcut or their tags would be misattributed to the
+        // game entity with false certainty.
+        if (string.Equals(entityName, GameEntityReference, StringComparison.Ordinal))
+        {
+            if (_gameEntityId != entityId)
+            {
+                _gameEntityNameAmbiguous = true;
+            }
+
+            return;
+        }
+
+        if (_entityIdsByName.TryGetValue(entityName, out var existing))
+        {
+            if (existing != entityId && existing != AmbiguousEntityName)
+            {
+                _entityIdsByName[entityName] = AmbiguousEntityName;
+            }
+        }
+        else if (_entityIdsByName.Count < MaximumTrackedEntityNames)
+        {
+            _entityIdsByName.Add(entityName, entityId);
+        }
+    }
+
+    internal int? ResolveEntityName(string entityName)
+    {
+        if (string.Equals(entityName, GameEntityReference, StringComparison.Ordinal))
+        {
+            return _gameEntityNameAmbiguous ? null : _gameEntityId;
+        }
+
+        return _entityIdsByName.TryGetValue(entityName, out var entityId) &&
+               entityId != AmbiguousEntityName
+            ? entityId
+            : null;
+    }
+
+    internal void CountUnresolvedNamedReference() =>
+        _unresolvedNamedReferences++;
+
     public void Reset()
     {
         _entities.Clear();
+        _entityIdsByName.Clear();
+        _gameEntityId = null;
+        _gameEntityNameAmbiguous = false;
+        _unresolvedNamedReferences = 0;
         _tagCount = 0;
         _maximumTagCount = 0;
     }

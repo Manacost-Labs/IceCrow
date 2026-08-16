@@ -17,8 +17,7 @@ public sealed class ReplayRunner
     public const long MaximumTimelineWorkUnits = 1_000_000;
 
     private readonly RecordedMatch _match;
-    private readonly long _maximumStateMaterializationWorkUnits;
-    private readonly long _maximumEventSnapshotWorkUnits;
+    private readonly ReplayLimits _limits;
     private readonly TrackingSession _tracking;
     private int _nextEventIndex;
     private int _opponentSnapshotCount;
@@ -26,17 +25,15 @@ public sealed class ReplayRunner
     private long _eventSnapshotWorkUnits;
     private long _stateMaterializationWorkUnits;
     private long _timelineWorkUnits;
+    private int _observedTimelineEventCount;
     private bool _isFaulted;
     private ReplayState? _currentState;
 
-    public ReplayRunner(
-        RecordedMatch match,
-        long maximumStateMaterializationWorkUnits = MaximumStateMaterializationWorkUnits,
-        long maximumEventSnapshotWorkUnits = MaximumEventSnapshotWorkUnits)
+    public ReplayRunner(RecordedMatch match, ReplayLimits? limits = null)
     {
         ArgumentNullException.ThrowIfNull(match);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumStateMaterializationWorkUnits);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumEventSnapshotWorkUnits);
+        _limits = limits ?? ReplayLimits.Default;
+        _limits.Validate();
         RecordingSerializer.Validate(match);
         _match = match;
         _tracking = new TrackingSession(new TrackingSessionLimits(
@@ -50,8 +47,6 @@ public sealed class ReplayRunner
             timelineEventWarningThreshold: TrackingSessionLimits.DefaultMaximumTimelineEventsPerPlayer,
             maximumOpponentSnapshotsPerPlayer: MaximumOpponentSnapshots,
             opponentSnapshotWarningThreshold: MaximumOpponentSnapshots));
-        _maximumStateMaterializationWorkUnits = maximumStateMaterializationWorkUnits;
-        _maximumEventSnapshotWorkUnits = maximumEventSnapshotWorkUnits;
     }
 
     public bool CanStep => !_isFaulted && _nextEventIndex < _match.Events.Count;
@@ -137,6 +132,7 @@ public sealed class ReplayRunner
         _eventSnapshotWorkUnits = 0;
         _stateMaterializationWorkUnits = 0;
         _timelineWorkUnits = 0;
+        _observedTimelineEventCount = 0;
         _isFaulted = false;
         _currentState = null;
     }
@@ -240,10 +236,11 @@ public sealed class ReplayRunner
                 _tracking.EntitySnapshotWorkUnits +
                 _tracking.TimelineEventCount +
                 _tracking.OpponentSnapshotCount);
-            if (_stateMaterializationWorkUnits > _maximumStateMaterializationWorkUnits - work)
+            if (_stateMaterializationWorkUnits >
+                _limits.MaximumStateMaterializationWorkUnits - work)
             {
                 throw new InvalidDataException(
-                    $"Replay exceeds the {_maximumStateMaterializationWorkUnits} state materialization work-unit limit.");
+                    $"Replay exceeds the {_limits.MaximumStateMaterializationWorkUnits} state materialization work-unit limit.");
             }
 
             _stateMaterializationWorkUnits += work;
@@ -265,10 +262,10 @@ public sealed class ReplayRunner
     private void ReserveSnapshotWork(BoardSnapshot snapshot)
     {
         var work = snapshot.Minions.Sum(static minion => 1L + minion.Tags.Count);
-        if (_snapshotWorkUnits > MaximumSnapshotWorkUnits - work)
+        if (_snapshotWorkUnits > _limits.MaximumSnapshotWorkUnits - work)
         {
             throw new InvalidDataException(
-                $"Replay exceeds the {MaximumSnapshotWorkUnits} snapshot work-unit limit.");
+                $"Replay exceeds the {_limits.MaximumSnapshotWorkUnits} snapshot work-unit limit.");
         }
 
         _snapshotWorkUnits += work;
@@ -277,10 +274,10 @@ public sealed class ReplayRunner
     private void ReserveEventSnapshotWork(EntitySnapshot entity)
     {
         var work = 1L + entity.Tags.Count;
-        if (_eventSnapshotWorkUnits > _maximumEventSnapshotWorkUnits - work)
+        if (_eventSnapshotWorkUnits > _limits.MaximumEventSnapshotWorkUnits - work)
         {
             throw new InvalidDataException(
-                $"Replay exceeds the {_maximumEventSnapshotWorkUnits} event snapshot work-unit limit.");
+                $"Replay exceeds the {_limits.MaximumEventSnapshotWorkUnits} event snapshot work-unit limit.");
         }
 
         _eventSnapshotWorkUnits += work;
@@ -288,11 +285,18 @@ public sealed class ReplayRunner
 
     private void ReserveTimelineWork()
     {
-        var work = 1L + _tracking.TimelineEventCount;
-        if (_timelineWorkUnits > MaximumTimelineWorkUnits - work)
+        // Charge actual work: one unit per applied event plus the timeline
+        // events this event really added. Charging the full retained history
+        // after every event accumulated quadratically and rejected real
+        // matches that performed only linear work.
+        var currentTimelineEventCount = _tracking.TimelineEventCount;
+        var added = Math.Max(0, currentTimelineEventCount - _observedTimelineEventCount);
+        _observedTimelineEventCount = currentTimelineEventCount;
+        var work = 1L + added;
+        if (_timelineWorkUnits > _limits.MaximumTimelineWorkUnits - work)
         {
             throw new InvalidDataException(
-                $"Replay exceeds the {MaximumTimelineWorkUnits} timeline work-unit limit.");
+                $"Replay exceeds the {_limits.MaximumTimelineWorkUnits} timeline work-unit limit.");
         }
 
         _timelineWorkUnits += work;

@@ -34,7 +34,7 @@ public static class EntityStoreReducer
         EntityStore store,
         GameEntityDeclared declared)
     {
-        _ = store.GetOrCreate(declared.EntityId);
+        store.DeclareGameEntity(declared.EntityId);
         return null;
     }
 
@@ -68,19 +68,47 @@ public static class EntityStoreReducer
         var entity = store.GetOrCreate(id);
         entity.Name = NullIfEmpty(entityName);
         entity.CardId = NullIfEmpty(cardId);
+        if (entity.Name is { } name)
+        {
+            store.AssociateEntityName(name, id);
+        }
+
         return null;
     }
 
     private static EntityMutation? ApplyTagChange(EntityStore store, RawTagChanged tagChanged)
     {
-        if (tagChanged.EntityId is not int entityId ||
-            !TryParseTag(tagChanged.Tag, out var tag) ||
+        var entityId = tagChanged.EntityId;
+        if (entityId is int declaredId &&
+            tagChanged.EntityName is { Length: > 0 } declaredName)
+        {
+            store.AssociateEntityName(declaredName, declaredId);
+        }
+
+        // The real client references most entities by bare name; resolve only
+        // through proven unique associations rather than guessing.
+        if (entityId is null && tagChanged.EntityName is { Length: > 0 } referenceName)
+        {
+            entityId = store.ResolveEntityName(referenceName);
+        }
+
+        if (entityId is not int id)
+        {
+            if (tagChanged.EntityName is { Length: > 0 })
+            {
+                store.CountUnresolvedNamedReference();
+            }
+
+            return null;
+        }
+
+        if (!TryParseTag(tagChanged.Tag, out var tag) ||
             !TryParseTagValue(tag, tagChanged.Value, out var value))
         {
             return null;
         }
 
-        return store.ApplyTag(entityId, tag, value);
+        return store.ApplyTag(id, tag, value);
     }
 
     private static bool TryParseTag(string rawTag, out GameTag tag)

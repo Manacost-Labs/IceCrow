@@ -48,6 +48,19 @@ public static class FixtureToolCli
                         .ConfigureAwait(false);
                     return 0;
 
+                case "analyze-recording":
+                    var analysis = await RecordingAnalyzer.AnalyzeAsync(
+                            Require(options, "input"),
+                            new RecordingAnalysisOptions(
+                                FocusTag: Get(options, "tag"),
+                                TopTags: ParseCount(Get(options, "top-tags"), fallback: 20),
+                                AroundEvent: ParseOptionalIndex(Get(options, "around-event")),
+                                AroundWindow: ParseCount(Get(options, "around-window"), fallback: 20)),
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    await output.WriteLineAsync(analysis).ConfigureAwait(false);
+                    return 0;
+
                 case "benchmark":
                     var benchmark = await HardeningBenchmarkRunner
                         .RunAsync(
@@ -106,6 +119,36 @@ public static class FixtureToolCli
     private static string? Get(IReadOnlyDictionary<string, string> options, string name) =>
         options.GetValueOrDefault(name);
 
+    private static int ParseCount(string? value, int fallback)
+    {
+        if (value is null)
+        {
+            return fallback;
+        }
+
+        if (!int.TryParse(value, out var parsed) || parsed <= 0 || parsed > 10_000)
+        {
+            throw new ArgumentException($"'{value}' is not a valid positive count.");
+        }
+
+        return parsed;
+    }
+
+    private static int? ParseOptionalIndex(string? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (!int.TryParse(value, out var parsed) || parsed < 0)
+        {
+            throw new ArgumentException($"'{value}' is not a valid event index.");
+        }
+
+        return parsed;
+    }
+
     private static string Usage() =>
         "IceCrow fixture tool" + Environment.NewLine + Environment.NewLine +
         "Import and anonymize a captured recording:" + Environment.NewLine +
@@ -114,6 +157,9 @@ public static class FixtureToolCli
         "[--hearthstone-version <version>]" + Environment.NewLine + Environment.NewLine +
         "Validate one candidate fixture:" + Environment.NewLine +
         "  validate --fixture <fixture-directory>" + Environment.NewLine + Environment.NewLine +
+        "Analyze a recording with privacy-safe aggregates only:" + Environment.NewLine +
+        "  analyze-recording --input <recording> [--tag <TAG>] [--top-tags <N>] " +
+        "[--around-event <index>] [--around-window <N>]" + Environment.NewLine + Environment.NewLine +
         "Run the non-gating hardening performance baseline:" + Environment.NewLine +
         "  benchmark [--repository <repository-root>]";
 }

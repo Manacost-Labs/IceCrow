@@ -22,12 +22,15 @@ requires a corpus or soak result and a security review.
 | Opponent snapshots/player | 96 | 128 |
 | Recording file | — | 64 MiB |
 | Recording retained estimate | — | 32 MiB |
+| Recording read preflight | — | 8x retained estimate (256 MiB token materialization); derived so no writer-accepted recording is rejected on load |
 | Recording events/checkpoints | — | 100,000 / 4,096 |
 | Recording string | — | 256 Ki characters |
 | Private capture store | — | 24 captures, 256 MiB total; oldest pruned first |
 | Private capture temp files | — | removed before the first save of a process |
 | Replay entities/opponent snapshots | — | 4,096 / 64 |
 | Replay materialization work | — | 10,000,000 work units |
+| Replay timeline work | — | 1,000,000 units; charged as one per event plus timeline events actually added (linear, real-match calibrated) |
+| Entity name associations | — | 8,192; ambiguous names never resolve; unresolved references counted |
 | Telemetry runtime queue | 16 | oldest optional summary dropped |
 | Telemetry outbox | — | 128 summaries, 8 MiB; streamed read stops at item 129 |
 | Manacost response | 8 MiB | 100 pages; validated DTO string/count limits |

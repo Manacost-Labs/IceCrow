@@ -12,6 +12,19 @@ public static class RecordingSerializer
     public const long MaximumFileBytes = 64L * 1024 * 1024;
     public const long MaximumRetainedBytes = 32L * 1024 * 1024;
 
+    // Write/read contract: any match the write path accepts must load again.
+    // The write path budgets MaximumRetainedBytes with a per-event model
+    // (256 bytes base + 2 bytes per string character). The read preflight
+    // instead charges every JSON token, which costs more for the same data:
+    // schema property names, per-token overhead, and primitive fields add up
+    // to at most ~4x the write-side base, and the serializer escapes
+    // non-ASCII text as \uXXXX, inflating an encoded string to at most 6
+    // bytes per character versus the 2 bytes the writer charged (3x). The
+    // preflight budget therefore allows 8x the retained budget: large enough
+    // that no writer-accepted recording is ever rejected, small enough that
+    // hostile token floods in a 64 MiB file still fail fast.
+    public const long MaximumPreflightMaterializationBytes = 8 * MaximumRetainedBytes;
+
     private static readonly JsonSerializerOptions SerializerOptions = CreateOptions();
 
     public static async Task SaveAsync(
@@ -594,10 +607,11 @@ public static class RecordingSerializer
 
     private static void ReservePreflightMaterialization(ref long retainedBytes, long byteCount)
     {
-        if (byteCount < 0 || retainedBytes > MaximumRetainedBytes - byteCount)
+        if (byteCount < 0 ||
+            retainedBytes > MaximumPreflightMaterializationBytes - byteCount)
         {
             throw new InvalidDataException(
-                $"Recording exceeds the {MaximumRetainedBytes} preflight materialization-byte limit.");
+                $"Recording exceeds the {MaximumPreflightMaterializationBytes} preflight materialization-byte limit.");
         }
 
         retainedBytes += byteCount;
