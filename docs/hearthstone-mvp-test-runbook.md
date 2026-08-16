@@ -22,6 +22,48 @@ the end; do not reinterpret them as bugs.
 6. Confirm `%LocalAppData%\IceCrow\private-captures\` does not exist or is
    empty before the first enabled capture.
 
+## Pre-live hardening verification
+
+Record each line as PASS / FAIL / NOT RUN / BLOCKED; nothing is pre-filled.
+
+Before starting Hearthstone, the developer window must show:
+
+- [ ] `Full rereads: 0`
+- [ ] `unresolved named refs` absent from the applied-events line (i.e. 0)
+- [ ] `Lifecycle: idle · pending 0 · drops 0 · confirm: - · incomplete: 0`
+- [ ] Match capture `Enabled: No · Session: Off · Persistence: Idle`
+
+During match start:
+
+- [ ] Lifecycle shows `candidate armed` after the first Battlegrounds tag.
+- [ ] `pending` stays far below 512 and `drops` stays 0.
+- [ ] `confirm:` becomes `StepProgress` or `TurnProgress`
+      (`CompatibilityTransition` is also legitimate); repeated Battlegrounds
+      metadata alone must never confirm.
+- [ ] Exactly one match starts; `incomplete` stays 0.
+- [ ] If `warning: pre-start evidence dropped` ever appears, no match may
+      start until the next game — that is correct fail-closed behavior, and
+      the occurrence itself is a finding to report.
+
+During the match:
+
+- [ ] Turn advances; Recruit/Combat alternate; Opponent Memory fills.
+- [ ] `unresolved named refs` ideally stays 0; `Full rereads` stays 0.
+
+After the match:
+
+- [ ] Exactly one capture file; then run the one-command validation:
+
+  ```powershell
+  ./scripts/validate-latest-private-capture.ps1
+  ```
+
+- [ ] `OFFICIAL VALIDATION PASSED` with turn/phase matching what you saw.
+
+Second match, without restarting IceCrow:
+
+- [ ] No state leakage; exactly a second capture; validation passes again.
+
 ## Scenario A — IceCrow before Hearthstone
 
 - [ ] Launch IceCrow, then launch Hearthstone.
