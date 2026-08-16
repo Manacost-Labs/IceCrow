@@ -40,6 +40,10 @@ it. Diagnostic calculations must remain O(1) or bounded by the same caps.
 
 Private capture bounds are provisional pending measured real-match recording
 sizes; the store refuses a total-byte limit below one maximum-size recording so
-retention can never truncate a normal match. Capture disabled costs one null
-observer check per notification point; capture enabled adds recorder validation
-per applied event and one bounded serialized write per match, off the hot path.
+retention can never truncate a normal match. Release composes a null capture
+observer, so its hot path pays exactly one null check per notification point.
+In Debug the observer is attached: capture disabled costs one interface call
+plus an uncontended lock per applied event, and capture enabled adds recorder
+validation per event. Completed matches queue into a bounded two-slot channel
+saved by one sequential worker off the hot path; a full queue drops the
+capture with an explicit error instead of blocking tracking.

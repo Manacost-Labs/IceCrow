@@ -48,6 +48,30 @@ public sealed partial class PrivateCaptureGuardTests
     }
 
     [Fact]
+    public void ReleaseCompositionUsesANullCaptureObserver()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "IceCrow.App",
+            "Runtime",
+            "IceCrowRuntime.cs"));
+
+        var debugGuard = source.IndexOf("#if DEBUG", StringComparison.Ordinal);
+        var construction = source.IndexOf("new RecordingRuntime", StringComparison.Ordinal);
+        var releaseBranch = source.IndexOf("#else", StringComparison.Ordinal);
+
+        Assert.True(debugGuard >= 0, "IceCrowRuntime must guard capture composition with #if DEBUG.");
+        Assert.True(
+            debugGuard < construction && construction < releaseBranch,
+            "RecordingRuntime must be constructed only inside the #if DEBUG branch.");
+        Assert.Equal(
+            construction,
+            source.LastIndexOf("new RecordingRuntime", StringComparison.Ordinal));
+        Assert.Contains("_recording = null;", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CommittedFixturesDeclareAnExplicitReviewedSourceType()
     {
         var corpus = Path.Combine(

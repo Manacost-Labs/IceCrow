@@ -11,7 +11,7 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
     private readonly DataRuntime _data;
     private readonly TelemetryRuntime _telemetry;
     private readonly PresentationRuntime _presentation;
-    private readonly RecordingRuntime _recording;
+    private readonly RecordingRuntime? _recording;
     private readonly LiveRuntime _live;
     private readonly Action<LiveTrackingUpdate> _onLiveTrackingProcessed;
     private Task[] _backgroundTasks = [];
@@ -35,7 +35,15 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
         _data = new DataRuntime(localDataDirectory, onDataStatusChanged);
         _telemetry = new TelemetryRuntime(localDataDirectory, clientVersion, onTelemetryStatusChanged);
         _presentation = new PresentationRuntime(dispatcher, _data.Database);
+        // Developer match capture is a Debug-only feature. Release composes a
+        // null observer so the live hot path pays exactly one null check per
+        // notification point and no capture lock or interface call per event.
+#if DEBUG
         _recording = new RecordingRuntime(localDataDirectory, onCaptureStatusChanged);
+#else
+        _recording = null;
+        _ = onCaptureStatusChanged;
+#endif
         _live = new LiveRuntime(
             OnLiveTrackingProcessed,
             onRecoverableLogError,
@@ -43,7 +51,7 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
             _recording);
     }
 
-    public void SetCaptureEnabled(bool enabled) => _recording.SetEnabled(enabled);
+    public void SetCaptureEnabled(bool enabled) => _recording?.SetEnabled(enabled);
 
     public OverlayRenderDiagnostics OverlayDiagnostics =>
         _presentation.OverlayDiagnostics;
@@ -56,7 +64,7 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
         }
 
         _presentation.Start();
-        _recording.Start();
+        _recording?.Start();
         _backgroundTasks =
         [
             _data.RunAsync(_shutdown.Token),
@@ -83,7 +91,11 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
         finally
         {
             await _live.DisposeAsync().ConfigureAwait(false);
-            await _recording.DisposeAsync().ConfigureAwait(false);
+            if (_recording is not null)
+            {
+                await _recording.DisposeAsync().ConfigureAwait(false);
+            }
+
             await _telemetry.DisposeAsync().ConfigureAwait(false);
             await _data.DisposeAsync().ConfigureAwait(false);
             await _presentation.DisposeAsync().ConfigureAwait(false);
