@@ -1,10 +1,11 @@
 # Real-client findings — 2026-08-16
 
 First live Hearthstone Battlegrounds session against the Debug capture build
-(commit `04bcbdc`, Windows 11, Hearthstone at `D:\Hearthstone`, session log
-`Logs\Hearthstone_2026_08_16_18_33_30`). Evidence lives in the operator's
-private capture directory (`%LocalAppData%\IceCrow\private-captures\`, files
-listed below) and in the session Power.log. Private evidence is not committed;
+(commit `04bcbdc`, Windows 11, Hearthstone at `<Hearthstone installation>`,
+session log directory `Logs\Hearthstone_2026_08_16_18_33_30`). Evidence lives
+in the operator's private capture directory (the IceCrow private-captures
+store; files referenced below by stable labels) and in the session Power.log.
+Private evidence is not committed;
 each finding lists the fixture to import after anonymization and review.
 
 Session timeline: Hearthstone started 18:33 (before IceCrow, Scenario B);
@@ -14,9 +15,10 @@ fly at 18:38:22 without a restart; one real Battlegrounds match ran from
 
 Capture evidence files:
 
-- `A` = `…f8e304….icecrow.json` — 260 events, saved 18:38:24.
-- `B` = `…eac3cf….icecrow.json` — 61,543 events / 15.0 MB, saved 18:47:08.
-- `C` = `…988f33….icecrow.json` — 260 events, identical shape to `A`,
+- `A` = capture A (redacted filename) — 260 events, saved 18:38:24.
+- `B` = capture B (redacted filename) — 61,543 events / 15.0 MB, saved
+  18:47:08.
+- `C` = capture C (redacted filename) — 260 events, identical shape to `A`,
   saved 18:47:08 (same second as `B`).
 
 ---
@@ -153,8 +155,8 @@ test for the skin-id fallback either way.
 
 ## Post-match update (session completed 18:56)
 
-The match finished at 18:56:12 — the local player (`Ardas#2269`, playerId 4)
-took second place, losing the final fight to `Haribohunter`. The session
+The match finished at 18:56:12 — the local player (`LocalPlayer`, playerId 4)
+took second place, losing the final fight to `FinalOpponent`. The session
 Power.log grew to 34 MB / 239,511 lines and was processed live without
 safety rejections. Two further findings came from replaying capture `B`
 past the read preflight (manual JSON deserialization, raised replay ctor
@@ -209,7 +211,7 @@ discard behaved exactly as designed, but the net effect of F1 is that a
 
 ### Privacy confirmation
 
-Real log entity names embed BattleTags (`Ardas#2269`) and opponent nicks.
+Real log entity names embed the local BattleTag and opponent nicks.
 The existing anonymizer already targets exactly this; no capture from this
 session may be committed without running it plus human review.
 

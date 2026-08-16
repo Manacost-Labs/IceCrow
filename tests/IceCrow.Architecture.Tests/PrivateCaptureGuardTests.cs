@@ -15,6 +15,12 @@ public sealed partial class PrivateCaptureGuardTests
     [GeneratedRegex(@"^\d{8}T\d{6}Z_[0-9a-f]{32}\.icecrow\.json$")]
     private static partial Regex CaptureFileName();
 
+    [GeneratedRegex(@"\b[A-Za-z][A-Za-z0-9]{2,11}#[0-9]{3,7}\b")]
+    private static partial Regex BattleTagLike();
+
+    [GeneratedRegex(@"\b[A-Za-z]:\\(?:Users|Hearthstone|Games|Program Files)[^\s`""')\]]*")]
+    private static partial Regex LocalInstallationPath();
+
     [Fact]
     public void RepositoryContainsNoPrivateCaptureDirectoriesOrFiles()
     {
@@ -90,6 +96,40 @@ public sealed partial class PrivateCaptureGuardTests
             var sourceType = manifest.RootElement.GetProperty("sourceType").GetString();
             Assert.Contains(sourceType, AllowedSourceTypes);
         });
+    }
+
+    [Fact]
+    public void RealClientReportsAndFixturesContainNoPrivateIdentifiers()
+    {
+        var root = FindRepositoryRoot();
+        var protectedFiles = Directory
+            .EnumerateFiles(Path.Combine(root, "docs"), "real-client-*.md")
+            .Concat(Directory.EnumerateFiles(
+                Path.Combine(root, "tests", "fixtures", "battlegrounds"),
+                "*",
+                SearchOption.AllDirectories));
+
+        var violations = new List<string>();
+        foreach (var file in protectedFiles)
+        {
+            var relative = Path.GetRelativePath(root, file);
+            var lines = File.ReadAllLines(file);
+            for (var i = 0; i < lines.Length; i++)
+            {
+                if (BattleTagLike().IsMatch(lines[i]))
+                {
+                    violations.Add($"{relative}:{i + 1}: BattleTag-like identifier");
+                }
+
+                if (LocalInstallationPath().IsMatch(lines[i]))
+                {
+                    violations.Add($"{relative}:{i + 1}: local installation path");
+                }
+            }
+        }
+
+        // Report only the file, line, and category — never the matched value.
+        Assert.Empty(violations);
     }
 
     private static IEnumerable<string> EnumerateRepositoryDirectories(string root)
