@@ -88,7 +88,7 @@ public sealed class LiveTrackingCoordinatorTests
         _ = coordinator.Process(Line("CREATE_GAME"));
         _ = coordinator.Process(Line("Player EntityID=9 PlayerID=9 GameAccountId=[hi=0 lo=9]"));
         _ = coordinator.Process(Line("TAG_CHANGE Entity=9 tag=PLAYER_TECH_LEVEL value=1"));
-        _ = coordinator.Process(Line("TAG_CHANGE Entity=9 tag=PLAYER_TECH_LEVEL value=2"));
+        _ = coordinator.Process(Line("TAG_CHANGE Entity=9 tag=STEP value=BEGIN_MULLIGAN"));
 
         var snapshot = coordinator.CurrentSnapshot;
         Assert.Equal(TrackingSessionState.Active, snapshot.SessionState);
@@ -103,7 +103,7 @@ public sealed class LiveTrackingCoordinatorTests
         var coordinator = new LiveTrackingCoordinator();
         _ = coordinator.Process(Line("CREATE_GAME"));
         _ = coordinator.Process(Line("TAG_CHANGE Entity=1 tag=PLAYER_TECH_LEVEL value=1"));
-        _ = coordinator.Process(Line("TAG_CHANGE Entity=1 tag=PLAYER_TRIPLES value=0"));
+        _ = coordinator.Process(Line("TAG_CHANGE Entity=1 tag=STEP value=BEGIN_MULLIGAN"));
 
         var update = coordinator.Process(Line("TAG_CHANGE Entity=1 tag=STATE value=COMPLETE"));
 
@@ -121,7 +121,7 @@ public sealed class LiveTrackingCoordinatorTests
         _ = coordinator.Process(Line("GameEntity EntityID=2"));
         _ = coordinator.Process(Line("GameEntity EntityID=3"));
         _ = coordinator.Process(Line("TAG_CHANGE Entity=3 tag=PLAYER_TECH_LEVEL value=1"));
-        _ = coordinator.Process(Line("TAG_CHANGE Entity=3 tag=PLAYER_TRIPLES value=0"));
+        _ = coordinator.Process(Line("TAG_CHANGE Entity=3 tag=STEP value=BEGIN_MULLIGAN"));
 
         Assert.Equal(2, coordinator.Diagnostics.BufferedEventsDropped);
         Assert.Equal(1, coordinator.CurrentSnapshot.EntityCount);

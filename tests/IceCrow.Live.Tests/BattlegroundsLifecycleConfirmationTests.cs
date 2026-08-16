@@ -74,6 +74,7 @@ public sealed class BattlegroundsLifecycleConfirmationTests
             "TAG_CHANGE Entity=1 tag=PLAYER_TECH_LEVEL value=1",
             "TAG_CHANGE Entity=1 tag=NEXT_OPPONENT_PLAYER_ID value=2",
             "TAG_CHANGE Entity=2 tag=PLAYER_TECH_LEVEL value=1",
+            "TAG_CHANGE Entity=1 tag=STEP value=BEGIN_MULLIGAN",
         };
 
         for (var index = 0; index < lines.Length; index++)
@@ -112,7 +113,7 @@ public sealed class BattlegroundsLifecycleConfirmationTests
 
         Assert.Empty(observer.Sequence);
 
-        var liveLine = "TAG_CHANGE Entity=2 tag=PLAYER_TECH_LEVEL value=2";
+        var liveLine = "TAG_CHANGE Entity=1 tag=STEP value=BEGIN_MULLIGAN";
         var confirming = coordinator.Process(new RawLogLine(
             SnapshotTimestamp.AddSeconds(40),
             "Power",
@@ -140,7 +141,7 @@ public sealed class BattlegroundsLifecycleConfirmationTests
         }
 
         var confirmingAt = SnapshotTimestamp.AddSeconds(40);
-        var liveLine = "TAG_CHANGE Entity=2 tag=PLAYER_TECH_LEVEL value=2";
+        var liveLine = "TAG_CHANGE Entity=1 tag=STEP value=BEGIN_MULLIGAN";
         _ = coordinator.Process(new RawLogLine(
             confirmingAt,
             "Power",
@@ -159,10 +160,10 @@ public sealed class BattlegroundsLifecycleConfirmationTests
         {
             "CREATE_GAME",
             "TAG_CHANGE Entity=1 tag=PLAYER_TECH_LEVEL value=1",
-            "TAG_CHANGE Entity=1 tag=PLAYER_TRIPLES value=0",
+            "TAG_CHANGE Entity=1 tag=STEP value=BEGIN_MULLIGAN",
             "CREATE_GAME",
             "TAG_CHANGE Entity=1 tag=PLAYER_TECH_LEVEL value=1",
-            "TAG_CHANGE Entity=1 tag=PLAYER_TRIPLES value=0",
+            "TAG_CHANGE Entity=1 tag=STEP value=BEGIN_MULLIGAN",
         };
 
         for (var index = 0; index < lines.Length; index++)
@@ -181,35 +182,43 @@ public sealed class BattlegroundsLifecycleConfirmationTests
     }
 
     [Fact]
-    public void DetectorConfirmsOnlyOnLaterSemanticProgressExactlyOnce()
+    public void RepeatedMetadataAcrossTimestampsNeverConfirms()
     {
+        // A future catch-up dump could span several timestamps and still
+        // repeat Battlegrounds metadata; metadata is candidate-only and must
+        // never confirm, no matter how often or how late it recurs.
         var detector = new BattlegroundsLifecycleDetector();
         _ = detector.Observe(new GameCreated(SnapshotTimestamp));
 
         var armed = detector.Observe(Tag("PLAYER_TECH_LEVEL", "1", SnapshotTimestamp));
-        var sameInstant = detector.Observe(Tag("PLAYER_TRIPLES", "0", SnapshotTimestamp));
-        // Later wall-clock alone proves nothing: an arbitrary tag must not
-        // confirm even with a later timestamp.
-        var unrelatedLater = detector.Observe(Tag("100", "1", SnapshotTimestamp.AddMilliseconds(1)));
-        var confirmed = detector.Observe(Tag("PLAYER_TECH_LEVEL", "2", SnapshotTimestamp.AddMilliseconds(2)));
-        var saturated = detector.Observe(Tag("PLAYER_TECH_LEVEL", "3", SnapshotTimestamp.AddMilliseconds(3)));
+        var laterTechLevel = detector.Observe(
+            Tag("PLAYER_TECH_LEVEL", "1", SnapshotTimestamp.AddSeconds(1)));
+        var changedTechLevel = detector.Observe(
+            Tag("PLAYER_TECH_LEVEL", "2", SnapshotTimestamp.AddSeconds(2)));
+        var laterTriples = detector.Observe(
+            Tag("PLAYER_TRIPLES", "1", SnapshotTimestamp.AddSeconds(3)));
+        var laterOpponent = detector.Observe(
+            Tag("NEXT_OPPONENT_PLAYER_ID", "3", SnapshotTimestamp.AddSeconds(4)));
 
         Assert.Equal(BattlegroundsLifecycleAction.None, armed.Action);
-        Assert.Equal(BattlegroundsLifecycleAction.None, sameInstant.Action);
-        Assert.Equal(BattlegroundsLifecycleAction.None, unrelatedLater.Action);
+        Assert.Equal(BattlegroundsLifecycleAction.None, laterTechLevel.Action);
+        Assert.Equal(BattlegroundsLifecycleAction.None, changedTechLevel.Action);
+        Assert.Equal(BattlegroundsLifecycleAction.None, laterTriples.Action);
+        Assert.Equal(BattlegroundsLifecycleAction.None, laterOpponent.Action);
+
+        // Strong progress still confirms the same candidate exactly once.
+        var confirmed = detector.Observe(Tag("TURN", "1", SnapshotTimestamp.AddSeconds(5)));
+        var saturated = detector.Observe(Tag("TURN", "2", SnapshotTimestamp.AddSeconds(6)));
         Assert.Equal(BattlegroundsLifecycleAction.StartBattlegrounds, confirmed.Action);
-        Assert.Equal(BattlegroundsLifecycleEvidence.PlayerTechLevel, confirmed.Evidence);
-        Assert.Equal(BattlegroundsLifecycleEvidence.PlayerTechLevel, confirmed.ConfirmedBy);
+        Assert.Equal(BattlegroundsLifecycleEvidence.TurnProgress, confirmed.ConfirmedBy);
         Assert.Equal(BattlegroundsLifecycleAction.None, saturated.Action);
     }
 
     [Theory]
     [InlineData("TURN", "1", BattlegroundsLifecycleEvidence.TurnProgress)]
-    [InlineData("2022", "1", BattlegroundsLifecycleEvidence.CombatSetup)]
-    [InlineData("3533", "0", BattlegroundsLifecycleEvidence.CombatSetup)]
     [InlineData("STEP", "BEGIN_MULLIGAN", BattlegroundsLifecycleEvidence.StepProgress)]
     [InlineData("STEP", "MAIN_READY", BattlegroundsLifecycleEvidence.StepProgress)]
-    public void SemanticProgressSignalsConfirmAnArmedCandidate(
+    public void StrongProgressSignalsConfirmAnArmedCandidate(
         string tag,
         string value,
         BattlegroundsLifecycleEvidence expectedReason)
@@ -225,11 +234,54 @@ public sealed class BattlegroundsLifecycleConfirmationTests
     }
 
     [Theory]
+    [InlineData("2022")]
+    [InlineData("3533")]
+    public void CompatibilityTagConfirmsOnlyOnAnObservedValueTransition(string tag)
+    {
+        var detector = new BattlegroundsLifecycleDetector();
+        _ = detector.Observe(new GameCreated(SnapshotTimestamp));
+        _ = detector.Observe(Tag("PLAYER_TECH_LEVEL", "1", SnapshotTimestamp));
+
+        // A single appearance can be snapshot residue; a repeat of the same
+        // value proves nothing either.
+        var single = detector.Observe(Tag(tag, "1", SnapshotTimestamp.AddSeconds(1)));
+        var repeated = detector.Observe(Tag(tag, "1", SnapshotTimestamp.AddSeconds(2)));
+        var transitioned = detector.Observe(Tag(tag, "0", SnapshotTimestamp.AddSeconds(3)));
+
+        Assert.Equal(BattlegroundsLifecycleAction.None, single.Action);
+        Assert.Equal(BattlegroundsLifecycleAction.None, repeated.Action);
+        Assert.Equal(BattlegroundsLifecycleAction.StartBattlegrounds, transitioned.Action);
+        Assert.Equal(
+            BattlegroundsLifecycleEvidence.CompatibilityTransition,
+            transitioned.ConfirmedBy);
+    }
+
+    [Fact]
+    public void CreateGameResetsCandidateLocalCompatibilityValues()
+    {
+        var detector = new BattlegroundsLifecycleDetector();
+        _ = detector.Observe(new GameCreated(SnapshotTimestamp));
+        _ = detector.Observe(Tag("PLAYER_TECH_LEVEL", "1", SnapshotTimestamp));
+        _ = detector.Observe(Tag("2022", "1", SnapshotTimestamp.AddSeconds(1)));
+
+        // The boundary clears the remembered value: a post-boundary "0" is a
+        // first observation again, not a transition.
+        _ = detector.Observe(new GameCreated(SnapshotTimestamp.AddSeconds(2)));
+        _ = detector.Observe(Tag("PLAYER_TECH_LEVEL", "1", SnapshotTimestamp.AddSeconds(3)));
+        var afterBoundary = detector.Observe(Tag("2022", "0", SnapshotTimestamp.AddSeconds(4)));
+
+        Assert.Equal(BattlegroundsLifecycleAction.None, afterBoundary.Action);
+    }
+
+    [Theory]
     [InlineData("TURN", "0")]
     [InlineData("STEP", "FINAL_GAMEOVER")]
     [InlineData("STEP", "FINAL_WRAPUP")]
     [InlineData("ZONE", "PLAY")]
     [InlineData("1710", "1")]
+    [InlineData("PLAYER_TECH_LEVEL", "2")]
+    [InlineData("PLAYER_TRIPLES", "1")]
+    [InlineData("NEXT_OPPONENT_PLAYER_ID", "3")]
     public void NonProgressSignalsNeverConfirmAnArmedCandidate(string tag, string value)
     {
         var detector = new BattlegroundsLifecycleDetector();

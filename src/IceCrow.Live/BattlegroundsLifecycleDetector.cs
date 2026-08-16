@@ -4,16 +4,16 @@ using IceCrow.Hearthstone.Protocol.Events;
 namespace IceCrow.Live;
 
 /// <summary>
-/// Sole lifecycle authority for Battlegrounds match detection. A Battlegrounds
-/// tag is only <em>candidate</em> evidence: the client's catch-up dump after a
-/// live <c>log.config</c> change replays the current UI context as a burst of
-/// tags that all share one log timestamp and never progress. A match is
-/// <em>confirmed</em> only by a later-timestamped <em>semantic progression</em>
-/// signal — another Battlegrounds tag, a positive TURN, a setup/combat
-/// compatibility tag, or a game-step advance. An arbitrary later event proves
-/// only that time passed, not that a match is running, and must never confirm.
-/// In the real capture the first such signal (STEP=BEGIN_MULLIGAN) follows the
-/// burst within one second, far below the pending-buffer capacity.
+/// Sole lifecycle authority for Battlegrounds match detection. Battlegrounds
+/// metadata tags (tech level, triples, next opponent) are <em>candidate</em>
+/// evidence only: a catch-up dump can replay them, potentially across several
+/// timestamps, without any match running — so repeated metadata never
+/// confirms. A match is <em>confirmed</em> only by later <em>strong
+/// progression</em>: a positive TURN, a mulligan/main game-step advance, or a
+/// verified value <em>transition</em> of a setup/combat compatibility tag
+/// (a single appearance can be snapshot residue). In the real capture the
+/// first strong signal (STEP=BEGIN_MULLIGAN) follows the burst within one
+/// second at ~15 buffered events, far below the pending-buffer capacity.
 /// </summary>
 public sealed class BattlegroundsLifecycleDetector
 {
@@ -29,6 +29,8 @@ public sealed class BattlegroundsLifecycleDetector
     private DateTimeOffset? _candidateStartedAt;
     private BattlegroundsLifecycleEvidence _pendingEvidence;
     private DateTimeOffset? _pendingEvidenceAt;
+    private string? _lastCompatibilitySetupValue;
+    private string? _lastCombatSetupValue;
 
     public BattlegroundsLifecycleDetector(
         int maximumPlayerIdentities = DefaultMaximumPlayerIdentities,
@@ -49,6 +51,10 @@ public sealed class BattlegroundsLifecycleDetector
     }
 
     public int PlayerIdentityCount => _playerIdsByEntity.Count;
+
+    /// <summary>True while candidate evidence is armed but not yet confirmed.</summary>
+    public bool CandidateArmed =>
+        _pendingEvidence != BattlegroundsLifecycleEvidence.None;
 
     public int PlayerIdentityWarningThreshold => _playerIdentityWarningThreshold;
 
@@ -114,6 +120,8 @@ public sealed class BattlegroundsLifecycleDetector
         _battlegroundsDetected = false;
         _localPlayerEntityId = null;
         _candidateStartedAt = null;
+        _lastCompatibilitySetupValue = null;
+        _lastCombatSetupValue = null;
         ClearPendingEvidence();
     }
 
@@ -124,7 +132,7 @@ public sealed class BattlegroundsLifecycleDetector
             _pendingEvidence == BattlegroundsLifecycleEvidence.None ||
             _pendingEvidenceAt is not DateTimeOffset armedAt ||
             timestamp <= armedAt ||
-            !TryGetSemanticProgress(tagChanged, out var confirmedBy))
+            !TryGetStrongProgress(tagChanged, out var confirmedBy))
         {
             return None(timestamp);
         }
@@ -141,17 +149,13 @@ public sealed class BattlegroundsLifecycleDetector
             ConfirmedBy: confirmedBy);
     }
 
-    private static bool TryGetSemanticProgress(
+    // Battlegrounds metadata (tech level, triples, next opponent) is
+    // candidate-only: a catch-up dump can repeat it across timestamps without
+    // a running match, so it never appears here.
+    private bool TryGetStrongProgress(
         RawTagChanged tagChanged,
         out BattlegroundsLifecycleEvidence confirmedBy)
     {
-        var evidence = GetBattlegroundsEvidence(tagChanged);
-        if (evidence != BattlegroundsLifecycleEvidence.None)
-        {
-            confirmedBy = evidence;
-            return true;
-        }
-
         switch (tagChanged.Tag)
         {
             case "TURN" when int.TryParse(
@@ -161,11 +165,20 @@ public sealed class BattlegroundsLifecycleDetector
                 out var turn) && turn > 0:
                 confirmedBy = BattlegroundsLifecycleEvidence.TurnProgress;
                 return true;
-            // The solo/duos setup-to-combat compatibility tags; see
-            // BattlegroundsCompatibilityTags for provenance.
-            case "2022" or "3533":
-                confirmedBy = BattlegroundsLifecycleEvidence.CombatSetup;
-                return true;
+            // The solo/duos setup-to-combat compatibility tags (see
+            // BattlegroundsCompatibilityTags): only an observed value
+            // TRANSITION proves live progression — a single appearance can be
+            // snapshot residue.
+            case "2022":
+                confirmedBy = ObserveCompatibilityValue(
+                    ref _lastCompatibilitySetupValue,
+                    tagChanged.Value);
+                return confirmedBy != BattlegroundsLifecycleEvidence.None;
+            case "3533":
+                confirmedBy = ObserveCompatibilityValue(
+                    ref _lastCombatSetupValue,
+                    tagChanged.Value);
+                return confirmedBy != BattlegroundsLifecycleEvidence.None;
             case "STEP" when IsProgressStep(tagChanged.Value):
                 confirmedBy = BattlegroundsLifecycleEvidence.StepProgress;
                 return true;
@@ -173,6 +186,18 @@ public sealed class BattlegroundsLifecycleDetector
                 confirmedBy = BattlegroundsLifecycleEvidence.None;
                 return false;
         }
+    }
+
+    private static BattlegroundsLifecycleEvidence ObserveCompatibilityValue(
+        ref string? lastValue,
+        string value)
+    {
+        var transitioned = lastValue is not null &&
+                           !string.Equals(lastValue, value, StringComparison.Ordinal);
+        lastValue = value;
+        return transitioned
+            ? BattlegroundsLifecycleEvidence.CompatibilityTransition
+            : BattlegroundsLifecycleEvidence.None;
     }
 
     // Mulligan and main-phase steps only advance inside a running game; the
@@ -296,7 +321,7 @@ public enum BattlegroundsLifecycleEvidence
     NextOpponentPlayerId,
     StateComplete,
     TurnProgress,
-    CombatSetup,
+    CompatibilityTransition,
     StepProgress,
 }
 

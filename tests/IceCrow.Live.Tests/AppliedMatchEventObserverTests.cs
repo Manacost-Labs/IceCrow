@@ -53,7 +53,12 @@ public sealed class AppliedMatchEventObserverTests
         _ = coordinator.Process(Line("TAG_CHANGE Entity=1 tag=PLAYER_TECH_LEVEL value=2"));
         Assert.Empty(observer.Sequence);
 
+        // Repeated Battlegrounds metadata is candidate-only; a game-step
+        // advance is the strong signal that confirms.
         _ = coordinator.Process(Line("TAG_CHANGE Entity=1 tag=PLAYER_TRIPLES value=0"));
+        Assert.Empty(observer.Sequence);
+
+        _ = coordinator.Process(Line("TAG_CHANGE Entity=500 tag=STEP value=BEGIN_MULLIGAN"));
 
         Assert.Equal("started", observer.Sequence.First());
         Assert.Contains(observer.Applied, gameEvent => gameEvent is GameEntityDeclared { EntityId: 500 });
@@ -113,7 +118,7 @@ public sealed class AppliedMatchEventObserverTests
         _ = coordinator.Process(Line("CREATE_GAME"));
         _ = coordinator.Process(Line("Player EntityID=9 PlayerID=9 GameAccountId=[hi=0 lo=9]"));
         _ = coordinator.Process(Line("TAG_CHANGE Entity=9 tag=PLAYER_TECH_LEVEL value=1"));
-        _ = coordinator.Process(Line("TAG_CHANGE Entity=9 tag=PLAYER_TECH_LEVEL value=2"));
+        _ = coordinator.Process(Line("TAG_CHANGE Entity=9 tag=STEP value=BEGIN_MULLIGAN"));
 
         var lifecycle = observer.Sequence
             .Where(entry => entry is "started" or "ended")

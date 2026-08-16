@@ -10,7 +10,7 @@
   "expectedCheckpoints": [
     {
       "name": "BattlegroundsDetected",
-      "eventIndex": 5,
+      "eventIndex": 7,
       "state": {
         "sessionState": "Active",
         "isActive": true,
@@ -19,7 +19,7 @@
     },
     {
       "name": "Turn2Recruit",
-      "eventIndex": 7,
+      "eventIndex": 8,
       "state": {
         "sessionState": "Active",
         "turn": 2,
@@ -31,7 +31,7 @@
     },
     {
       "name": "Turn2Combat",
-      "eventIndex": 9,
+      "eventIndex": 10,
       "state": {
         "sessionState": "Active",
         "phase": "Combat",
@@ -43,7 +43,7 @@
     },
     {
       "name": "GameEnd",
-      "eventIndex": 10,
+      "eventIndex": 11,
       "state": {
         "sessionState": "Ended",
         "isActive": false,
