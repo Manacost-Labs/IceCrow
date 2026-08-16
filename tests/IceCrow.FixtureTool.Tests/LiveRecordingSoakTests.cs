@@ -48,8 +48,11 @@ public sealed class LiveRecordingSoakTests(ITestOutputHelper output) : IDisposab
             FeedMatch(coordinator, offset);
             var completion = observer.Completions[^1];
             var recording = Assert.IsType<RecordedMatch>(completion.Match);
+            // Since the lifecycle confirmation fixes, a match starts at the
+            // confirming semantic signal (the NEXT_OPPONENT_PLAYER_ID line at
+            // index 5 of this fixture), not at the CREATE_GAME boundary.
             Assert.Equal(
-                Timestamp.AddMilliseconds(offset),
+                Timestamp.AddMilliseconds(offset + 5),
                 recording.StartedAt);
 
             var result = await store.SaveAsync(recording);
