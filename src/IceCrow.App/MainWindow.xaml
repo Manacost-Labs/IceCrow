@@ -69,6 +69,11 @@
                                Margin="0,0,0,3"
                                Style="{StaticResource IceCrow.Text.Caption}"
                                Text="Tracking: Inactive" />
+                    <TextBlock x:Name="LifecycleStatus"
+                               Margin="0,0,0,3"
+                               Style="{StaticResource IceCrow.Text.Caption}"
+                               Text="Lifecycle: idle · pending 0 · drops 0 · confirm: - · incomplete: 0"
+                               TextWrapping="Wrap" />
                     <TextBlock x:Name="LiveLastUpdate"
                                Margin="0,0,0,3"
                                Style="{StaticResource IceCrow.Text.Caption}"

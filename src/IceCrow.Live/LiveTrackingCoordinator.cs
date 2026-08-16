@@ -32,6 +32,10 @@ public sealed class LiveTrackingCoordinator
     private long _trackingEventsApplied;
     private long _bufferedEventsDropped;
     private long _safetyLimitRejections;
+    private int _candidateBufferedDrops;
+    private long _incompleteCandidateRejections;
+    private bool _candidateRejected;
+    private BattlegroundsLifecycleEvidence _lastConfirmationReason;
     private DateTimeOffset? _lastStateUpdateTimestamp;
 
     public LiveTrackingCoordinator(
@@ -82,6 +86,8 @@ public sealed class LiveTrackingCoordinator
         if (lifecycle.Action == BattlegroundsLifecycleAction.GameBoundary)
         {
             _pendingEvents.Clear();
+            _candidateBufferedDrops = 0;
+            _candidateRejected = false;
             var ended = EndActiveMatch(gameEvent.Timestamp);
             return CreateUpdate(rawLine, parseResult, ended is not null, ended);
         }
@@ -89,6 +95,7 @@ public sealed class LiveTrackingCoordinator
         if (lifecycle.Action == BattlegroundsLifecycleAction.EndMatch)
         {
             _pendingEvents.Clear();
+            _candidateBufferedDrops = 0;
             var ended = EndActiveMatch(gameEvent.Timestamp);
             return CreateUpdate(rawLine, parseResult, ended is not null, ended);
         }
@@ -101,6 +108,16 @@ public sealed class LiveTrackingCoordinator
                 return CreateUpdate(rawLine, parseResult, stateChanged: false, snapshot: null);
             }
 
+            if (_candidateRejected || _candidateBufferedDrops > 0)
+            {
+                // Pre-start evidence was truncated by the bounded buffer:
+                // starting now would publish and capture a false complete
+                // match. Fail closed until the next game boundary.
+                RejectIncompleteCandidate();
+                return CreateUpdate(rawLine, parseResult, stateChanged: false, snapshot: null);
+            }
+
+            _lastConfirmationReason = lifecycle.ConfirmedBy;
             var started = StartAndReplayBuffered(lifecycle);
             return CreateUpdate(rawLine, parseResult, stateChanged: true, started);
         }
@@ -152,6 +169,20 @@ public sealed class LiveTrackingCoordinator
         _lastPublishedSnapshot = _tracking.Current;
         _trackingState = TrackingSessionState.Inactive;
         _lastStateUpdateTimestamp = null;
+        _candidateBufferedDrops = 0;
+        _candidateRejected = false;
+        _lastConfirmationReason = BattlegroundsLifecycleEvidence.None;
+    }
+
+    private void RejectIncompleteCandidate()
+    {
+        if (!_candidateRejected)
+        {
+            _candidateRejected = true;
+            Increment(ref _incompleteCandidateRejections);
+        }
+
+        _pendingEvents.Clear();
     }
 
     private TrackingSnapshot StartAndReplayBuffered(
@@ -251,6 +282,10 @@ public sealed class LiveTrackingCoordinator
         {
             _pendingEvents.Dequeue();
             Increment(ref _bufferedEventsDropped);
+            if (_candidateBufferedDrops < int.MaxValue)
+            {
+                _candidateBufferedDrops++;
+            }
         }
 
         _pendingEvents.Enqueue(gameEvent);
@@ -340,6 +375,11 @@ public sealed class LiveTrackingCoordinator
             warnings |= LiveTrackingWarnings.UnresolvedNamedReferences;
         }
 
+        if (_candidateRejected || _candidateBufferedDrops > 0)
+        {
+            warnings |= LiveTrackingWarnings.IncompleteCandidateEvidence;
+        }
+
         return new LiveTrackingDiagnostics(
             _rawLinesReceived,
             _parsedEvents,
@@ -365,7 +405,12 @@ public sealed class LiveTrackingCoordinator
             warnings,
             battlegrounds.CurrentOpponentPlayerId,
             _lastStateUpdateTimestamp,
-            unresolvedNamedReferences);
+            unresolvedNamedReferences,
+            _lifecycle.CandidateArmed,
+            _pendingEvents.Count,
+            _candidateBufferedDrops,
+            _incompleteCandidateRejections,
+            _lastConfirmationReason);
     }
 
     private void NotifyMatchStarted(DateTimeOffset timestamp, int? localPlayerId)

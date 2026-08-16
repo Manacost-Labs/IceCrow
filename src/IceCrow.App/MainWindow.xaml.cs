@@ -99,6 +99,19 @@ public partial class MainWindow : Window
                 $" · unresolved named refs: {diagnostics.UnresolvedNamedReferences}";
         }
         LiveTrackingState.Text = $"Tracking: {diagnostics.TrackingState}";
+        var confirmation = diagnostics.LastConfirmationReason == BattlegroundsLifecycleEvidence.None
+            ? "-"
+            : diagnostics.LastConfirmationReason.ToString();
+        LifecycleStatus.Text =
+            $"Lifecycle: {(diagnostics.LifecycleCandidateArmed ? "candidate armed" : "idle")} · " +
+            $"pending {diagnostics.PendingPreStartEvents} · " +
+            $"drops {diagnostics.CandidateBufferedDrops} · " +
+            $"confirm: {confirmation} · " +
+            $"incomplete: {diagnostics.IncompleteCandidateRejections}";
+        if (diagnostics.Warnings.HasFlag(LiveTrackingWarnings.IncompleteCandidateEvidence))
+        {
+            LifecycleStatus.Text += " · warning: pre-start evidence dropped; waiting for next game";
+        }
         LiveLastUpdate.Text = diagnostics.LastStateUpdateTimestamp is DateTimeOffset timestamp
             ? $"Last update: {timestamp:HH:mm:ss.fff}"
             : "Last update: -";

@@ -113,7 +113,7 @@ public sealed class LiveTrackingCoordinatorTests
     }
 
     [Fact]
-    public void PendingEventsAreBoundedAndUseDropOldestPolicy()
+    public void PendingEventsAreBoundedAndOverflowFailsClosed()
     {
         var coordinator = new LiveTrackingCoordinator(pendingEventCapacity: 3);
 
@@ -123,8 +123,12 @@ public sealed class LiveTrackingCoordinatorTests
         _ = coordinator.Process(Line("TAG_CHANGE Entity=3 tag=PLAYER_TECH_LEVEL value=1"));
         _ = coordinator.Process(Line("TAG_CHANGE Entity=3 tag=STEP value=BEGIN_MULLIGAN"));
 
+        // Oldest events were evicted before confirmation, so the candidate is
+        // incomplete evidence: no match may start from it.
         Assert.Equal(2, coordinator.Diagnostics.BufferedEventsDropped);
-        Assert.Equal(1, coordinator.CurrentSnapshot.EntityCount);
+        Assert.Equal(TrackingSessionState.Inactive, coordinator.CurrentSnapshot.SessionState);
+        Assert.Equal(0, coordinator.CurrentSnapshot.EntityCount);
+        Assert.Equal(1, coordinator.Diagnostics.IncompleteCandidateRejections);
     }
 
     [Fact]

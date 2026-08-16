@@ -28,7 +28,12 @@ public sealed record LiveTrackingDiagnostics(
     LiveTrackingWarnings Warnings,
     int? CurrentOpponentPlayerId,
     DateTimeOffset? LastStateUpdateTimestamp,
-    long UnresolvedNamedReferences);
+    long UnresolvedNamedReferences,
+    bool LifecycleCandidateArmed,
+    int PendingPreStartEvents,
+    int CandidateBufferedDrops,
+    long IncompleteCandidateRejections,
+    BattlegroundsLifecycleEvidence LastConfirmationReason);
 
 [Flags]
 public enum LiveTrackingWarnings
@@ -43,4 +48,5 @@ public enum LiveTrackingWarnings
     LifecyclePlayerIdentities = 1 << 6,
     CaptureObserverDetached = 1 << 7,
     UnresolvedNamedReferences = 1 << 8,
+    IncompleteCandidateEvidence = 1 << 9,
 }
