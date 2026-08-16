@@ -1,5 +1,4 @@
 using System.IO;
-using System.Threading.Channels;
 using IceCrow.Hearthstone.Protocol.Events;
 using IceCrow.Live;
 using IceCrow.Recording;
@@ -11,11 +10,9 @@ namespace IceCrow.App.Runtime;
 /// into private recordings while keeping two truths separate: the capture
 /// session (Off/Waiting/Recording) and completed-capture persistence
 /// (Idle/Saving/Saved/Warning/Failed). Completed matches leave the observer
-/// callback through a bounded queue and are saved by one sequential worker;
-/// an intentional developer action is reported as a notice, never as a
-/// failure, and shutdown drains pending saves for a bounded grace period
-/// before cancelling them. Every failure surfaces as status only — live
-/// tracking is never affected.
+/// callback through the bounded <see cref="CapturePersistenceQueue"/>; an
+/// intentional developer action is reported as a notice, never as a failure.
+/// Every failure surfaces as status only — live tracking is never affected.
 /// </summary>
 internal sealed class RecordingRuntime : IAppliedMatchEventObserver, IAsyncDisposable
 {
@@ -28,19 +25,13 @@ internal sealed class RecordingRuntime : IAppliedMatchEventObserver, IAsyncDispo
 
     private readonly object _gate = new();
     private readonly MatchCaptureSession _session = new();
-    private readonly Channel<RecordedMatch> _pendingMatches;
+    private readonly CapturePersistenceQueue _queue;
     private readonly Func<RecordedMatch, CancellationToken, Task<PrivateCaptureSaveResult>> _persistCapture;
     private readonly Action<RecordingCaptureStatus> _onStatusChanged;
-    private readonly TimeSpan _shutdownGracePeriod;
-    private readonly TimeProvider _timeProvider;
-    private readonly CancellationTokenSource _shutdown = new();
     private readonly PrivateCaptureStore? _store;
-    private Task _worker = Task.CompletedTask;
-    private bool _workerStarted;
     private bool _cleanedUp;
     private bool _enabled;
     private bool _intentionalDiscard;
-    private bool _disposed;
     private RecordingSessionPhase _sessionPhase = RecordingSessionPhase.Off;
     private RecordingPersistencePhase _persistencePhase = RecordingPersistencePhase.Idle;
     private int _pendingSaveCount;
@@ -71,32 +62,16 @@ internal sealed class RecordingRuntime : IAppliedMatchEventObserver, IAsyncDispo
             _persistCapture = persistCapture;
         }
 
-        _shutdownGracePeriod = shutdownGracePeriod ?? DefaultShutdownGracePeriod;
-        _timeProvider = timeProvider ?? TimeProvider.System;
-        _pendingMatches = Channel.CreateBounded<RecordedMatch>(
-            new BoundedChannelOptions(PendingSaveCapacity)
-            {
-                SingleReader = true,
-                SingleWriter = false,
-            });
+        _queue = new CapturePersistenceQueue(
+            PendingSaveCapacity,
+            PersistAsync,
+            ReportAbandonedSaves,
+            shutdownGracePeriod ?? DefaultShutdownGracePeriod,
+            timeProvider ?? TimeProvider.System);
     }
 
     /// <summary>Starts the persistence worker. Called once by the composition root.</summary>
-    public void Start()
-    {
-        lock (_gate)
-        {
-            if (_workerStarted)
-            {
-                throw new InvalidOperationException(
-                    "The recording runtime can only be started once.");
-            }
-
-            _workerStarted = true;
-        }
-
-        _worker = RunWorkerAsync();
-    }
+    public void Start() => _queue.Start();
 
     public void SetEnabled(bool enabled)
     {
@@ -231,7 +206,7 @@ internal sealed class RecordingRuntime : IAppliedMatchEventObserver, IAsyncDispo
                         return;
                     case { Match: { } match }:
                         _sessionPhase = ActiveIdlePhase();
-                        if (_pendingMatches.Writer.TryWrite(match))
+                        if (_queue.TryEnqueue(match))
                         {
                             _pendingSaveCount++;
                             _persistencePhase = RecordingPersistencePhase.Saving;
@@ -271,12 +246,6 @@ internal sealed class RecordingRuntime : IAppliedMatchEventObserver, IAsyncDispo
     {
         lock (_gate)
         {
-            if (_disposed)
-            {
-                return;
-            }
-
-            _disposed = true;
             if (_session.IsCapturing)
             {
                 _session.Discard("IceCrow shut down while the match was still running.");
@@ -286,58 +255,10 @@ internal sealed class RecordingRuntime : IAppliedMatchEventObserver, IAsyncDispo
             }
         }
 
-        _pendingMatches.Writer.TryComplete();
-        try
-        {
-            await _worker.WaitAsync(_shutdownGracePeriod, _timeProvider).ConfigureAwait(false);
-        }
-        catch (TimeoutException)
-        {
-            _shutdown.Cancel();
-            try
-            {
-                await _worker.WaitAsync(_shutdownGracePeriod, _timeProvider).ConfigureAwait(false);
-            }
-            catch (TimeoutException)
-            {
-                // The save ignored cancellation. Abandon it rather than block
-                // shutdown; observe its eventual fault so it can never surface
-                // as an unobserved task exception. The token source stays
-                // undisposed because the abandoned worker may still read it.
-                _ = _worker.ContinueWith(
-                    static task => _ = task.Exception,
-                    TaskScheduler.Default);
-                return;
-            }
-            catch (OperationCanceledException)
-            {
-            }
-        }
-
-        _shutdown.Dispose();
+        await _queue.DisposeAsync().ConfigureAwait(false);
     }
 
-    private async Task RunWorkerAsync()
-    {
-        try
-        {
-            await foreach (var match in _pendingMatches.Reader
-                               .ReadAllAsync(_shutdown.Token)
-                               .ConfigureAwait(false))
-            {
-                await PersistAsync(match).ConfigureAwait(false);
-            }
-        }
-        catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
-        {
-        }
-        finally
-        {
-            ReportAbandonedQueue();
-        }
-    }
-
-    private async Task PersistAsync(RecordedMatch match)
+    private async Task PersistAsync(RecordedMatch match, CancellationToken cancellationToken)
     {
         lock (_gate)
         {
@@ -347,7 +268,7 @@ internal sealed class RecordingRuntime : IAppliedMatchEventObserver, IAsyncDispo
         Publish();
         try
         {
-            var result = await _persistCapture(match, _shutdown.Token).ConfigureAwait(false);
+            var result = await _persistCapture(match, cancellationToken).ConfigureAwait(false);
             lock (_gate)
             {
                 _pendingSaveCount--;
@@ -364,7 +285,7 @@ internal sealed class RecordingRuntime : IAppliedMatchEventObserver, IAsyncDispo
                 }
             }
         }
-        catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             lock (_gate)
             {
@@ -415,24 +336,13 @@ internal sealed class RecordingRuntime : IAppliedMatchEventObserver, IAsyncDispo
         return await _store!.SaveAsync(match, cancellationToken).ConfigureAwait(false);
     }
 
-    private void ReportAbandonedQueue()
+    private void ReportAbandonedSaves(int abandonedCount)
     {
-        var abandoned = 0;
-        while (_pendingMatches.Reader.TryRead(out _))
-        {
-            abandoned++;
-        }
-
-        if (abandoned == 0)
-        {
-            return;
-        }
-
         lock (_gate)
         {
-            _pendingSaveCount -= abandoned;
+            _pendingSaveCount -= abandonedCount;
             _lastWarning =
-                $"{abandoned} completed capture(s) were not persisted before shutdown.";
+                $"{abandonedCount} completed capture(s) were not persisted before shutdown.";
             _persistencePhase = RecordingPersistencePhase.Warning;
         }
 
