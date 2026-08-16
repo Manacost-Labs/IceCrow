@@ -126,6 +126,61 @@ public sealed class BattlegroundsLifecycleConfirmationTests
     }
 
     [Fact]
+    public void ConfirmedMatchStartUsesEvidenceTimeNotTheStaleCatchUpBoundary()
+    {
+        // F4: all three real captures were stamped with the 18:38:22 catch-up
+        // CREATE_GAME time even though the real match began ~18:39. The
+        // confirmed start must carry the confirming evidence timestamp.
+        var observer = new RecordingObserver();
+        var coordinator = new LiveTrackingCoordinator(appliedEventObserver: observer);
+
+        foreach (var payload in CatchUpSnapshotLines())
+        {
+            _ = coordinator.Process(SnapshotLine(payload));
+        }
+
+        var confirmingAt = SnapshotTimestamp.AddSeconds(40);
+        var liveLine = "TAG_CHANGE Entity=2 tag=PLAYER_TECH_LEVEL value=2";
+        _ = coordinator.Process(new RawLogLine(
+            confirmingAt,
+            "Power",
+            $"PowerTaskList.DebugPrintPower() - {liveLine}",
+            liveLine));
+
+        Assert.Equal(confirmingAt, Assert.Single(observer.Starts));
+    }
+
+    [Fact]
+    public void ConsecutiveConfirmedMatchesKeepMonotonicStartTimes()
+    {
+        var observer = new RecordingObserver();
+        var coordinator = new LiveTrackingCoordinator(appliedEventObserver: observer);
+        var lines = new[]
+        {
+            "CREATE_GAME",
+            "TAG_CHANGE Entity=1 tag=PLAYER_TECH_LEVEL value=1",
+            "TAG_CHANGE Entity=1 tag=PLAYER_TRIPLES value=0",
+            "CREATE_GAME",
+            "TAG_CHANGE Entity=1 tag=PLAYER_TECH_LEVEL value=1",
+            "TAG_CHANGE Entity=1 tag=PLAYER_TRIPLES value=0",
+        };
+
+        for (var index = 0; index < lines.Length; index++)
+        {
+            _ = coordinator.Process(new RawLogLine(
+                SnapshotTimestamp.AddMilliseconds(index),
+                "Power",
+                $"PowerTaskList.DebugPrintPower() - {lines[index]}",
+                lines[index]));
+        }
+
+        Assert.Equal(2, observer.Starts.Count);
+        Assert.True(observer.Starts[1] > observer.Starts[0]);
+        Assert.Equal(SnapshotTimestamp.AddMilliseconds(2), observer.Starts[0]);
+        Assert.Equal(SnapshotTimestamp.AddMilliseconds(5), observer.Starts[1]);
+    }
+
+    [Fact]
     public void DetectorConfirmsExactlyOnceAndOnlyOnLaterTimestamp()
     {
         var detector = new BattlegroundsLifecycleDetector();
@@ -190,8 +245,13 @@ public sealed class BattlegroundsLifecycleConfirmationTests
 
         public List<GameEvent> Applied { get; } = [];
 
-        public void OnMatchStarted(DateTimeOffset timestamp, int? localPlayerId) =>
+        public List<DateTimeOffset> Starts { get; } = [];
+
+        public void OnMatchStarted(DateTimeOffset timestamp, int? localPlayerId)
+        {
             Sequence.Add("started");
+            Starts.Add(timestamp);
+        }
 
         public void OnEventApplied(GameEvent gameEvent)
         {

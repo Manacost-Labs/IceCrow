@@ -129,7 +129,8 @@ public sealed class BattlegroundsLifecycleDetector
             BattlegroundsLifecycleAction.StartBattlegrounds,
             _candidateStartedAt ?? timestamp,
             GetLocalPlayerId(),
-            evidence);
+            evidence,
+            ConfirmedAt: timestamp);
     }
 
     private void ClearPendingEvidence()
@@ -248,8 +249,17 @@ public enum BattlegroundsLifecycleEvidence
     StateComplete,
 }
 
+/// <summary>
+/// <paramref name="MatchStartedAt"/> is the candidate boundary time (the last
+/// game boundary or first observed event), which for a catch-up session can be
+/// the stale snapshot timestamp. <paramref name="ConfirmedAt"/> is set only on
+/// <see cref="BattlegroundsLifecycleAction.StartBattlegrounds"/> and carries
+/// the timestamp of the event that confirmed the match — the evidence-backed
+/// moment live match time actually progressed.
+/// </summary>
 public sealed record BattlegroundsLifecycleObservation(
     BattlegroundsLifecycleAction Action,
     DateTimeOffset MatchStartedAt,
     int? LocalPlayerId,
-    BattlegroundsLifecycleEvidence Evidence);
+    BattlegroundsLifecycleEvidence Evidence,
+    DateTimeOffset? ConfirmedAt = null);

@@ -157,13 +157,16 @@ public sealed class LiveTrackingCoordinator
     private TrackingSnapshot StartAndReplayBuffered(
         BattlegroundsLifecycleObservation lifecycle)
     {
+        // The confirmation timestamp is the evidence-backed match time; the
+        // candidate boundary can be a stale catch-up CREATE_GAME minutes old.
+        var startedAt = lifecycle.ConfirmedAt ?? lifecycle.MatchStartedAt;
         _tracking.Reset();
         _ = _tracking.StartBattlegroundsMatch(
-            lifecycle.MatchStartedAt,
+            startedAt,
             lifecycle.LocalPlayerId);
         _trackingState = TrackingSessionState.Active;
-        NotifyMatchStarted(lifecycle.MatchStartedAt, lifecycle.LocalPlayerId);
-        var lastTimestamp = lifecycle.MatchStartedAt;
+        NotifyMatchStarted(startedAt, lifecycle.LocalPlayerId);
+        var lastTimestamp = startedAt;
 
         while (_pendingEvents.TryDequeue(out var pending) &&
                _trackingState == TrackingSessionState.Active)
