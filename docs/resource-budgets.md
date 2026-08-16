@@ -24,6 +24,8 @@ requires a corpus or soak result and a security review.
 | Recording retained estimate | — | 32 MiB |
 | Recording events/checkpoints | — | 100,000 / 4,096 |
 | Recording string | — | 256 Ki characters |
+| Private capture store | — | 24 captures, 256 MiB total; oldest pruned first |
+| Private capture temp files | — | removed before the first save of a process |
 | Replay entities/opponent snapshots | — | 4,096 / 64 |
 | Replay materialization work | — | 10,000,000 work units |
 | Telemetry runtime queue | 16 | oldest optional summary dropped |
@@ -35,3 +37,9 @@ requires a corpus or soak result and a security review.
 Queues cap retained work, not just file size. New external arrays must be
 streamed or preflighted before materialization where the wire/file format allows
 it. Diagnostic calculations must remain O(1) or bounded by the same caps.
+
+Private capture bounds are provisional pending measured real-match recording
+sizes; the store refuses a total-byte limit below one maximum-size recording so
+retention can never truncate a normal match. Capture disabled costs one null
+observer check per notification point; capture enabled adds recorder validation
+per applied event and one bounded serialized write per match, off the hot path.

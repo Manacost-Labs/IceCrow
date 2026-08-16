@@ -92,3 +92,12 @@ marketing targets:
 
 Small timing changes are noise. Any intentional algorithm, allocation, or
 budget regression must include the measurement and user-visible justification.
+
+## Settled decisions
+
+- **Board-diff allocations (2026-08-16).** The ambiguity-safe duplicate-group
+  matcher allocates slightly more than the original naive matcher. This is
+  accepted: the comparison stays microsecond-scale over at most seven minions
+  per side and only runs when an opponent board is re-observed. Do not add
+  caching or pooling here unless a profiled real session shows user-visible
+  cost; correctness of identity confidence beats a few hundred bytes.

@@ -50,6 +50,11 @@ fixture or treat synthetic input as real evidence.
   in `Overlay`; process wiring and runtime ownership belong in `App/Runtime`.
 - Recording/replay code must remain usable without live files, WPF, HWND, delay,
   or network access.
+- Live match capture observes `IAppliedMatchEventObserver` on the live
+  coordinator; the coordinator stays the only lifecycle authority and `Live`
+  never references `Recording`. Capture composition (session, private store,
+  status) lives in `App/Runtime`; an incomplete capture is discarded with a
+  reason, never saved as complete evidence.
 
 See `docs/module-boundaries.md`, `docs/threading-model.md`,
 `docs/resource-budgets.md`, and `docs/feature-development.md` before changing a

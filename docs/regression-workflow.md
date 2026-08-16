@@ -5,15 +5,33 @@ deterministic regression test without committing private player data.
 
 ## 1. Capture evidence
 
-Capture an IceCrow format-v1 `RecordedMatch` through the existing
-`MatchRecorder` integration point while reproducing the bug. Keep the original
-recording outside the repository. During an active match, observation must stay
-passive: do not restart Hearthstone, alter `log.config`, click the game, or move
-focus merely to improve the recording.
+Live capture is wired into the Debug developer window under **Match capture**.
+It is off by default; toggling *Record matches (private)* arms it. The capture
+observes the exact applied-event stream of the live coordinator (match start
+first, buffered pre-start events in real applied order, match end at most
+once), so a saved recording replays to the same authoritative state the live
+pipeline reached.
 
-Automatic end-user capture/export is not wired into the WPF app yet. Until it
-is, this step is a developer/instrumented-build operation. A raw `Power.log`
-copy is private evidence and must never be committed directly.
+Rules and behavior:
+
+- Recordings are saved atomically to
+  `%LocalAppData%/IceCrow/private-captures/` with identity-free
+  timestamp+random filenames, bounded by count/bytes with oldest-first
+  pruning (see `docs/resource-budgets.md`).
+- A capture that would be incomplete evidence — a tracking safety rejection, a
+  recorder limit, disabling capture mid-match, or shutting IceCrow down during
+  the match — is discarded with a visible reason, never saved as complete.
+- Capture failures surface as `Failed` status; live tracking, opponent memory,
+  the overlay, and telemetry continue unaffected.
+- Release builds never open the developer window, so capture stays off there.
+- Private captures are never auto-uploaded and never committed; the
+  `private-captures/` pattern is Git-ignored and architecture tests reject
+  committed capture files.
+
+During an active match, observation must stay passive: do not restart
+Hearthstone, alter `log.config`, click the game, or move focus merely to
+improve the recording. A raw `Power.log` copy is private evidence and must
+never be committed directly.
 
 ## 2. Import and anonymize
 

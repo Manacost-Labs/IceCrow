@@ -23,6 +23,17 @@ Status: **NOT YET VERIFIED**. This checklist has not been executed against a rea
 - [ ] Power.log rotation/restart resumes without rereading the complete file or duplicating state.
 - [ ] Alt-tab and minimize/restore preserve click-through, focus, and visibility behavior.
 
+## Match capture matrix
+
+- [ ] With capture disabled, a complete match creates no files under `%LocalAppData%/IceCrow/private-captures/`.
+- [ ] With capture enabled before a match, status moves Waiting → Recording → Saved and exactly one capture file appears.
+- [ ] The saved capture validates and replays to a final state equivalent to the live session (spot-check with FixtureTool import).
+- [ ] A second match without restarting IceCrow creates a separate capture file.
+- [ ] Match end occurs once; no capture events are appended after it.
+- [ ] Forcing a capture directory failure (e.g. read-only root) reports Failed status while live tracking continues.
+- [ ] Closing IceCrow mid-match discards the in-flight capture instead of saving a partial file.
+- [ ] Capture filenames contain only a UTC timestamp and random identifier.
+
 ## Proven automated fallback behavior
 
 - `CREATE_GAME` creates an explicit normalized boundary and clears parser block/entity context.
