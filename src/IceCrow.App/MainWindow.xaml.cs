@@ -88,6 +88,10 @@ public partial class MainWindow : Window
         LiveAppliedEvents.Text = diagnostics.BufferedEventsDropped == 0
             ? $"Applied: {diagnostics.TrackingEventsApplied}"
             : $"Applied: {diagnostics.TrackingEventsApplied} · buffered drops: {diagnostics.BufferedEventsDropped}";
+        if (diagnostics.Warnings.HasFlag(LiveTrackingWarnings.CaptureObserverDetached))
+        {
+            LiveAppliedEvents.Text += " · capture observer detached";
+        }
         LiveTrackingState.Text = $"Tracking: {diagnostics.TrackingState}";
         LiveLastUpdate.Text = diagnostics.LastStateUpdateTimestamp is DateTimeOffset timestamp
             ? $"Last update: {timestamp:HH:mm:ss.fff}"

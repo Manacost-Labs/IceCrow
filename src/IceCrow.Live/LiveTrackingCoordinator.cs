@@ -326,6 +326,11 @@ public sealed class LiveTrackingCoordinator
             warnings |= LiveTrackingWarnings.LifecyclePlayerIdentities;
         }
 
+        if (AppliedEventObserverDetached)
+        {
+            warnings |= LiveTrackingWarnings.CaptureObserverDetached;
+        }
+
         return new LiveTrackingDiagnostics(
             _rawLinesReceived,
             _parsedEvents,

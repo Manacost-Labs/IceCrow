@@ -40,4 +40,5 @@ public enum LiveTrackingWarnings
     TimelineEvents = 1 << 4,
     OpponentSnapshots = 1 << 5,
     LifecyclePlayerIdentities = 1 << 6,
+    CaptureObserverDetached = 1 << 7,
 }

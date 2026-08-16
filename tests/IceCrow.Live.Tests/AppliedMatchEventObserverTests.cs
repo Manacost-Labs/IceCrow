@@ -128,6 +128,8 @@ public sealed class AppliedMatchEventObserverTests
 
         Assert.True(coordinator.AppliedEventObserverDetached);
         Assert.Equal(1, observer.Notifications);
+        Assert.True(coordinator.Diagnostics.Warnings.HasFlag(
+            LiveTrackingWarnings.CaptureObserverDetached));
         var snapshot = coordinator.CurrentSnapshot;
         Assert.Equal(TrackingSessionState.Ended, snapshot.SessionState);
         Assert.Equal(BattlegroundsPhase.GameOver, snapshot.Battlegrounds.Phase);
