@@ -3,7 +3,8 @@ namespace IceCrow.Battlegrounds.Memory;
 /// <summary>
 /// Deterministic comparison of two board observations of the same opponent.
 /// Matching is explicit two-pass work over at most a handful of minions:
-/// exact entity matches first, then card-id matches in board order.
+/// exact entity matches first, then whole duplicate-card groups at once so
+/// every pairing in a group carries the same confidence.
 /// </summary>
 public static class OpponentBoardDiffCalculator
 {
@@ -154,7 +155,6 @@ public static class OpponentBoardDiffCalculator
             currentIdentity[currentIndex] = MinionIdentity.AmbiguousCardCopy;
         }
     }
-
 
     private static BoardChangeSet Collect(
         BoardSnapshot previous,
