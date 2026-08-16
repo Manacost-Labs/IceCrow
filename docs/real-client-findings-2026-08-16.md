@@ -151,14 +151,84 @@ test for the skin-id fallback either way.
   atomic, and the bounded queue drained both pending captures in the same
   second without touching live tracking.
 
+## Post-match update (session completed 18:56)
+
+The match finished at 18:56:12 — the local player (`Ardas#2269`, playerId 4)
+took second place, losing the final fight to `Haribohunter`. The session
+Power.log grew to 34 MB / 239,511 lines and was processed live without
+safety rejections. Two further findings came from replaying capture `B`
+past the read preflight (manual JSON deserialization, raised replay ctor
+limits):
+
+### F6 — Battlegrounds turn/phase reducer does not advance on real client logs
+
+**Severity: critical (core MVP loop broken against the real client).**
+
+Partial replay of capture `B` up to event 26,085 (~18:43 wall clock, raw
+`TURN` tags already at 13) reports `turn=0 phase=HeroSelection` and an
+**empty opponent memory** — no combat transition was ever detected, so no
+opponent board was ever snapshotted. Lobby tracking worked (9 players,
+tavern tiers up to 3, current opponent id 6 via `NEXT_OPPONENT_PLAYER_ID`),
+which matches what the overlay showed during play: correct lobby/HP but no
+turn, phase, or board content.
+
+Interpretation: the synthetic tag vocabulary the reducer was built against
+(fixture-style `TAG_CHANGE Entity=500 tag=TURN`, phase tag `2022`) does not
+match what the 2026 client actually emits (entity binding of the `TURN`
+tag, and/or different phase tag ids). The synthetic corpus therefore
+validates the infrastructure but not the semantics — exactly the gap this
+real session was meant to expose.
+
+Fix direction (owner: `IceCrow.Battlegrounds` reducer +
+`IceCrow.Hearthstone.Protocol` compatibility tags): extract the real
+turn/step/phase tag sequences from capture `B` (raw mode), map them against
+the reducer's expectations, pin the corrected semantics with an anonymized
+`real-anonymized` fixture from this capture, and only then re-run a live
+match. HDT may be consulted as behavioral reference for current tag
+meanings; no code copying.
+
+### F7 — Replay work-unit guards reject real matches
+
+**Severity: high (blocks replaying every real capture).**
+
+`ReplayRunner` stops capture `B` at event 26,285 of 61,543 with `Replay
+exceeds the 1000000 timeline work-unit limit`. `MaximumTimelineWorkUnits`
+is a hard constant tuned for small synthetic fixtures, with no constructor
+override (unlike the materialization/event-snapshot limits). Real matches
+need recalibrated guards derived from this session's measurements
+(61.5 K events ≈ half a match).
+
+### F1 amplification — the second half of the match was lost entirely
+
+After the 18:47:08 re-read (F1), the new capture session re-recorded the
+duplicated backlog plus the live remainder and exceeded the recorder
+limits before the match ended; the completed capture was therefore
+discarded by policy at match end. No fourth capture file exists — the
+discard behaved exactly as designed, but the net effect of F1 is that a
+17-minute real match left only its first half as evidence.
+
+### Privacy confirmation
+
+Real log entity names embed BattleTags (`Ardas#2269`) and opponent nicks.
+The existing anonymizer already targets exactly this; no capture from this
+session may be committed without running it plus human review.
+
 ## Suggested fix order
 
-1. F1 (tailer re-read) — corrupts every long session; blocks Gate B.
-2. F3 (round-trip limits) — real captures must replay; blocks Gate C.
-3. F2 (zero-turn spurious matches) — junk evidence and false lifecycle.
-4. F5 (hero names) — MVP usability.
-5. F4 (timestamps) — re-check after F1/F2.
+1. **F6 (turn/phase tag semantics)** — the core Battlegrounds loop must
+   work on the real client before more sessions are worth playing; capture
+   `B` already contains everything needed to fix it offline.
+2. **F1 (tailer re-read)** — corrupts every long session and, amplified,
+   destroyed half the match's evidence; blocks Gate B.
+3. **F3 + F7 (capture round-trip and replay guards)** — real captures must
+   load and replay end to end; blocks Gate C and all offline analysis.
+4. **F2 (zero-turn spurious matches)** — junk evidence and false lifecycle.
+5. **F5 (hero names)** — MVP usability.
+6. **F4 (timestamps)** — re-check after F1/F2.
 
-Each fix lands with a regression test; F1–F3 additionally get anonymized
-real fixtures imported from this session's captures after human privacy
-review.
+Each fix lands with a regression test; F1–F3 and F6 additionally get
+anonymized real fixtures imported from this session's captures after human
+privacy review. The strategic takeaway: the synthetic corpus proved the
+architecture but not the client's current tag semantics — capture `B` is
+now the primary source of truth for the next milestone, and no further
+real sessions are needed until F6 and F1 are fixed offline against it.
