@@ -31,15 +31,14 @@ results come from a human operator following the
   mutations (inserts and evictions), stays linear, and the real capture
   replays under default limits (~0.6–1.1 s for 61,543 events).
 
-## Gate A — build: PARTIAL (remote runs pending push authorization)
+## Gate A — build: PASS
 
 - Debug and Release builds and full non-soak suites: PASS (local, this HEAD).
 - Local soak, Debug and Release: PASS (this HEAD).
 - `dotnet format --verify-no-changes` and `git diff --check`: PASS (local).
-- Remote quality CI: PASS on `bbc934c` (run 31965300963); the evidence-closure
-  commits after it are not pushed, so remote CI and the remote soak job for
-  this HEAD are NOT RUN. Owner action: authorize push, then dispatch the CI
-  workflow with `run_soak = true` and record the run id.
+- Remote quality CI: PASS on `4e1915c` (push run 31969148226).
+- Remote long-run soak: PASS on `4e1915c` (dispatched run 31969148713 with
+  `run_soak = true`; both the quality gate and the soak job succeeded).
 
 ## Gate B — real client: PARTIAL
 
@@ -90,5 +89,3 @@ recorded as pending in
    dotnet-counters evidence.
 2. Human privacy review and `APPROVED FOR COMMIT` for the fixture candidate
    (Gate C), then a second reviewed fixture.
-3. Owner-authorized push plus a remote CI + soak dispatch for this HEAD
-   (Gate A).
