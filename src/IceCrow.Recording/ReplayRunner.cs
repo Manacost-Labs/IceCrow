@@ -25,7 +25,7 @@ public sealed class ReplayRunner
     private long _eventSnapshotWorkUnits;
     private long _stateMaterializationWorkUnits;
     private long _timelineWorkUnits;
-    private int _observedTimelineEventCount;
+    private long _observedTimelineMutationWorkUnits;
     private bool _isFaulted;
     private ReplayState? _currentState;
 
@@ -132,7 +132,7 @@ public sealed class ReplayRunner
         _eventSnapshotWorkUnits = 0;
         _stateMaterializationWorkUnits = 0;
         _timelineWorkUnits = 0;
-        _observedTimelineEventCount = 0;
+        _observedTimelineMutationWorkUnits = 0;
         _isFaulted = false;
         _currentState = null;
     }
@@ -286,13 +286,16 @@ public sealed class ReplayRunner
     private void ReserveTimelineWork()
     {
         // Charge actual work: one unit per applied event plus the timeline
-        // events this event really added. Charging the full retained history
-        // after every event accumulated quadratically and rejected real
-        // matches that performed only linear work.
-        var currentTimelineEventCount = _tracking.TimelineEventCount;
-        var added = Math.Max(0, currentTimelineEventCount - _observedTimelineEventCount);
-        _observedTimelineEventCount = currentTimelineEventCount;
-        var work = 1L + added;
+        // mutations (inserts and evictions) this event really performed. The
+        // retained-count delta missed eviction work on a saturated bounded
+        // history; the mutation counter keeps growing there, so the charge
+        // stays honest without ever becoming quadratic.
+        var currentMutationWork = _tracking.TimelineMutationWorkUnits;
+        var performed = Math.Max(
+            0,
+            currentMutationWork - _observedTimelineMutationWorkUnits);
+        _observedTimelineMutationWorkUnits = currentMutationWork;
+        var work = 1L + performed;
         if (_timelineWorkUnits > _limits.MaximumTimelineWorkUnits - work)
         {
             throw new InvalidDataException(

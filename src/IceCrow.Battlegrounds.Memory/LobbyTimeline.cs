@@ -20,6 +20,14 @@ public sealed class LobbyTimeline
 
     public int EventCount => _players.Values.Sum(static player => player.Events.Count);
 
+    /// <summary>
+    /// Sum of actual timeline mutations (inserts and evictions) across the
+    /// lobby. Monotonic within one match; a new match clears it with the
+    /// per-player timelines.
+    /// </summary>
+    public long MutationWorkUnits =>
+        _players.Values.Sum(static player => player.MutationWorkUnits);
+
     public int MaximumPlayerEventCount => _players.Count == 0
         ? 0
         : _players.Values.Max(static player => player.Events.Count);

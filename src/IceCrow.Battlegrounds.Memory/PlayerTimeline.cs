@@ -22,6 +22,14 @@ public sealed class PlayerTimeline
 
     public int PlayerId { get; }
 
+    /// <summary>
+    /// Actual timeline mutations performed: one unit per inserted event plus
+    /// one per evicted event. Unlike the retained event count, this keeps
+    /// growing when the bounded history is saturated and every insert also
+    /// evicts, so replay work accounting can charge real work.
+    /// </summary>
+    public long MutationWorkUnits { get; private set; }
+
     public int TavernTier { get; private set; }
 
     public int Triples { get; private set; }
@@ -149,8 +157,10 @@ public sealed class PlayerTimeline
         if (_events.Count == _maximumEvents)
         {
             _events.RemoveAt(0);
+            MutationWorkUnits++;
         }
 
+        MutationWorkUnits++;
         if (_events.Count == 0 ||
             LobbyTimelineEventComparer.Instance.Compare(_events[^1], timelineEvent) <= 0)
         {

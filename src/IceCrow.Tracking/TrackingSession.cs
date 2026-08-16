@@ -46,6 +46,9 @@ public sealed class TrackingSession
 
     public int TimelineEventCount => _lobbyTimeline.EventCount;
 
+    /// <summary>Actual timeline mutations (inserts and evictions) this match.</summary>
+    public long TimelineMutationWorkUnits => _lobbyTimeline.MutationWorkUnits;
+
     public int MaximumTimelineEventsOnPlayer => _lobbyTimeline.MaximumPlayerEventCount;
 
     public int OpponentSnapshotCount => _opponentMemory.SnapshotCount;

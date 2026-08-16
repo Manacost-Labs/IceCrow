@@ -70,6 +70,36 @@ public sealed class ReplayTimelineWorkTests
     }
 
     [Fact]
+    public void SaturatedTimelineEvictionWorkIsChargedNotHidden()
+    {
+        // Alternating damage on one opponent produces a DamageTaken event per
+        // observation; the default 512-event history saturates and then every
+        // insert also evicts. The mutation charge keeps growing there, and a
+        // budget sized below the real mutation work must reject the replay
+        // even though the retained count stopped changing long before.
+        var recorder = new MatchRecorder(Timestamp);
+        recorder.RecordMatchStarted(Timestamp, localPlayerId: 1);
+        Declare(recorder);
+        for (var index = 0; index < 2_000; index++)
+        {
+            recorder.Record(Tag(
+                2,
+                "DAMAGE",
+                ((index % 2) + 1).ToString(CultureInfo.InvariantCulture),
+                index));
+        }
+
+        recorder.RecordMatchEnded(Timestamp.AddHours(1));
+        var match = recorder.CreateMatch();
+
+        var strict = new ReplayRunner(match, new ReplayLimits(MaximumTimelineWorkUnits: 600));
+        Assert.Throws<InvalidDataException>(() => strict.RunAll());
+
+        var generous = new ReplayRunner(match).RunAll();
+        Assert.Equal(match.Events.Count, generous.ProcessedEventCount);
+    }
+
+    [Fact]
     public void ResetClearsTimelineWorkAccounting()
     {
         var recorder = new MatchRecorder(Timestamp);

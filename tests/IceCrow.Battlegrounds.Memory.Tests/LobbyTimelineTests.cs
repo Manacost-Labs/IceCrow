@@ -185,6 +185,33 @@ public sealed class LobbyTimelineTests
         Assert.Equal(3, timeline.MaximumPlayerEventCount);
     }
 
+    [Fact]
+    public void MutationWorkCountsInsertsAndEvictionsBeyondRetainedCount()
+    {
+        var timeline = new LobbyTimeline(maximumPlayers: 4, maximumEventsPerPlayer: 2);
+        timeline.Update(State(Player(tavernTier: 1), turn: 1), Timestamp);
+        Assert.Equal(0, timeline.MutationWorkUnits);
+
+        // Two inserts fill the bounded history: one work unit each.
+        timeline.Update(State(Player(tavernTier: 2), turn: 2), Timestamp.AddMinutes(1));
+        timeline.Update(State(Player(tavernTier: 3), turn: 3), Timestamp.AddMinutes(2));
+        Assert.Equal(2, timeline.MutationWorkUnits);
+        Assert.Equal(2, timeline.EventCount);
+
+        // A saturated history evicts on every insert: retained count stays
+        // constant while the mutation work keeps growing.
+        timeline.Update(State(Player(tavernTier: 4), turn: 4), Timestamp.AddMinutes(3));
+        Assert.Equal(4, timeline.MutationWorkUnits);
+        Assert.Equal(2, timeline.EventCount);
+
+        // An observation that adds nothing charges nothing.
+        timeline.Update(State(Player(tavernTier: 4), turn: 5), Timestamp.AddMinutes(4));
+        Assert.Equal(4, timeline.MutationWorkUnits);
+
+        timeline.Reset();
+        Assert.Equal(0, timeline.MutationWorkUnits);
+    }
+
     private static LobbyTimeline StartTimeline(LobbyPlayer player)
     {
         var timeline = new LobbyTimeline();
