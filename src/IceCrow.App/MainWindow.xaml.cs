@@ -140,16 +140,42 @@ public partial class MainWindow : Window
         ArgumentNullException.ThrowIfNull(status);
         Dispatcher.VerifyAccess();
 
-        CaptureStatus.Text = status.Phase switch
+        var session = status.SessionPhase switch
         {
-            RecordingCapturePhase.Recording =>
-                $"Status: Recording · events: {status.CurrentEventCount}",
-            RecordingCapturePhase.Failed =>
-                $"Status: Failed · {status.LastError ?? "unknown error"}",
-            _ => $"Status: {status.Phase}",
+            RecordingSessionPhase.Recording =>
+                $"Recording · events: {status.CurrentEventCount}",
+            RecordingSessionPhase.WaitingForNextMatch => "Waiting",
+            _ => "Off",
         };
+        var persistence = status.PendingSaveCount > 0
+            ? $"{status.PersistencePhase} · pending: {status.PendingSaveCount}"
+            : status.PersistencePhase.ToString();
+        CaptureStatus.Text =
+            $"Enabled: {(status.IsEnabled ? "Yes" : "No")} · Session: {session} · Persistence: {persistence}";
         CaptureDetail.Text =
             $"Captures: {status.SavedCaptureCount} · Last: {status.LastSavedFileName ?? "-"}";
+        CaptureMessages.Text = FormatCaptureMessages(status);
+    }
+
+    private static string FormatCaptureMessages(RecordingCaptureStatus status)
+    {
+        var lines = new List<string>(3);
+        if (status.LastNotice is { } notice)
+        {
+            lines.Add($"Notice: {notice}");
+        }
+
+        if (status.LastWarning is { } warning)
+        {
+            lines.Add($"Warning: {warning}");
+        }
+
+        if (status.LastError is { } error)
+        {
+            lines.Add($"Error: {error}");
+        }
+
+        return lines.Count == 0 ? "-" : string.Join(Environment.NewLine, lines);
     }
 
     private void OnCaptureToggleChanged(object sender, RoutedEventArgs eventArgs)

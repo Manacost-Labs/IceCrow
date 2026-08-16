@@ -30,4 +30,8 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="IceCrow.App.Tests" />
+  </ItemGroup>
+
 </Project>

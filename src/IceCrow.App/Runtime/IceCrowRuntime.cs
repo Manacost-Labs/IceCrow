@@ -56,6 +56,7 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
         }
 
         _presentation.Start();
+        _recording.Start();
         _backgroundTasks =
         [
             _data.RunAsync(_shutdown.Token),

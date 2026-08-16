@@ -137,11 +137,16 @@
                     <TextBlock x:Name="CaptureStatus"
                                Margin="0,0,0,3"
                                Style="{StaticResource IceCrow.Text.Caption}"
-                               Text="Status: Off"
+                               Text="Enabled: No · Session: Off · Persistence: Idle"
                                TextWrapping="Wrap" />
                     <TextBlock x:Name="CaptureDetail"
+                               Margin="0,0,0,3"
                                Style="{StaticResource IceCrow.Text.Caption}"
                                Text="Captures: 0 · Last: -"
+                               TextWrapping="Wrap" />
+                    <TextBlock x:Name="CaptureMessages"
+                               Style="{StaticResource IceCrow.Text.Caption}"
+                               Text="-"
                                TextWrapping="Wrap" />
                 </StackPanel>
             </ScrollViewer>
