@@ -21,6 +21,7 @@ public sealed class LiveTrackingCoordinator
     private readonly BattlegroundsLifecycleDetector _lifecycle;
     private readonly Queue<GameEvent> _pendingEvents = [];
     private readonly int _pendingEventCapacity;
+    private IAppliedMatchEventObserver? _appliedEventObserver;
     private TrackingSnapshot _lastPublishedSnapshot;
     private TrackingSessionState _trackingState;
     private long _rawLinesReceived;
@@ -37,7 +38,8 @@ public sealed class LiveTrackingCoordinator
         PowerLineParser? parser = null,
         TrackingSession? tracking = null,
         BattlegroundsLifecycleDetector? lifecycle = null,
-        int pendingEventCapacity = DefaultPendingEventCapacity)
+        int pendingEventCapacity = DefaultPendingEventCapacity,
+        IAppliedMatchEventObserver? appliedEventObserver = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pendingEventCapacity);
         if (pendingEventCapacity > MaximumPendingEventCapacity)
@@ -51,11 +53,15 @@ public sealed class LiveTrackingCoordinator
         _tracking = tracking ?? new TrackingSession();
         _lifecycle = lifecycle ?? new BattlegroundsLifecycleDetector();
         _pendingEventCapacity = pendingEventCapacity;
+        _appliedEventObserver = appliedEventObserver;
         _lastPublishedSnapshot = _tracking.Current;
         _trackingState = _lastPublishedSnapshot.SessionState;
     }
 
     public TrackingSnapshot CurrentSnapshot => _tracking.Current;
+
+    /// <summary>True after a throwing observer was permanently detached.</summary>
+    public bool AppliedEventObserverDetached { get; private set; }
 
     public LiveTrackingDiagnostics Diagnostics => CreateDiagnostics();
 
@@ -156,6 +162,7 @@ public sealed class LiveTrackingCoordinator
             lifecycle.MatchStartedAt,
             lifecycle.LocalPlayerId);
         _trackingState = TrackingSessionState.Active;
+        NotifyMatchStarted(lifecycle.MatchStartedAt, lifecycle.LocalPlayerId);
         var lastTimestamp = lifecycle.MatchStartedAt;
 
         while (_pendingEvents.TryDequeue(out var pending) &&
@@ -186,11 +193,13 @@ public sealed class LiveTrackingCoordinator
         {
             var update = _tracking.Apply(gameEvent);
             Increment(ref _trackingEventsApplied);
+            NotifyEventApplied(gameEvent);
             return update;
         }
         catch (TrackingSafetyLimitExceededException)
         {
             Increment(ref _safetyLimitRejections);
+            NotifyEventRejected(gameEvent);
             return null;
         }
     }
@@ -217,6 +226,7 @@ public sealed class LiveTrackingCoordinator
 
         _ = _tracking.EndMatch(timestamp);
         _trackingState = TrackingSessionState.Ended;
+        NotifyMatchEnded(timestamp);
         return Publish(timestamp);
     }
 
@@ -341,6 +351,80 @@ public sealed class LiveTrackingCoordinator
             warnings,
             battlegrounds.CurrentOpponentPlayerId,
             _lastStateUpdateTimestamp);
+    }
+
+    private void NotifyMatchStarted(DateTimeOffset timestamp, int? localPlayerId)
+    {
+        if (_appliedEventObserver is not { } observer)
+        {
+            return;
+        }
+
+        try
+        {
+            observer.OnMatchStarted(timestamp, localPlayerId);
+        }
+        catch
+        {
+            DetachObserver();
+        }
+    }
+
+    private void NotifyEventApplied(GameEvent gameEvent)
+    {
+        if (_appliedEventObserver is not { } observer)
+        {
+            return;
+        }
+
+        try
+        {
+            observer.OnEventApplied(gameEvent);
+        }
+        catch
+        {
+            DetachObserver();
+        }
+    }
+
+    private void NotifyEventRejected(GameEvent gameEvent)
+    {
+        if (_appliedEventObserver is not { } observer)
+        {
+            return;
+        }
+
+        try
+        {
+            observer.OnEventRejected(gameEvent);
+        }
+        catch
+        {
+            DetachObserver();
+        }
+    }
+
+    private void NotifyMatchEnded(DateTimeOffset timestamp)
+    {
+        if (_appliedEventObserver is not { } observer)
+        {
+            return;
+        }
+
+        try
+        {
+            observer.OnMatchEnded(timestamp);
+        }
+        catch
+        {
+            DetachObserver();
+        }
+    }
+
+    private void DetachObserver()
+    {
+        _appliedEventObserver = null;
+        AppliedEventObserverDetached = true;
     }
 
     private static void Increment(ref long counter)
