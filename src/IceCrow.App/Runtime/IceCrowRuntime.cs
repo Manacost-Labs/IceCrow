@@ -1,4 +1,5 @@
 using System.Windows.Threading;
+using IceCrow.Hearthstone.Logs;
 using IceCrow.Infrastructure.ManacostApi;
 using IceCrow.Live;
 using IceCrow.Overlay;
@@ -55,6 +56,9 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
 
     public OverlayRenderDiagnostics OverlayDiagnostics =>
         _presentation.OverlayDiagnostics;
+
+    public PowerLogTailerDiagnostics TailerDiagnostics =>
+        _live.TailerDiagnostics;
 
     public void Start()
     {

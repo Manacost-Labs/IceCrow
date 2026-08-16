@@ -98,6 +98,16 @@ public partial class MainWindow : Window
             : "Last update: -";
     }
 
+    public void SetTailerDiagnostics(PowerLogTailerDiagnostics diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostics);
+        Dispatcher.VerifyAccess();
+
+        TailerResets.Text = diagnostics.LastResetReason is LogResetReason reason
+            ? $"Full rereads: {diagnostics.FullRereadCount} · Last reset: {reason} at {diagnostics.LastResetAt:HH:mm:ss} (offset {diagnostics.LastResetOffset:N0}, length {diagnostics.LastResetObservedLength:N0})"
+            : $"Full rereads: {diagnostics.FullRereadCount}";
+    }
+
     public void SetManacostDataStatus(ManacostDataStatus status)
     {
         ArgumentNullException.ThrowIfNull(status);

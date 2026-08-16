@@ -43,9 +43,11 @@ public partial class App : Application, IAsyncDisposable
             typeof(App).Assembly.GetName().Version?.ToString() ?? "0.0.0");
 
 #if DEBUG
+        var runtime = _runtime;
         _developerDiagnosticsPresenter = new DeveloperDiagnosticsPresenter(
             _developerWindow,
-            _runtime.OverlayDiagnostics);
+            _runtime.OverlayDiagnostics,
+            () => runtime.TailerDiagnostics);
         _developerDiagnosticsPresenter.PublishDeckstringsStatus(ManacostDeckCodec.PackageVersion, "Ready");
         _developerDiagnosticsPresenter.PublishTelemetryStatus(false, 0, null);
         _developerWindow.CaptureToggleChanged += OnCaptureToggleChanged;

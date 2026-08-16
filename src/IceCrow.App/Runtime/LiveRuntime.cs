@@ -34,6 +34,8 @@ internal sealed class LiveRuntime : IAsyncDisposable
         _tailer.RecoverableError += OnRecoverableError;
     }
 
+    public PowerLogTailerDiagnostics TailerDiagnostics => _tailer.Diagnostics;
+
     public async Task RunAsync(CancellationToken cancellationToken)
     {
         try

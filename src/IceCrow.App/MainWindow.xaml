@@ -70,9 +70,13 @@
                                Style="{StaticResource IceCrow.Text.Caption}"
                                Text="Tracking: Inactive" />
                     <TextBlock x:Name="LiveLastUpdate"
-                               Margin="0,0,0,16"
+                               Margin="0,0,0,3"
                                Style="{StaticResource IceCrow.Text.Caption}"
                                Text="Last update: -" />
+                    <TextBlock x:Name="TailerResets"
+                               Margin="0,0,0,16"
+                               Style="{StaticResource IceCrow.Text.Caption}"
+                               Text="Full rereads: 0" />
 
                     <TextBlock Margin="0,0,0,6"
                                Style="{StaticResource IceCrow.Text.SectionTitle}"
