@@ -6,13 +6,13 @@ a human operator following
 [hearthstone-mvp-test-runbook.md](hearthstone-mvp-test-runbook.md) and are
 never fabricated.
 
-## Gate A — build: PARTIAL
+## Gate A — build: PASS
 
 - Debug build and full test suite: PASS (local).
 - Release build and full test suite: PASS (local).
 - `dotnet format --verify-no-changes` and `git diff --check`: PASS (local).
-- GitHub Actions on these commits: NOT RUN (commits not pushed yet; the
-  previous pushed HEAD `ab14b19` was green including the manual soak job).
+- GitHub Actions: PASS (run 31960161760 on `7d31423`); the manual soak job
+  was green on the previous milestone run 31956180375.
 
 ## Gate B — real client: BLOCKED
 
@@ -42,6 +42,11 @@ tag drift are documented in the runbook, the acceptance checklist, and
 
 ## Ranked remaining blockers
 
-1. A real Hearthstone session executing the runbook (Gates B and D).
-2. Two reviewed real-anonymized fixtures from genuine captures (Gate C).
-3. Push + green GitHub Actions run for the hardening commits (Gate A).
+1. Fix the real-client defects F1–F3 from
+   [real-client-findings-2026-08-16.md](real-client-findings-2026-08-16.md)
+   (tailer re-read, capture round-trip limits, zero-turn matches) — they
+   block trustworthy Gate B/C evidence.
+2. A complete runbook pass on a real Hearthstone session (Gates B and D);
+   the 2026-08-16 session already confirmed Scenario B log discovery,
+   overlay alignment, and on-the-fly log.config pickup.
+3. Two reviewed real-anonymized fixtures from genuine captures (Gate C).
