@@ -181,21 +181,81 @@ public sealed class BattlegroundsLifecycleConfirmationTests
     }
 
     [Fact]
-    public void DetectorConfirmsExactlyOnceAndOnlyOnLaterTimestamp()
+    public void DetectorConfirmsOnlyOnLaterSemanticProgressExactlyOnce()
     {
         var detector = new BattlegroundsLifecycleDetector();
         _ = detector.Observe(new GameCreated(SnapshotTimestamp));
 
         var armed = detector.Observe(Tag("PLAYER_TECH_LEVEL", "1", SnapshotTimestamp));
         var sameInstant = detector.Observe(Tag("PLAYER_TRIPLES", "0", SnapshotTimestamp));
-        var confirmed = detector.Observe(Tag("100", "1", SnapshotTimestamp.AddMilliseconds(1)));
-        var saturated = detector.Observe(Tag("PLAYER_TECH_LEVEL", "2", SnapshotTimestamp.AddMilliseconds(2)));
+        // Later wall-clock alone proves nothing: an arbitrary tag must not
+        // confirm even with a later timestamp.
+        var unrelatedLater = detector.Observe(Tag("100", "1", SnapshotTimestamp.AddMilliseconds(1)));
+        var confirmed = detector.Observe(Tag("PLAYER_TECH_LEVEL", "2", SnapshotTimestamp.AddMilliseconds(2)));
+        var saturated = detector.Observe(Tag("PLAYER_TECH_LEVEL", "3", SnapshotTimestamp.AddMilliseconds(3)));
 
         Assert.Equal(BattlegroundsLifecycleAction.None, armed.Action);
         Assert.Equal(BattlegroundsLifecycleAction.None, sameInstant.Action);
+        Assert.Equal(BattlegroundsLifecycleAction.None, unrelatedLater.Action);
         Assert.Equal(BattlegroundsLifecycleAction.StartBattlegrounds, confirmed.Action);
         Assert.Equal(BattlegroundsLifecycleEvidence.PlayerTechLevel, confirmed.Evidence);
+        Assert.Equal(BattlegroundsLifecycleEvidence.PlayerTechLevel, confirmed.ConfirmedBy);
         Assert.Equal(BattlegroundsLifecycleAction.None, saturated.Action);
+    }
+
+    [Theory]
+    [InlineData("TURN", "1", BattlegroundsLifecycleEvidence.TurnProgress)]
+    [InlineData("2022", "1", BattlegroundsLifecycleEvidence.CombatSetup)]
+    [InlineData("3533", "0", BattlegroundsLifecycleEvidence.CombatSetup)]
+    [InlineData("STEP", "BEGIN_MULLIGAN", BattlegroundsLifecycleEvidence.StepProgress)]
+    [InlineData("STEP", "MAIN_READY", BattlegroundsLifecycleEvidence.StepProgress)]
+    public void SemanticProgressSignalsConfirmAnArmedCandidate(
+        string tag,
+        string value,
+        BattlegroundsLifecycleEvidence expectedReason)
+    {
+        var detector = new BattlegroundsLifecycleDetector();
+        _ = detector.Observe(new GameCreated(SnapshotTimestamp));
+        _ = detector.Observe(Tag("PLAYER_TECH_LEVEL", "1", SnapshotTimestamp));
+
+        var confirmed = detector.Observe(Tag(tag, value, SnapshotTimestamp.AddSeconds(1)));
+
+        Assert.Equal(BattlegroundsLifecycleAction.StartBattlegrounds, confirmed.Action);
+        Assert.Equal(expectedReason, confirmed.ConfirmedBy);
+    }
+
+    [Theory]
+    [InlineData("TURN", "0")]
+    [InlineData("STEP", "FINAL_GAMEOVER")]
+    [InlineData("STEP", "FINAL_WRAPUP")]
+    [InlineData("ZONE", "PLAY")]
+    [InlineData("1710", "1")]
+    public void NonProgressSignalsNeverConfirmAnArmedCandidate(string tag, string value)
+    {
+        var detector = new BattlegroundsLifecycleDetector();
+        _ = detector.Observe(new GameCreated(SnapshotTimestamp));
+        _ = detector.Observe(Tag("PLAYER_TECH_LEVEL", "1", SnapshotTimestamp));
+
+        var later = detector.Observe(Tag(tag, value, SnapshotTimestamp.AddSeconds(1)));
+
+        Assert.Equal(BattlegroundsLifecycleAction.None, later.Action);
+    }
+
+    [Fact]
+    public void LaterDeclarationsAndBlocksDoNotConfirmAnArmedCandidate()
+    {
+        var detector = new BattlegroundsLifecycleDetector();
+        _ = detector.Observe(new GameCreated(SnapshotTimestamp));
+        _ = detector.Observe(Tag("PLAYER_TECH_LEVEL", "1", SnapshotTimestamp));
+
+        var declaration = detector.Observe(new PlayerEntityDeclared(
+            SnapshotTimestamp.AddSeconds(1),
+            BlockId: null,
+            EntityId: 9,
+            PlayerId: 9,
+            GameAccountId: "account-9"));
+
+        Assert.Equal(BattlegroundsLifecycleAction.None, declaration.Action);
     }
 
     [Fact]

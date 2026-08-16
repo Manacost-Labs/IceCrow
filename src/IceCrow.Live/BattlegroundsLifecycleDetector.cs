@@ -8,9 +8,12 @@ namespace IceCrow.Live;
 /// tag is only <em>candidate</em> evidence: the client's catch-up dump after a
 /// live <c>log.config</c> change replays the current UI context as a burst of
 /// tags that all share one log timestamp and never progress. A match is
-/// <em>confirmed</em> only when a later-timestamped event follows the armed
-/// evidence — real matches advance log time immediately, a catch-up snapshot
-/// never does.
+/// <em>confirmed</em> only by a later-timestamped <em>semantic progression</em>
+/// signal — another Battlegrounds tag, a positive TURN, a setup/combat
+/// compatibility tag, or a game-step advance. An arbitrary later event proves
+/// only that time passed, not that a match is running, and must never confirm.
+/// In the real capture the first such signal (STEP=BEGIN_MULLIGAN) follows the
+/// burst within one second, far below the pending-buffer capacity.
 /// </summary>
 public sealed class BattlegroundsLifecycleDetector
 {
@@ -73,7 +76,9 @@ public sealed class BattlegroundsLifecycleDetector
 
         if (gameEvent is not RawTagChanged tagChanged)
         {
-            return ConfirmPendingOrNone(gameEvent.Timestamp);
+            // Declarations and block events prove only that lines flowed, not
+            // that a Battlegrounds match progressed; they never confirm.
+            return None(gameEvent.Timestamp);
         }
 
         ObservePlayerIdentity(tagChanged);
@@ -99,7 +104,7 @@ public sealed class BattlegroundsLifecycleDetector
             return None(gameEvent.Timestamp);
         }
 
-        return ConfirmPendingOrNone(gameEvent.Timestamp);
+        return ConfirmPendingOrNone(tagChanged);
     }
 
     public void Reset()
@@ -112,12 +117,14 @@ public sealed class BattlegroundsLifecycleDetector
         ClearPendingEvidence();
     }
 
-    private BattlegroundsLifecycleObservation ConfirmPendingOrNone(DateTimeOffset timestamp)
+    private BattlegroundsLifecycleObservation ConfirmPendingOrNone(RawTagChanged tagChanged)
     {
+        var timestamp = tagChanged.Timestamp;
         if (_battlegroundsDetected ||
             _pendingEvidence == BattlegroundsLifecycleEvidence.None ||
             _pendingEvidenceAt is not DateTimeOffset armedAt ||
-            timestamp <= armedAt)
+            timestamp <= armedAt ||
+            !TryGetSemanticProgress(tagChanged, out var confirmedBy))
         {
             return None(timestamp);
         }
@@ -130,8 +137,49 @@ public sealed class BattlegroundsLifecycleDetector
             _candidateStartedAt ?? timestamp,
             GetLocalPlayerId(),
             evidence,
-            ConfirmedAt: timestamp);
+            ConfirmedAt: timestamp,
+            ConfirmedBy: confirmedBy);
     }
+
+    private static bool TryGetSemanticProgress(
+        RawTagChanged tagChanged,
+        out BattlegroundsLifecycleEvidence confirmedBy)
+    {
+        var evidence = GetBattlegroundsEvidence(tagChanged);
+        if (evidence != BattlegroundsLifecycleEvidence.None)
+        {
+            confirmedBy = evidence;
+            return true;
+        }
+
+        switch (tagChanged.Tag)
+        {
+            case "TURN" when int.TryParse(
+                tagChanged.Value,
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out var turn) && turn > 0:
+                confirmedBy = BattlegroundsLifecycleEvidence.TurnProgress;
+                return true;
+            // The solo/duos setup-to-combat compatibility tags; see
+            // BattlegroundsCompatibilityTags for provenance.
+            case "2022" or "3533":
+                confirmedBy = BattlegroundsLifecycleEvidence.CombatSetup;
+                return true;
+            case "STEP" when IsProgressStep(tagChanged.Value):
+                confirmedBy = BattlegroundsLifecycleEvidence.StepProgress;
+                return true;
+            default:
+                confirmedBy = BattlegroundsLifecycleEvidence.None;
+                return false;
+        }
+    }
+
+    // Mulligan and main-phase steps only advance inside a running game; the
+    // FINAL_* steps are excluded so completed-game residue cannot confirm.
+    private static bool IsProgressStep(string value) =>
+        string.Equals(value, "BEGIN_MULLIGAN", StringComparison.Ordinal) ||
+        value.StartsWith("MAIN_", StringComparison.Ordinal);
 
     private void ClearPendingEvidence()
     {
@@ -247,6 +295,9 @@ public enum BattlegroundsLifecycleEvidence
     PlayerTriples,
     NextOpponentPlayerId,
     StateComplete,
+    TurnProgress,
+    CombatSetup,
+    StepProgress,
 }
 
 /// <summary>
@@ -262,4 +313,5 @@ public sealed record BattlegroundsLifecycleObservation(
     DateTimeOffset MatchStartedAt,
     int? LocalPlayerId,
     BattlegroundsLifecycleEvidence Evidence,
-    DateTimeOffset? ConfirmedAt = null);
+    DateTimeOffset? ConfirmedAt = null,
+    BattlegroundsLifecycleEvidence ConfirmedBy = BattlegroundsLifecycleEvidence.None);

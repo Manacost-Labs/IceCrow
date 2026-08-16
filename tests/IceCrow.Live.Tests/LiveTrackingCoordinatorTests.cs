@@ -160,6 +160,7 @@ public sealed class LiveTrackingCoordinatorTests
 
         _ = coordinator.Process(Line("CREATE_GAME"));
         _ = coordinator.Process(Line("TAG_CHANGE Entity=1 tag=PLAYER_TECH_LEVEL value=1"));
+        _ = coordinator.Process(Line("TAG_CHANGE Entity=1 tag=STEP value=MAIN_READY"));
         _ = coordinator.Process(Line("TAG_CHANGE Entity=1 tag=1000 value=1"));
         var rejected = coordinator.Process(Line("TAG_CHANGE Entity=1 tag=1001 value=1"));
 

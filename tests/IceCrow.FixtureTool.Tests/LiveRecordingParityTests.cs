@@ -124,6 +124,7 @@ public sealed class LiveRecordingParityTests
             [
                 "CREATE_GAME",
                 "TAG_CHANGE Entity=1 tag=PLAYER_TECH_LEVEL value=1",
+                "TAG_CHANGE Entity=1 tag=STEP value=MAIN_READY",
                 "TAG_CHANGE Entity=1 tag=1000 value=1",
                 "TAG_CHANGE Entity=1 tag=1001 value=1",
                 "CREATE_GAME",
