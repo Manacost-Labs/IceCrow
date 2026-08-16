@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 
 namespace IceCrow.Hearthstone.Logs.Tests;
 
@@ -205,4 +205,3 @@ public sealed class LogCheckpointContinuityTests : IDisposable
         Enumerable.Range(start, count).Select(index =>
             $"D 17:00:00.0000000 GameState.DebugPrintGame() - line-{index:D5}\r\n"));
 }
-
