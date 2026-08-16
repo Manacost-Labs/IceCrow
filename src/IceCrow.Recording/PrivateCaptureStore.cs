@@ -117,8 +117,24 @@ public sealed class PrivateCaptureStore
             }
         }
 
-        var pruned = EnforceRetention();
-        return new PrivateCaptureSaveResult(destination, pruned);
+        // The capture is durable once the move above succeeded. Retention is
+        // maintenance: a pruning failure degrades to a warning instead of
+        // masquerading as loss of the freshly persisted capture.
+        List<string> pruned;
+        string? maintenanceWarning = null;
+        try
+        {
+            pruned = EnforceRetention();
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException)
+        {
+            pruned = [];
+            maintenanceWarning =
+                $"Retention pruning failed; older captures may remain: {exception.Message}";
+        }
+
+        return new PrivateCaptureSaveResult(destination, pruned, maintenanceWarning);
     }
 
     /// <summary>Lists stored captures ordered oldest first.</summary>
@@ -186,10 +202,18 @@ public sealed class PrivateCaptureStore
             $"{startedAt.UtcDateTime:yyyyMMdd'T'HHmmss'Z'}_{Guid.NewGuid():N}{CaptureFileExtension}");
 }
 
-/// <summary>Outcome of one capture save: where it landed and what retention pruned.</summary>
+/// <summary>
+/// Outcome of one capture save. The capture at <see cref="CapturePath"/> was
+/// persisted successfully; <see cref="MaintenanceWarning"/> is set when
+/// retention pruning afterwards failed without affecting the new capture.
+/// </summary>
 public sealed record PrivateCaptureSaveResult(
     string CapturePath,
-    IReadOnlyList<string> PrunedCapturePaths);
+    IReadOnlyList<string> PrunedCapturePaths,
+    string? MaintenanceWarning = null)
+{
+    public bool RetentionSatisfied => MaintenanceWarning is null;
+}
 
 /// <summary>One stored capture file.</summary>
 public sealed record PrivateCaptureInfo(

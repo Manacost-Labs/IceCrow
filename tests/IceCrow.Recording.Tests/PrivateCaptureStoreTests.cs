@@ -132,6 +132,37 @@ public sealed class PrivateCaptureStoreTests : IDisposable
             maximumTotalBytes: RecordingSerializer.MaximumFileBytes - 1));
     }
 
+    [Fact]
+    public async Task RetentionFailureAfterSuccessfulSaveBecomesAMaintenanceWarning()
+    {
+        var store = new PrivateCaptureStore(_root, maximumCaptureCount: 1);
+        var baseline = new DateTimeOffset(2026, 8, 16, 10, 0, 0, TimeSpan.Zero);
+        var first = await store.SaveAsync(MinimalMatch(baseline));
+
+        PrivateCaptureSaveResult second;
+        await using (var retentionBlock = new FileStream(
+                         first.CapturePath,
+                         FileMode.Open,
+                         FileAccess.Read,
+                         FileShare.None))
+        {
+            second = await store.SaveAsync(MinimalMatch(baseline.AddMinutes(10)));
+        }
+
+        // The new capture was persisted; the failed pruning is only maintenance.
+        Assert.True(File.Exists(second.CapturePath));
+        Assert.False(second.RetentionSatisfied);
+        Assert.Contains("Retention pruning failed", second.MaintenanceWarning, StringComparison.Ordinal);
+        Assert.Empty(second.PrunedCapturePaths);
+        Assert.True(File.Exists(first.CapturePath));
+
+        // Once the blocker is gone, the next save prunes normally again.
+        var third = await store.SaveAsync(MinimalMatch(baseline.AddMinutes(20)));
+        Assert.True(third.RetentionSatisfied);
+        Assert.Equal(2, third.PrunedCapturePaths.Count);
+        Assert.Single(store.ListCaptures());
+    }
+
     private static RecordedMatch MinimalMatch(DateTimeOffset startedAt)
     {
         var recorder = new MatchRecorder(startedAt);
