@@ -20,10 +20,10 @@ requires a corpus or soak result and a security review.
 | Lobby players | 12 | 16 |
 | Timeline events/player | 384 | 512 |
 | Opponent snapshots/player | 96 | 128 |
-| Recording file | — | 64 MiB |
-| Recording retained estimate | — | 32 MiB |
-| Recording read preflight | — | 8x retained estimate (256 MiB token materialization); derived so no writer-accepted recording is rejected on load |
-| Recording events/checkpoints | — | 100,000 / 4,096 |
+| Recording file | — | 128 MiB (real-match calibrated 2026-08-17) |
+| Recording retained estimate | — | 96 MiB |
+| Recording read preflight | — | 8x retained estimate (768 MiB token materialization); derived so no writer-accepted recording is rejected on load |
+| Recording events/checkpoints | — | 250,000 / 4,096; a real solo match reached ~44k events by turn 6 and overflowed the old 100,000 cap before its natural end |
 | Recording string | — | 256 Ki characters |
 | Private capture store | — | 24 captures, 256 MiB total; oldest pruned first |
 | Private capture temp files | — | removed before the first save of a process |

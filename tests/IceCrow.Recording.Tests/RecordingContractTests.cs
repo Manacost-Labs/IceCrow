@@ -106,7 +106,7 @@ public sealed class RecordingContractTests
             await writer.WriteAsync(
                 "{\"formatVersion\":1,\"startedAt\":\"2026-08-16T21:00:00+00:00\",\"events\":[");
             await writer.WriteAsync("{\"a\":[");
-            for (var index = 0; index < 9_000_000; index++)
+            for (var index = 0; index < 26_000_000; index++)
             {
                 await writer.WriteAsync("0,");
             }

@@ -6,11 +6,16 @@ namespace IceCrow.Recording;
 
 public static class RecordingSerializer
 {
-    public const int MaximumEventCount = 100_000;
+    // Calibrated against real matches (2026-08-17 live session): a solo
+    // Battlegrounds match had ~44k applied events by turn 6 and exceeded
+    // 100k before its natural end, discarding the capture. A full late-game
+    // match projects to ~150-200k events and ~40-60 MB of indented JSON, so
+    // the budgets carry roughly 2x headroom above that projection.
+    public const int MaximumEventCount = 250_000;
     public const int MaximumCheckpointCount = 4_096;
     public const int MaximumStringCharacters = 256 * 1024;
-    public const long MaximumFileBytes = 64L * 1024 * 1024;
-    public const long MaximumRetainedBytes = 32L * 1024 * 1024;
+    public const long MaximumFileBytes = 128L * 1024 * 1024;
+    public const long MaximumRetainedBytes = 96L * 1024 * 1024;
 
     // Write/read contract: any match the write path accepts must load again.
     // The write path budgets MaximumRetainedBytes with a per-event model
