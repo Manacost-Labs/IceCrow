@@ -37,6 +37,7 @@ public sealed class PowerLogTailer
     private readonly Dictionary<string, FileSystemWatcher> _watchers =
         new(StringComparer.OrdinalIgnoreCase);
     private LogReadCheckpoint _checkpoint = LogReadCheckpoint.Empty;
+    private PowerLogTailerDiagnostics _diagnostics = PowerLogTailerDiagnostics.Empty;
     private bool _discardingOversizedLine;
     private int _started;
 
@@ -86,6 +87,8 @@ public sealed class PowerLogTailer
     public ChannelReader<RawLogLine> Lines => _lines.Reader;
 
     public LogReadCheckpoint Checkpoint => _checkpoint;
+
+    public PowerLogTailerDiagnostics Diagnostics => _diagnostics;
 
     public async Task RunAsync(CancellationToken cancellationToken)
     {
@@ -242,6 +245,13 @@ public sealed class PowerLogTailer
             prefixChanged ||
             contentChangedAtEndOfFile)
         {
+            RecordReset(
+                !samePath ? LogResetReason.PathChanged
+                : _checkpoint.FileCreatedAt != createdAt ? LogResetReason.CreationTimeChanged
+                : file.Length < _checkpoint.ByteOffset ? LogResetReason.FileShrank
+                : prefixChanged ? LogResetReason.PrefixChangedBeforeRead
+                : LogResetReason.ContentChangedAtEnd,
+                file.Length);
             _checkpoint = new LogReadCheckpoint(
                 file.FullName,
                 0,
@@ -331,6 +341,9 @@ public sealed class PowerLogTailer
                     cancellationToken).ConfigureAwait(false) != openedPrefixFingerprint;
             if (prefixChangedWhileReading)
             {
+                RecordReset(
+                    LogResetReason.PrefixChangedDuringRead,
+                    file.Exists ? file.Length : 0);
                 _checkpoint = new LogReadCheckpoint(
                     file.FullName,
                     0,
@@ -362,6 +375,9 @@ public sealed class PowerLogTailer
                 stream.Length == openedLength &&
                 contentFingerprint != openedContentFingerprint.Value)
             {
+                RecordReset(
+                    LogResetReason.ContentChangedDuringRead,
+                    file.Exists ? file.Length : 0);
                 _checkpoint = new LogReadCheckpoint(
                     file.FullName,
                     0,
@@ -587,6 +603,25 @@ public sealed class PowerLogTailer
         _ = sender;
         RecoverableError?.Invoke(eventArgs.GetException());
         Signal();
+    }
+
+    private void RecordReset(LogResetReason reason, long observedLength)
+    {
+        if (_checkpoint.FilePath is null || _checkpoint.ByteOffset == 0)
+        {
+            return;
+        }
+
+        var previous = _diagnostics;
+        var isFullReread = reason != LogResetReason.PathChanged;
+        _diagnostics = new PowerLogTailerDiagnostics(
+            isFullReread && previous.FullRereadCount < long.MaxValue
+                ? previous.FullRereadCount + 1
+                : previous.FullRereadCount,
+            reason,
+            _timeProvider.GetUtcNow(),
+            observedLength,
+            _checkpoint.ByteOffset);
     }
 
     private void Signal()
