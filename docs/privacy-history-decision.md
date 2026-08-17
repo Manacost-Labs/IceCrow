@@ -1,36 +1,42 @@
-# Git-history privacy decision (owner decision required)
+# Git-history privacy decision — Option B executed
 
 The current tree is sanitized: privacy guard tests reject BattleTag-like
 identifiers and local installation paths in protected files, and no private
-capture has ever been committed. Earlier commits in this repository's
-history, however, contain identifiers that today's guards would reject
-(session notes written before the guards existed). The values themselves
-are intentionally not listed here.
+capture has ever been committed. Earlier commits contained identifiers in
+session notes written before the guards existed; the values themselves are
+intentionally not reproduced here.
 
-This is a decision for the repository owner; the tooling will not rewrite
-history on its own.
+## Decision and outcome
 
-## Option A — accept the existing history
+**Option B (rewrite history) was chosen by the owner and executed on
+2026-08-17.** The reachable history of `main` was rewritten and
+force-pushed; the privacy guards pass over the full rewritten history, and
+the identifiers are no longer reachable from any current branch.
 
-- No disruption: clones, branches, forks, and commit references stay valid.
-- The old identifiers remain reachable to anyone with repository access
-  through `git log`/`git show` on historical commits.
-- Reasonable while the repository stays private to trusted collaborators.
+All commit SHAs recorded before the rewrite (docs, CI run links, session
+reports) refer to pre-rewrite history. Where such a SHA still appears in a
+dated session document it is historical; current documents reference only
+reachable commits.
 
-## Option B — rewrite history before wider adoption
+## What the rewrite does NOT guarantee
 
-- Removes the identifiers from reachable history (e.g. `git filter-repo`).
-- Requires a force-push; every existing clone and branch must be re-based
-  or re-cloned, and all recorded commit SHAs (docs, CI links, session
-  reports) become stale.
-- Anything already fetched by an external fork or mirror cannot be erased
-  retroactively — rewriting is only effective before wider sharing.
+Do not treat the rewrite as complete erasure:
 
-## Recommendation timing
+- old Git objects may remain retrievable **by exact SHA** on GitHub for some
+  time (cached pack data, PR references, API access) even though they are
+  unreachable from any branch;
+- external clones, forks, mirrors, or CI caches made before the rewrite
+  still contain the old history and cannot be invalidated from this
+  repository.
 
-Decide before granting access beyond the current collaborators. If Option B
-is chosen, schedule it as a dedicated maintenance window: rewrite, verify
-the privacy guards over the full rewritten history, force-push, and
-invalidate old clones in one sitting.
+If complete server-side removal is required, the repository owner can
+request garbage collection of unreachable objects via GitHub Support. That
+is an owner action; no support contact or further force-push happens
+without explicit instruction.
 
-Decision: **PENDING (owner)**.
+## Consequences already absorbed
+
+- Every collaborator clone had to be re-based or re-cloned once.
+- One CI push run failed after the rewrite because the whitespace step
+  diffed against a pre-rewrite base revision; the step is now deterministic
+  against the whole tree and immune to force-push history.
