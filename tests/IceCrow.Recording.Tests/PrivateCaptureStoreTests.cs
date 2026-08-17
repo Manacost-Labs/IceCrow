@@ -125,6 +125,18 @@ public sealed class PrivateCaptureStoreTests : IDisposable
     }
 
     [Fact]
+    public void DefaultRetentionLimitsAgreeAtTheSerializerFileCap()
+    {
+        // The count and byte limits must never imply contradictory
+        // expectations: the default byte budget holds exactly the default
+        // capture count at the maximum serialized size.
+        Assert.Equal(
+            PrivateCaptureStore.DefaultMaximumCaptureCount *
+            RecordingSerializer.MaximumFileBytes,
+            PrivateCaptureStore.DefaultMaximumTotalBytes);
+    }
+
+    [Fact]
     public void TotalByteLimitBelowOneCaptureIsRejected()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new PrivateCaptureStore(

@@ -15,10 +15,16 @@ public sealed class PrivateCaptureStore
     public const string CaptureFileExtension = ".icecrow.json";
     public const string TemporaryFilePrefix = ".icecrow-capture-";
 
-    // Provisional bounds pending measurements of real match recordings; the
-    // serializer already caps a single capture at MaximumFileBytes.
-    public const int DefaultMaximumCaptureCount = 24;
-    public const long DefaultMaximumTotalBytes = 256L * 1024 * 1024;
+    // Calibrated for real full-match captures (2026-08-17 evidence: a full
+    // solo match projects to ~50-100 MB of indented JSON). The two limits
+    // agree exactly at the serializer file cap — 8 captures x 128 MiB =
+    // 1 GiB — so the count limit can never promise more retained matches
+    // than the byte limit allows: worst-case disk usage is 1 GiB, and 8
+    // typical full matches (~0.4-0.8 GiB) fit before any pruning. This is a
+    // developer-only Debug store; oldest captures are pruned first.
+    public const int DefaultMaximumCaptureCount = 8;
+    public const long DefaultMaximumTotalBytes =
+        DefaultMaximumCaptureCount * RecordingSerializer.MaximumFileBytes;
 
     private readonly int _maximumCaptureCount;
     private readonly long _maximumTotalBytes;
