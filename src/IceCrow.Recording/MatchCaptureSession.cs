@@ -21,6 +21,8 @@ public sealed class MatchCaptureSession
 
     public int CurrentEventCount => _recorder?.EventCount ?? 0;
 
+    public long CurrentRetainedBytes => _recorder?.RetainedBytes ?? 0;
+
     public void OnMatchStarted(DateTimeOffset timestamp, int? localPlayerId)
     {
         _matchActive = true;

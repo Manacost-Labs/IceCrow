@@ -372,6 +372,7 @@ internal sealed class RecordingRuntime : IAppliedMatchEventObserver, IAsyncDispo
                 _enabled,
                 _sessionPhase,
                 _session.CurrentEventCount,
+                _session.CurrentRetainedBytes,
                 _persistencePhase,
                 _pendingSaveCount,
                 _savedCaptureCount,

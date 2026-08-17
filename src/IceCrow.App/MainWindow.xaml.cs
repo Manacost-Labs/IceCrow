@@ -185,9 +185,43 @@ public partial class MainWindow : Window
             : status.PersistencePhase.ToString();
         CaptureStatus.Text =
             $"Enabled: {(status.IsEnabled ? "Yes" : "No")} · Session: {session} · Persistence: {persistence}";
+        CaptureBudget.Text = FormatCaptureBudget(status);
         CaptureDetail.Text =
             $"Captures: {status.SavedCaptureCount} · Last: {status.LastSavedFileName ?? "-"}";
         CaptureMessages.Text = FormatCaptureMessages(status);
+    }
+
+    /// <summary>
+    /// Recording owns the budget constants; this only projects headroom for
+    /// the developer. Warnings are advisory — the recorder itself still
+    /// enforces the hard limits.
+    /// </summary>
+    private static string FormatCaptureBudget(RecordingCaptureStatus status)
+    {
+        if (status.SessionPhase != RecordingSessionPhase.Recording)
+        {
+            return "Budget: idle";
+        }
+
+        var eventPercent = 100.0 * status.CurrentEventCount /
+            IceCrow.Recording.RecordingSerializer.MaximumEventCount;
+        var retainedPercent = 100.0 * status.CurrentRetainedBytes /
+            IceCrow.Recording.RecordingSerializer.MaximumRetainedBytes;
+        var retainedMebibytes = status.CurrentRetainedBytes / (1024.0 * 1024.0);
+        var maximumRetainedMebibytes =
+            IceCrow.Recording.RecordingSerializer.MaximumRetainedBytes / (1024 * 1024);
+        var text = string.Create(
+            CultureInfo.InvariantCulture,
+            $"Events {status.CurrentEventCount:N0} / {IceCrow.Recording.RecordingSerializer.MaximumEventCount:N0} ({eventPercent:F1}%) · Retained {retainedMebibytes:F1} / {maximumRetainedMebibytes} MiB ({retainedPercent:F1}%)");
+        var worstPercent = Math.Max(eventPercent, retainedPercent);
+        if (worstPercent > 90)
+        {
+            return text + " · warning: capture likely to exceed current budget";
+        }
+
+        return worstPercent > 75
+            ? text + " · warning: approaching capture budget"
+            : text;
     }
 
     private static string FormatCaptureMessages(RecordingCaptureStatus status)

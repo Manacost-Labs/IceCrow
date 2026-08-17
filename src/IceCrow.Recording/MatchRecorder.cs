@@ -18,6 +18,10 @@ public sealed class MatchRecorder
 
     public int EventCount => _events.Count;
 
+    /// <summary>Estimated retained bytes reserved so far against
+    /// <see cref="RecordingSerializer.MaximumRetainedBytes"/>.</summary>
+    public long RetainedBytes => _retainedBytes;
+
     public void RecordMatchStarted(
         DateTimeOffset timestamp,
         int? localPlayerId = null)

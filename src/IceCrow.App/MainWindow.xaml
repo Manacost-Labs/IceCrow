@@ -148,6 +148,11 @@
                                Style="{StaticResource IceCrow.Text.Caption}"
                                Text="Enabled: No · Session: Off · Persistence: Idle"
                                TextWrapping="Wrap" />
+                    <TextBlock x:Name="CaptureBudget"
+                               Margin="0,0,0,3"
+                               Style="{StaticResource IceCrow.Text.Caption}"
+                               Text="Budget: idle"
+                               TextWrapping="Wrap" />
                     <TextBlock x:Name="CaptureDetail"
                                Margin="0,0,0,3"
                                Style="{StaticResource IceCrow.Text.Caption}"

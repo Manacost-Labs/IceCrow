@@ -31,6 +31,7 @@ internal sealed record RecordingCaptureStatus(
     bool IsEnabled,
     RecordingSessionPhase SessionPhase,
     int CurrentEventCount,
+    long CurrentRetainedBytes,
     RecordingPersistencePhase PersistencePhase,
     int PendingSaveCount,
     int SavedCaptureCount,

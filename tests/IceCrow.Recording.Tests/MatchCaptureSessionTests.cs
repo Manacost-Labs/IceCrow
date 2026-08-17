@@ -32,6 +32,24 @@ public sealed class MatchCaptureSessionTests
     }
 
     [Fact]
+    public void RetainedBytesTrackRecordingAndResetOnDiscard()
+    {
+        var session = new MatchCaptureSession();
+        Assert.Equal(0, session.CurrentRetainedBytes);
+
+        session.OnMatchStarted(Timestamp, localPlayerId: 1);
+        session.OnEventApplied(Tag("PLAYER_TECH_LEVEL", "2"));
+        var afterOneEvent = session.CurrentRetainedBytes;
+        Assert.True(afterOneEvent > 0);
+
+        session.OnEventApplied(Tag("TURN", "3"));
+        Assert.True(session.CurrentRetainedBytes > afterOneEvent);
+
+        session.OnEventRejected(Tag("HEALTH", "40"));
+        Assert.Equal(0, session.CurrentRetainedBytes);
+    }
+
+    [Fact]
     public void SafetyRejectionDiscardsTheCaptureInsteadOfSavingIncompleteEvidence()
     {
         var session = new MatchCaptureSession();

@@ -52,6 +52,8 @@ public sealed class RecordingRuntimeTests
             status.SessionPhase == RecordingSessionPhase.Recording &&
             status.CurrentEventCount >= 100);
         Assert.True(strided.CurrentEventCount >= 100);
+        Assert.True(strided.CurrentRetainedBytes > 0);
+        Assert.True(strided.CurrentRetainedBytes < RecordingSerializer.MaximumRetainedBytes);
     }
 
     [Fact]
