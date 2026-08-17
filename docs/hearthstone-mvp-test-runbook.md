@@ -22,16 +22,21 @@ the end; do not reinterpret them as bugs.
 6. Confirm `%LocalAppData%\IceCrow\private-captures\` does not exist or is
    empty before the first enabled capture.
 
-## Pre-live hardening verification
+## Pre-live hardening verification (next session focus)
 
-Record each line as PASS / FAIL / NOT RUN / BLOCKED; nothing is pre-filled.
+The next session answers one question: can a full real match be saved,
+loaded, replayed, and followed by a second captured match without state
+leakage. Record each line as PASS / FAIL / NOT RUN / BLOCKED; nothing is
+pre-filled.
 
 Before starting Hearthstone, the developer window must show:
 
 - [ ] `Full rereads: 0`
 - [ ] `unresolved named refs` absent from the applied-events line (i.e. 0)
 - [ ] `Lifecycle: idle · pending 0 · drops 0 · confirm: - · incomplete: 0`
-- [ ] Match capture `Enabled: No · Session: Off · Persistence: Idle`
+- [ ] Match capture **enabled before queueing**: `Enabled: Yes · Session:
+      Waiting · Persistence: Idle`
+- [ ] Capture budget line shows `Budget: idle` (events and retained at 0).
 
 During match start:
 
@@ -45,24 +50,36 @@ During match start:
       start until the next game — that is correct fail-closed behavior, and
       the occurrence itself is a finding to report.
 
-During the match:
+During the match, at roughly turn 3, turn 6, and turn 9+, note the values
+of:
 
+- [ ] Turn / Phase / Current opponent / Opponent Memory count.
+- [ ] Capture budget: `Events … (x%)` and `Retained … (y%)` — record the
+      approximate percentages at each checkpoint.
+- [ ] `Full rereads` (must stay 0), `incomplete` (0), `unresolved named
+      refs` (ideally 0).
 - [ ] Turn advances; Recruit/Combat alternate; Opponent Memory fills.
-- [ ] `unresolved named refs` ideally stays 0; `Full rereads` stays 0.
+- [ ] A budget warning (`approaching`/`likely to exceed`) at any point is a
+      finding to record with its turn number; capture must still complete.
 
-After the match:
+At match end:
 
-- [ ] Exactly one capture file; then run the one-command validation:
+- [ ] Exactly one saved capture; **no recorder-limit error**; Session
+      returns to `Waiting`, Persistence reaches `Saved`.
+- [ ] Run the one-command validation:
 
   ```powershell
   ./scripts/validate-latest-private-capture.ps1
   ```
 
-- [ ] `OFFICIAL VALIDATION PASSED` with turn/phase matching what you saw.
+- [ ] `OFFICIAL VALIDATION PASSED` with format version, capture start/end
+      times, and turn/phase matching what you observed on screen.
 
 Second match, without restarting IceCrow:
 
-- [ ] No state leakage; exactly a second capture; validation passes again.
+- [ ] Capture the second match; no leakage of entities, lobby, opponent
+      memory, timeline, or recording events from match one.
+- [ ] Exactly a second capture file; validation passes on it as well.
 
 ## Scenario A — IceCrow before Hearthstone
 

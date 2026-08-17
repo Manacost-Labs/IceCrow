@@ -25,6 +25,12 @@ public static class RecordingValidator
         var summary = new StringBuilder();
         summary.AppendLine("OFFICIAL VALIDATION PASSED");
         summary.AppendLine(CultureInfo.InvariantCulture,
+            $"format version       : {match.FormatVersion}");
+        summary.AppendLine(CultureInfo.InvariantCulture,
+            $"capture started      : {match.StartedAt:yyyy-MM-dd HH:mm:ss.fff zzz}");
+        summary.AppendLine(CultureInfo.InvariantCulture,
+            $"capture ended        : {match.Events[^1].Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz}");
+        summary.AppendLine(CultureInfo.InvariantCulture,
             $"events               : {match.Events.Count}");
         summary.AppendLine(CultureInfo.InvariantCulture,
             $"replayed             : {state.ProcessedEventCount}");
