@@ -32,7 +32,11 @@ Do not treat the rewrite as complete erasure:
 If complete server-side removal is required, the repository owner can
 request garbage collection of unreachable objects via GitHub Support. That
 is an owner action; no support contact or further force-push happens
-without explicit instruction.
+without explicit instruction. Until that cleanup happens, treat the GC
+request as the blocking follow-up before widening repository access, and
+do not publish pre-rewrite commit ids in reachable documents — a current
+doc that quotes an exact old SHA hands the reader the only key needed to
+retrieve the purged history.
 
 ## Consequences already absorbed
 

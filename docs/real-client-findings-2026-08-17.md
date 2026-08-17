@@ -1,7 +1,9 @@
 # Real-client findings — 2026-08-17 (second session)
 
-Second live Hearthstone Battlegrounds session against the Debug build at
-`d5b7191` (pre-live hardening v2), session log
+Second live Hearthstone Battlegrounds session against the pre-live
+hardening v2 Debug build (a pre-rewrite commit whose id is intentionally
+not reproduced; the equivalent reachable checklist commit is `323ff24`),
+session log
 `Logs\Hearthstone_2026_08_17_00_00_26`. One match was conceded early with
 capture disabled; one full match (~25 minutes, second place) ran with
 capture enabled. No private identifiers appear in this report.
@@ -41,7 +43,7 @@ discarded the capture honestly at match end — the developer window showed
 `Error: Recorder limit reached…`, no file appeared, and nothing false was
 persisted ("fail loudly, not falsely" held exactly).
 
-Fix (commit `e340063`, evidence-calibrated): 250,000 events, 96 MiB
+Fix (reachable commit `f6d4ffa`, evidence-calibrated): 250,000 events, 96 MiB
 retained estimate, 128 MiB file cap, read preflight still derived as
 8x retained; the hostile-flood contract test scales to the new ceiling.
 The new limits carry ~2x headroom above the measured full-match

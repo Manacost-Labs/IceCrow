@@ -49,9 +49,11 @@ results come from a human operator following the
   run on the same SHA failed only because the old whitespace step diffed
   against a base revision the history rewrite had removed — root-caused and
   fixed in this milestone.
-- Remote long-run soak: PASS on pre-rewrite historical `4e1915c` (run
-  31969148713). The current HEAD has no matching remote soak yet — local
-  soak covers it; dispatching `run_soak = true` needs owner authorization.
+- Remote long-run soak: PASS on a pre-rewrite build (the exact commit id is
+  intentionally not reproduced — see
+  [privacy-history-decision.md](privacy-history-decision.md)). The current
+  HEAD has no matching remote soak yet — local soak covers it; dispatching
+  `run_soak = true` needs owner authorization.
 
 ## Gate B — real client: PARTIAL (major progress in session two)
 
