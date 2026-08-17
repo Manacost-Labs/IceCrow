@@ -96,6 +96,92 @@ public sealed class RecordingContractTests
     }
 
     [Fact]
+    public void RetainedBudgetAcceptsUpToTheCapAndRejectsTheCrossingEvent()
+    {
+        // One shared max-length string keeps the test cheap in real memory
+        // while every event still charges the full per-event estimate
+        // (256 bytes base + 2 bytes per string character).
+        var content = new string('x', RecordingSerializer.MaximumStringCharacters);
+        var recorder = new MatchRecorder(Timestamp);
+        recorder.RecordMatchStarted(Timestamp, localPlayerId: 4);
+
+        var accepted = 0;
+        var recordUntilRejected = () =>
+        {
+            while (accepted < 1_000)
+            {
+                recorder.Record(new UnknownPowerEvent(
+                    Timestamp.AddMilliseconds(accepted),
+                    BlockId: null,
+                    Content: content));
+                accepted++;
+            }
+        };
+        var exception = Assert.Throws<InvalidOperationException>(recordUntilRejected);
+
+        Assert.Contains("retain", exception.Message, StringComparison.Ordinal);
+        var perEventEstimate = 256L + (2L * content.Length);
+        Assert.True(accepted > 0);
+        Assert.True(recorder.RetainedBytes <= RecordingSerializer.MaximumRetainedBytes);
+        Assert.True(
+            recorder.RetainedBytes > RecordingSerializer.MaximumRetainedBytes - perEventEstimate,
+            "The recorder must accept events until the next one would cross the retained budget.");
+        Assert.Equal(accepted + 1, recorder.EventCount);
+    }
+
+    [Theory]
+    [InlineData("tag-flood")]
+    [InlineData("cyrillic-names")]
+    public async Task RealShapedRecordingsScaleToTheRetainedBudgetWithinTheFileCap(string shape)
+    {
+        // Contract-tested upper bound, not a mathematical guarantee: for the
+        // realistic capture shapes (token-dominated tag floods and short
+        // non-ASCII entity names), bytes-on-disk grow no faster relative to
+        // the retained estimate than MaximumFileBytes relative to
+        // MaximumRetainedBytes — so a full-retained-budget match of these
+        // shapes serializes under the 128 MiB file cap. Adversarial
+        // max-length non-ASCII strings can exceed the cap and fail closed at
+        // save time instead (see the serializer relationship comment).
+        var recorder = new MatchRecorder(Timestamp);
+        recorder.RecordMatchStarted(Timestamp, localPlayerId: 4);
+        for (var index = 0; index < 20_000; index++)
+        {
+            if (shape == "tag-flood")
+            {
+                recorder.Record(new RawTagChanged(
+                    Timestamp.AddMilliseconds(index),
+                    BlockId: null,
+                    EntityId: (index % 500) + 1,
+                    EntityName: null,
+                    Tag: "1710",
+                    Value: (index % 7).ToString(CultureInfo.InvariantCulture),
+                    IsCreationTag: false));
+            }
+            else
+            {
+                recorder.Record(new EntityRevealed(
+                    Timestamp.AddMilliseconds(index),
+                    BlockId: null,
+                    EntityId: index + 1,
+                    EntityName: "Богатый мертвяк",
+                    CardId: "BG_REAL_SHAPE_001"));
+            }
+        }
+
+        recorder.RecordMatchEnded(Timestamp.AddHours(1));
+        var retainedBytes = recorder.RetainedBytes;
+
+        await using var stream = new MemoryStream();
+        await RecordingSerializer.SerializeAsync(stream, recorder.CreateMatch());
+
+        Assert.True(
+            stream.Length * RecordingSerializer.MaximumRetainedBytes <=
+            RecordingSerializer.MaximumFileBytes * retainedBytes,
+            $"Shape '{shape}': {stream.Length} disk bytes for {retainedBytes} retained bytes " +
+            "would exceed the file cap when scaled to the full retained budget.");
+    }
+
+    [Fact]
     public async Task HostileTokenFloodIsStillRejectedByThePreflight()
     {
         // A hand-written non-schema document with millions of tiny tokens

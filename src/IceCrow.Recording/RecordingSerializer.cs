@@ -19,7 +19,21 @@ public static class RecordingSerializer
 
     // Write/read contract: any match the write path accepts must load again.
     // The write path budgets MaximumRetainedBytes with a per-event model
-    // (256 bytes base + 2 bytes per string character). The read preflight
+    // (256 bytes base + 2 bytes per string character).
+    //
+    // Retained/file relationship (contract-tested upper bound, not a
+    // mathematical guarantee): for realistic capture shapes — token-dominated
+    // tag floods and short entity names, including non-ASCII — measured disk
+    // bytes grow no faster relative to the retained estimate than the
+    // 128 MiB file cap relative to the 96 MiB retained cap, so a
+    // full-retained-budget match of those shapes serializes under the file
+    // cap (RecordingContractTests). An adversarial recording dominated by
+    // maximum-length non-ASCII strings can exceed the file cap because
+    // \uXXXX escaping writes up to 6 bytes per character against the 2 the
+    // writer charged; SerializeAsync then fails closed with an explicit
+    // limit error at save time and live tracking is unaffected.
+    //
+    // The read preflight
     // instead charges every JSON token, which costs more for the same data:
     // schema property names, per-token overhead, and primitive fields add up
     // to at most ~4x the write-side base, and the serializer escapes
