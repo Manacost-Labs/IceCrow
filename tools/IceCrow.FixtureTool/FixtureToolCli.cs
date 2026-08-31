@@ -64,6 +64,14 @@ public static class FixtureToolCli
                     await output.WriteLineAsync(workReport).ConfigureAwait(false);
                     return 0;
 
+                case "analyze-combat-windows":
+                    var combatReport = await CombatWindowAnalyzer.AnalyzeAsync(
+                            Require(options, "input"),
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    await output.WriteLineAsync(combatReport).ConfigureAwait(false);
+                    return 0;
+
                 case "analyze-recording":
                     var analysis = await RecordingAnalyzer.AnalyzeAsync(
                             Require(options, "input"),
@@ -177,6 +185,8 @@ public static class FixtureToolCli
         "  validate-recording --input <recording>" + Environment.NewLine + Environment.NewLine +
         "Measure replay work under measurement-only limits (privacy-safe):" + Environment.NewLine +
         "  analyze-replay-work --input <recording>" + Environment.NewLine + Environment.NewLine +
+        "Analyze combat-transition board ordering (privacy-safe):" + Environment.NewLine +
+        "  analyze-combat-windows --input <recording>" + Environment.NewLine + Environment.NewLine +
         "Analyze a recording with privacy-safe aggregates only:" + Environment.NewLine +
         "  analyze-recording --input <recording> [--tag <TAG>] [--top-tags <N>] " +
         "[--around-event <index>] [--around-window <N>]" + Environment.NewLine + Environment.NewLine +
