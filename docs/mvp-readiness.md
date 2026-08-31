@@ -9,8 +9,9 @@ Statuses: `PASS`, `FAIL`, `PARTIAL`, `NOT RUN`, `BLOCKED`. Real-client
 results come from a human operator following the
 [runbook](hearthstone-mvp-test-runbook.md) and are never fabricated.
 
-**Overall: INTERNAL MVP CODE READY — ONE LIVE EVIDENCE PIECE REMAINING
-(a saved full-match capture).**
+**Overall: INTERNAL MVP LIVE GATE PASSED** (2026-08-31: four consecutive
+real matches → four saved captures → four official loads → four complete
+official replays with exact semantic endings and clean state isolation).
 
 ## Real-client findings status (after the 2026-08-17 session)
 
@@ -37,10 +38,18 @@ results come from a human operator following the
   213k / 175k events, peak 85.3% of the 250k budget; the >75% headroom
   advisory fired live exactly as designed; no recorder-limit discard).
 - F10 replay event-snapshot work guard not calibrated for full matches —
-  **NEW (2026-08-31, HIGH)**: every saved full-match capture loads but
-  fails official replay on `MaximumEventSnapshotWorkUnits = 1M`; see
+  **fixed and verified against four full real captures** (2026-08-31): the
+  accounting is honest (a real FrozenDictionary tag snapshot per applied
+  event), the budget was recalibrated to 4M = 250k events x 16 units/event
+  from the measured 10.03–10.23 units/event corpus, full-capacity contract
+  tests pin it, and all four captures now pass official validation with
+  exact semantic parity; see
   [real-client-findings-2026-08-31.md](real-client-findings-2026-08-31.md).
-  Fixed-by: pending (the F7 evidence-first recalibration method applies).
+- F11 combat-entry opponent board snapshots replayed with zero minion
+  work — **NEW (2026-08-31, MEDIUM investigation)**: opponent histories
+  populate (7 per match) but replayed combat-entry boards contained no
+  minions across all four captures; owner Battlegrounds/Tracking snapshot
+  timing; not a Gate B chain blocker.
 
 ## Gate A — build: PASS (current-HEAD remote soak pending)
 
@@ -59,7 +68,7 @@ results come from a human operator following the
   HEAD has no matching remote soak yet — local soak covers it; dispatching
   `run_soak = true` needs owner authorization.
 
-## Gate B — real client: PARTIAL (major progress in session two)
+## Gate B — real client: PASS (2026-08-31)
 
 - Offline replay of the 2026-08-16 real evidence through the official
   pipeline: PASS (load, replay, turns, phases, opponent boards).
@@ -75,10 +84,15 @@ results come from a human operator following the
   **four consecutive full matches tracked, captured, and saved with clean
   cross-match isolation and zero rereads** — the save leg of Gate B is
   live-verified at real scale (peak 85.3% event budget).
-- Remaining live gap: the **replay** leg. All four saved captures load
-  through the official reader but fail replay on the uncalibrated F10
-  event-snapshot work guard. Gate B closes by fixing F10 offline and
-  re-validating the four preserved captures — no new live session needed.
+- The replay leg closed the same day: after the F10 recalibration all
+  four captures pass official validation end to end (154,610 / 205,922 /
+  213,253 / 174,684 events replayed in full), final turns match the live
+  observations exactly (10 / 12 / 13 / 10, all GameOver), and the
+  replayed unresolved-reference counts equal the live readings to the
+  digit. The Gate B proof chain — 4 real matches → 4 saved captures →
+  4 official loads → 4 complete official replays → clean isolation —
+  is complete. Open non-blocking follow-up: F11 (empty combat-entry board
+  contents in replay, MEDIUM investigation).
 
 ## Gate C — evidence: PARTIAL
 
@@ -113,10 +127,9 @@ guarantee — in [privacy-history-decision.md](privacy-history-decision.md).
 
 ## Ranked remaining blockers (updated 2026-08-31)
 
-1. F10 — recalibrate `ReplayRunner.MaximumEventSnapshotWorkUnits` against
-   the four preserved real captures (F7 method) with a full-capacity replay
-   contract test, then re-run `validate-latest-private-capture.ps1` on all
-   four; this alone closes the replay leg of Gate B.
+1. F11 — investigate the empty combat-entry board contents in replay
+   (MEDIUM; owner Battlegrounds/Tracking) and verify opponent-board
+   rendering visually in the next live session.
 2. Live performance profile with dotnet-counters (Gate D) — the only
    runbook item the 2026-08-31 session did not cover.
 3. Human privacy review and `APPROVED FOR COMMIT` for the fixture candidate
