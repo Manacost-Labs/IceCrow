@@ -32,11 +32,15 @@ results come from a human operator following the
 - F7 replay work accounting — fixed; timeline work now charges actual
   mutations (inserts and evictions), stays linear, and the real capture
   replays under default limits (~0.6–1.1 s for 61,543 events).
-- F8 recorder budget too small for a real full match — **fixed in code**
-  (250k events / 96 MiB retained / 128 MiB file, contract-tested at the
-  boundaries; budget headroom is visible live in the Debug window);
-  **live full-capture re-verification pending** — no post-fix saved capture
-  exists yet.
+- F8 recorder budget too small for a real full match — **live verified**
+  (2026-08-31 session: four consecutive full matches saved at 154k / 206k /
+  213k / 175k events, peak 85.3% of the 250k budget; the >75% headroom
+  advisory fired live exactly as designed; no recorder-limit discard).
+- F10 replay event-snapshot work guard not calibrated for full matches —
+  **NEW (2026-08-31, HIGH)**: every saved full-match capture loads but
+  fails official replay on `MaximumEventSnapshotWorkUnits = 1M`; see
+  [real-client-findings-2026-08-31.md](real-client-findings-2026-08-31.md).
+  Fixed-by: pending (the F7 evidence-first recalibration method applies).
 
 ## Gate A — build: PASS (current-HEAD remote soak pending)
 
@@ -66,11 +70,15 @@ results come from a human operator following the
   with opponent memory, and enable-mid-match capture semantics all
   verified PASS against a real ~25-minute match; no false re-reads, no
   false matches, no safety rejections.
-- Remaining live gap: a **saved** full-match capture. The real match
-  overflowed the old 100k-event recorder cap and was honestly discarded
-  (F8); budgets are recalibrated from that evidence (`f6d4ffa`) and
-  boundary-tested, and one post-fix captured match plus the
-  two-consecutive-matches scenario are what remain NOT RUN.
+- Third live session (2026-08-31,
+  [real-client-findings-2026-08-31.md](real-client-findings-2026-08-31.md)):
+  **four consecutive full matches tracked, captured, and saved with clean
+  cross-match isolation and zero rereads** — the save leg of Gate B is
+  live-verified at real scale (peak 85.3% event budget).
+- Remaining live gap: the **replay** leg. All four saved captures load
+  through the official reader but fail replay on the uncalibrated F10
+  event-snapshot work guard. Gate B closes by fixing F10 offline and
+  re-validating the four preserved captures — no new live session needed.
 
 ## Gate C — evidence: PARTIAL
 
@@ -103,10 +111,13 @@ confidence are never overstated. The Git-history rewrite (Option B) was
 executed on 2026-08-17 and is recorded — including what it does not
 guarantee — in [privacy-history-decision.md](privacy-history-decision.md).
 
-## Ranked remaining blockers
+## Ranked remaining blockers (updated 2026-08-31)
 
-1. Second real-client runbook session (Gates B and D): one complete match,
-   two consecutive matches, catch-up/late-start, API-offline, with
-   dotnet-counters evidence.
-2. Human privacy review and `APPROVED FOR COMMIT` for the fixture candidate
+1. F10 — recalibrate `ReplayRunner.MaximumEventSnapshotWorkUnits` against
+   the four preserved real captures (F7 method) with a full-capacity replay
+   contract test, then re-run `validate-latest-private-capture.ps1` on all
+   four; this alone closes the replay leg of Gate B.
+2. Live performance profile with dotnet-counters (Gate D) — the only
+   runbook item the 2026-08-31 session did not cover.
+3. Human privacy review and `APPROVED FOR COMMIT` for the fixture candidate
    (Gate C), then a second reviewed fixture.
