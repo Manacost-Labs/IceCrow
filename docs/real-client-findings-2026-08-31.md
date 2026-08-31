@@ -41,9 +41,8 @@ fresh Debug build; Hearthstone had been running since 14:33 — Scenario B):
 
 ## Game 1
 
-Start: ~14:38 (confirmed lifecycle; observed live from the 14:42 checkpoint)
-End: PENDING
-Result: PENDING
+Start: 14:36:59 (confirmed lifecycle) · End: ~14:54 (GameOver at replay
+turn 10; capture saved 14:54:17) · Result: placement not recorded
 
 Lifecycle confirmation: exactly one match start, `confirm: StepProgress`
 Pending events at confirm: 0 residual (pending 0 at checkpoint)
@@ -73,13 +72,10 @@ diagnostics were added for.
 
 Turns/phases: advancing correctly, Recruit/Combat alternating
 Opponent tracking: current opponent tracked (PlayerId visible)
-Opponent Memory: PENDING (verified at replay)
+Opponent Memory: verified at replay — 7 opponent histories
 Overlay/focus: overlay rendering active (96 views applied), no focus theft
 observed
-Hero names: PENDING (operator visual check)
-
-End: ~14:54 (capture saved 14:54:17)
-Result: match completed (operator to confirm placement)
+Hero names: not separately verified by the operator this session
 
 Capture (Capture-1):
 - Events: 154,610 (RawTagChanged 138,998 · blocks 11,330 · entities 4,277)
@@ -98,16 +94,16 @@ Official validation (Capture-1):
   stream advances correctly from the confirmation moment (14:37:37)
 - Capture preserved unchanged for post-session re-validation
 
-Hero names: overlay rendered hero rows during play (operator to confirm
-visual correctness)
+Hero names: overlay rendered hero rows during play; per-name visual
+correctness was not separately recorded
 
 Findings: F10 (below) — discovered by this validation, exactly what the
 session was designed to catch
 
 ## Game 2
 
-Start: ~14:55 (no IceCrow restart after Game 1)
-End: PENDING
+Start: 14:55:17 (no IceCrow restart after Game 1). Result: placement not
+recorded.
 
 Isolation snapshot at 14:56 (turn 1, Recruit):
 - Fresh lobby of 9 players, current opponent PlayerId 7
@@ -134,7 +130,6 @@ Checkpoints:
   (session-total applied 309,675)
 
 End: ~15:16 (GameOver at turn 12; capture saved 15:16:35)
-Result: match completed at turn 12 (operator to confirm placement)
 
 Capture (Capture-2):
 - Events: 205,922 (RawTagChanged 187,498) — **82.4% of the event budget**,
@@ -169,8 +164,8 @@ Official validation (Capture-2):
 
 ## Game 3
 
-Start: ~15:18 (third consecutive match, still no IceCrow restart)
-End: PENDING
+Start: 15:17:36 (third consecutive match, still no IceCrow restart).
+Result: placement not recorded.
 
 Confirmed once again via StepProgress; fresh capture counter; drops 0,
 incomplete 0, Full rereads 0.
@@ -217,8 +212,8 @@ reset to 17) — a third consecutive-match isolation data point.
 
 ## Game 4
 
-Start: ~15:45 (fourth consecutive match, still no IceCrow restart)
-End: PENDING
+Start: 15:44:51 (fourth consecutive match, still no IceCrow restart).
+Result: placement not recorded.
 
 Confirmed once again via StepProgress; fresh counters; rereads 0.
 
@@ -238,12 +233,8 @@ End: ~16:01 (GameOver at turn 10; capture saved 16:01:41)
 Capture (Capture-4): 174,684 events (**peak ~69.9%**), 41.17 MB, exactly
 one file, no recorder-limit error.
 
-Official validation (Capture-4): Load PASS · Replay **FAIL — same F10
-guard** · capture preserved.
-
-## Cross-match state isolation
-
-PENDING.
+Official validation (Capture-4): Load PASS · Replay (pre-fix): FAIL on
+F10; **post-fix: PASSED — replayed 174,684/174,684, turn 10, GameOver**.
 
 ## Performance observations
 
@@ -259,18 +250,73 @@ being tracked.
 
 ## Session conclusion
 
-Four consecutive real matches: tracked, captured, saved, and isolated
-perfectly — the live pipeline half of the MVP chain is proven at real
-scale, including the first live firing of the budget headroom warning at
-76–85%. The one broken link is offline replay: every saved full-match
-capture fails the official replay on the uncalibrated event-snapshot
-work guard (F10). Fix F10, re-run the validator on the four preserved
-captures, and Gate B closes without another live session.
+The full internal MVP live chain is proven:
+
+```
+4 consecutive real matches
+→ tracked (zero rereads, one StepProgress confirmation each)
+→ captured (peaks 61.8–85.3% of the event budget, live headroom warning)
+→ saved (4 files, one per game, clean isolation)
+→ officially loaded (4/4)
+→ officially replayed end to end (4/4, after the same-day F10 fix)
+→ semantic endings matching the live session exactly
+```
+
+F10 was root-caused (honest accounting, undersized budget), recalibrated
+from the four-capture corpus, contract-tested at full capacity, and
+verified. Open follow-ups: F11 (empty combat-entry board contents in
+replay — MEDIUM investigation) and the deferred F9 metadata parser.
+
+## Post-session F10 fix and full revalidation (same day)
+
+The event-snapshot work of all four captures was measured with the new
+`analyze-replay-work` FixtureTool command (measurement-only limits):
+
+| Capture | Events | Event-snapshot work | Work/event | Max tags | Replay |
+| --- | --- | --- | --- | --- | --- |
+| Capture-1 | 154,610 | 1,574,106 | 10.18 | 38 | 1.03 s |
+| Capture-2 | 205,922 | 2,065,230 | 10.03 | 39 | 1.50 s |
+| Capture-3 | 213,253 | 2,180,808 | 10.23 | 42 | 1.21 s |
+| Capture-4 | 174,684 | 1,755,211 | 10.05 | 39 | 1.15 s |
+
+The accounting is honest (each applied event that touches an entity
+materializes a FrozenDictionary tag snapshot), so the default budget was
+recalibrated to 4,000,000 = 250k events x 16 units/event (measured bound
+10.23 x 1.5 safety, rounded up; theoretical writer-acceptable ceiling
+~64M). After the fix, **all four captures pass official validation**:
+
+| Capture | Replayed | Turn | Phase | Lobby | Histories | Timeline | Unresolved |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Capture-1 | 154,610/154,610 | 10 | GameOver | 9 | 7 | 186 | 4,916 |
+| Capture-2 | 205,922/205,922 | 12 | GameOver | 9 | 7 | 257 | 6,054 |
+| Capture-3 | 213,253/213,253 | 13 | GameOver | 9 | 7 | 249 | 6,843 |
+| Capture-4 | 174,684/174,684 | 10 | GameOver | 9 | 7 | 225 | 5,347 |
+
+Semantic parity with the live session is exact: final turns match the
+live observations (G2 t12, G3 t13, G4 t10), every phase is GameOver, and
+the replayed unresolved-reference counts equal the live end-of-match
+readings to the digit (6,054 / 6,843 / 5,347).
+
+## Event volume and the 250k budget
+
+- Composition (Captures 1–2 breakdowns): ~90% `RawTagChanged`, ~5.5%
+  block markers, ~3-4% entity declarations/reveals — normal client
+  verbosity for Battlegrounds; no evidence of duplicate normalized events
+  or multiple log sources, so no deduplication is warranted.
+- Peaks: 61.8% / 82.4% / 85.3% / 69.9% of the 250k event budget.
+- Decision: **KEEP 250k for the internal MVP.** All four real matches fit
+  with >=14.7% headroom, the live >75% advisory gives the operator
+  visibility, and raising the cap would force retained/file-cap and
+  retention re-analysis without a single observed overflow. Revisit only
+  if a real match is ever discarded at the cap.
 
 ## New findings
 
 ### F10 — replay event-snapshot work guard not calibrated for full matches
 
+- Status: **FIXED same day and verified against all four captures**
+  (measurement, recalibration to 4M, full-capacity contract tests, four
+  official validation passes; see the tables above).
 - Severity: HIGH
 - Evidence: Capture-1 (154,610 events, writer-accepted at 61.8% of the
   event budget) loads through the official reader but the official replay
@@ -293,8 +339,28 @@ captures, and Gate B closes without another live session.
   write-side flood test.
 - Regression test: replay a MaximumEventCount-scale tag-flood recording
   through ReplayRunner defaults.
-- MVP blocker: YES (for the replay leg of Gate B).
+- MVP blocker: was YES; resolved.
 
-## Session conclusion
+### F11 — combat-entry opponent board snapshots replayed with zero minion work
 
-PENDING.
+- Severity: MEDIUM (investigation)
+- Evidence: all four replays report `board snapshot work: 0` even though
+  every replay populated 7 opponent histories. The work counter charges
+  1 + tags per minion in each observed board, so 0 total means every
+  combat-entry board snapshot contained no minions. The 2026-08-16 real
+  capture replayed with minion-bearing boards under the same engine.
+- Impact: opponent histories exist (presence/turn data intact) but the
+  remembered board contents may be empty for the current client's combat
+  entry ordering — the overlay would show "board empty" instead of the
+  opponent's minions. Not a Gate B chain blocker (capture, load, replay,
+  and semantic endings are all correct), but it degrades the product's
+  core opponent-memory value if confirmed live.
+- Owner: `IceCrow.Battlegrounds`/`IceCrow.Tracking` combat-entry snapshot
+  timing (zone/controller tag ordering at the combat transition).
+- Suggested next step: inspect one capture's combat-entry window with the
+  privacy-safe analyzer (zone/controller tag sequences around
+  `NEXT_OPPONENT`/step transitions), then adjust the snapshot trigger or
+  confirm the client now populates boards after the trigger moment; add a
+  real-anonymized fixture checkpoint for a non-empty remembered board.
+- MVP blocker: NO (flagged for the next milestone; verify visually in the
+  next live session).
