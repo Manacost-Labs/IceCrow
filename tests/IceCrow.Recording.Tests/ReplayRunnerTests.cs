@@ -151,8 +151,12 @@ public sealed class ReplayRunnerTests
     }
 
     [Fact]
-    public void ReplayRejectsAnImpossibleEightMinionOpponentBoard()
+    public void CapturedOpponentBoardsAreStructurallyCappedAtSevenRealSlots()
     {
+        // A crafted eighth minion outside the seven real board slots must not
+        // become part of the remembered board: the capture keeps one minion
+        // per slot 1-7, so an impossible eight-minion board cannot exist by
+        // construction.
         var match = DeterministicMatchFixture.Create();
         var events = match.Events.ToList();
         var combatIndex = match.Checkpoints.Single(checkpoint => checkpoint.Name == "combat").EventIndex;
@@ -164,7 +168,11 @@ public sealed class ReplayRunnerTests
             match.StartedAt,
             events);
 
-        Assert.Throws<InvalidDataException>(() => new ReplayRunner(crafted).RunAll());
+        var state = new ReplayRunner(crafted).RunAll();
+
+        var board = Assert.IsType<BoardSnapshot>(state.OpponentMemory.GetLatest(2));
+        Assert.Equal(7, board.Minions.Count);
+        Assert.DoesNotContain(board.Minions, minion => minion.EntityId == 999);
     }
 
     [Fact]
@@ -191,7 +199,7 @@ public sealed class ReplayRunnerTests
                 500,
                 null,
                 "TURN",
-                (combat + 1).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ((2 * combat) + 1).ToString(System.Globalization.CultureInfo.InvariantCulture),
                 false));
             recorder.Record(new RawTagChanged(
                 timestamp,

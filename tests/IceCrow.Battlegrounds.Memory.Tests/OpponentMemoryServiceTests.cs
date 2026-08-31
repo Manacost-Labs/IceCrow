@@ -56,17 +56,22 @@ public sealed class OpponentMemoryServiceTests
     }
 
     [Fact]
-    public void SnapshotIncludesOnlyOpponentMinionsInPlay()
+    public void SnapshotKeepsInPlayMinionsAndAttributesTheLobbyOpponent()
     {
+        // The caller selects which side the entities belong to; real combat
+        // boards are played by a fixed opposing-side controller (15 in the
+        // 2026-08-31 captures) that never equals the opponent's lobby id, so
+        // the snapshot only enforces minion+in-play structure and records the
+        // lobby attribution it was given.
         var fixture = new EntityFixture();
-        fixture.AddMinion(101, playerId: 2, zonePosition: 1, attack: 3, health: 4);
-        fixture.AddMinion(102, playerId: 1, zonePosition: 2, attack: 5, health: 6);
-        fixture.AddMinion(103, playerId: 2, zonePosition: 3, attack: 7, health: 8);
+        fixture.AddMinion(101, playerId: 15, zonePosition: 1, attack: 3, health: 4);
+        fixture.AddMinion(103, playerId: 15, zonePosition: 3, attack: 7, health: 8);
         fixture.SetTag(103, "ZONE", "HAND");
 
         var service = CaptureBoard(fixture, opponentPlayerId: 2, turn: 3);
 
         var board = Assert.IsType<BoardSnapshot>(service.Memory.GetLatest(2));
+        Assert.Equal(2, board.PlayerId);
         Assert.Equal(101, Assert.Single(board.Minions).EntityId);
     }
 

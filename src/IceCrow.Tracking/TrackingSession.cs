@@ -289,6 +289,17 @@ public sealed class TrackingSession
         }
 
         _pendingBoardCapture = null;
+
+        // The client raises a second combat window inside the same round
+        // (the raw turn increments mid-fight), whose attacks would overwrite
+        // the entering board with a mid-fight remnant. One board per
+        // opponent-and-round keeps the first (entering) observation.
+        if (_opponentMemory.Memory.GetLatest(pending.OpponentPlayerId) is { } latest &&
+            latest.Turn == pending.Turn)
+        {
+            return null;
+        }
+
         var opposingBoard = _entities.CreateOpposingBoardSnapshots(localPlayerId);
         return _opponentMemory.Capture(
             pending.OpponentPlayerId,

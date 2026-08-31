@@ -61,6 +61,10 @@ public sealed class TrackingSoakTests(ITestOutputHelper output)
             Process(coordinator, $"TAG_CHANGE Entity=1 tag=NEXT_OPPONENT_PLAYER_ID value={opponentId}");
             Process(coordinator, "TAG_CHANGE Entity=500 tag=2022 value=1");
             Process(coordinator, "TAG_CHANGE Entity=500 tag=2022 value=0");
+            Process(
+                coordinator,
+                $"BLOCK_START BlockType=ATTACK Entity=[name=M id={(opponentId * 100) + 1} zone=PLAY zonePos=1 cardId=BG_SOAK_{opponentId}_1 player={opponentId}] EffectCardId= EffectIndex=0 Target=0 SubOption=0");
+            Process(coordinator, "BLOCK_END");
         }
 
         stopwatch.Stop();

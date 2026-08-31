@@ -97,6 +97,29 @@ public sealed class TrackingSessionTests
     }
 
     [Fact]
+    public void SecondCombatWindowOfTheSameRoundKeepsTheEnteringBoard()
+    {
+        // The real client raises a second combat window within one round; its
+        // attacks see the mid-fight remnant and must not overwrite the
+        // entering board.
+        var session = CreateRecruitSession();
+        ApplyTag(session, 500, "2022", "1", 20);
+        _ = ApplyTag(session, 500, "2022", "0", 21);
+        var entering = Assert.IsType<BoardSnapshot>(
+            ApplyAttackBlock(session, 22).ObservedBoard);
+
+        ApplyTag(session, 500, "TURN", "4", 30);
+        ApplyTag(session, 201, "ATK", "1", 31);
+        ApplyTag(session, 500, "2022", "1", 32);
+        _ = ApplyTag(session, 500, "2022", "0", 33);
+        var remnantAttack = ApplyAttackBlock(session, 34);
+
+        Assert.Null(remnantAttack.ObservedBoard);
+        Assert.Same(entering, session.Current.OpponentMemory.GetLatest(2));
+        Assert.Equal(7, Assert.Single(entering.Minions).Attack);
+    }
+
+    [Fact]
     public void PendingBoardCaptureDoesNotLeakIntoTheNextMatch()
     {
         var session = CreateRecruitSession();

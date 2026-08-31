@@ -205,21 +205,40 @@ public sealed class EntityStore
     /// <summary>
     /// In-play minions on the side opposing <paramref name="localControllerId"/>.
     /// In real Battlegrounds combat the enemy board is played by a fixed
-    /// opposing-side controller, not by the opponent's lobby player id, so the
-    /// opposing board is "every in-play minion the local player does not
-    /// control" (controller 0 = untagged is excluded).
+    /// opposing-side controller (the local slot + 8 in the 2026-08-31
+    /// captures), never by the opponent's lobby player id, so the opposing
+    /// board is "every in-play minion the local player does not control"
+    /// (controller 0 = untagged is excluded). Only the seven real board slots
+    /// count, and because the client's combat windows overlap — minions from
+    /// the previous fight can still sit in play when the next deal arrives —
+    /// each slot keeps the newest entity id (the fresh deal always has newer
+    /// ids than a leftover). A stale minion can survive only in a slot the
+    /// fresh deal did not occupy; the board can never exceed seven minions.
     /// </summary>
     public IReadOnlyList<EntitySnapshot> CreateOpposingBoardSnapshots(int localControllerId)
     {
-        var snapshots = _entities.Values
-            .Where(entity =>
-                entity.IsMinion &&
-                entity.IsInPlay &&
-                entity.Controller > 0 &&
-                entity.Controller != localControllerId)
-            .OrderBy(static entity => entity.ZonePosition)
-            .ThenBy(static entity => entity.Id)
-            .Select(static entity => new EntitySnapshot(entity))
+        var bySlot = new GameEntity?[8];
+        foreach (var entity in _entities.Values)
+        {
+            if (!entity.IsMinion ||
+                !entity.IsInPlay ||
+                entity.Controller <= 0 ||
+                entity.Controller == localControllerId ||
+                entity.ZonePosition is < 1 or > 7)
+            {
+                continue;
+            }
+
+            var slot = entity.ZonePosition;
+            if (bySlot[slot] is null || entity.Id > bySlot[slot]!.Id)
+            {
+                bySlot[slot] = entity;
+            }
+        }
+
+        var snapshots = bySlot
+            .Where(static entity => entity is not null)
+            .Select(static entity => new EntitySnapshot(entity!))
             .ToArray();
         return Array.AsReadOnly(snapshots);
     }
