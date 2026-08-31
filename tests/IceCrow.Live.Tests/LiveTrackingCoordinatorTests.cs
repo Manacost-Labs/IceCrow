@@ -257,6 +257,8 @@ public sealed class LiveTrackingCoordinatorTests
             "TAG_CHANGE Entity=500 tag=TURN value=3",
             "TAG_CHANGE Entity=500 tag=2022 value=1",
             "TAG_CHANGE Entity=500 tag=2022 value=0",
+            "BLOCK_START BlockType=ATTACK Entity=[name=Attacker id=201 zone=PLAY zonePos=1 cardId=BG_MINION_001 player=2] EffectCardId= EffectIndex=0 Target=0 SubOption=0",
+            "BLOCK_END",
         };
         if (includeGameEnd)
         {

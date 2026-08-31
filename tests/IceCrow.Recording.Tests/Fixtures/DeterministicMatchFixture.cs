@@ -61,6 +61,7 @@ internal static class DeterministicMatchFixture
 
         Tag(500, "2022", "1");
         Tag(500, "2022", "0");
+        Attack(201);
         _ = recorder.AddCheckpoint("combat");
 
         recorder.RecordMatchEnded(NextTimestamp());
@@ -86,5 +87,20 @@ internal static class DeterministicMatchFixture
                 EntityId: entityId,
                 EntityName: name,
                 CardId: cardId));
+
+        void Attack(int entityId) => recorder.Record(
+            new BlockStarted(
+                NextTimestamp(),
+                new IceCrow.Hearthstone.Protocol.PowerBlock(
+                    Id: sequence,
+                    ParentId: null,
+                    Depth: 0,
+                    Type: "ATTACK",
+                    EntityId: entityId,
+                    EntityName: null,
+                    EffectCardId: string.Empty,
+                    Target: string.Empty,
+                    SubOption: null,
+                    TriggerKeyword: null)));
     }
 }

@@ -53,11 +53,16 @@ public sealed class RealClientSequenceTests
         Assert.Equal(BattlegroundsPhase.Recruit, session.Current.Battlegrounds.Phase);
         Assert.Null(afterDuplicate.EntityMutation);
 
-        // Solo combat transition: tag 2022 set to 1, then dropped to 0.
+        // Solo combat transition: tag 2022 set to 1, then dropped to 0. The
+        // transition only arms the capture; the third live session proved the
+        // enemy board is authoritative at the first attack, not before.
         _ = session.Apply(NamedTag("GameEntity", "2022", "1"));
         var combatEntry = session.Apply(NamedTag("GameEntity", "2022", "0"));
         Assert.Equal(BattlegroundsPhase.Combat, session.Current.Battlegrounds.Phase);
-        var board = Assert.IsType<BoardSnapshot>(combatEntry.ObservedBoard);
+        Assert.Null(combatEntry.ObservedBoard);
+
+        var firstAttack = session.Apply(AttackBlock(1));
+        var board = Assert.IsType<BoardSnapshot>(firstAttack.ObservedBoard);
         Assert.Equal(6, board.PlayerId);
         Assert.Equal(7, Assert.Single(board.Minions).Attack);
 
@@ -66,9 +71,11 @@ public sealed class RealClientSequenceTests
         Assert.Equal(2, session.Current.Battlegrounds.Turn);
         Assert.Equal(BattlegroundsPhase.Recruit, session.Current.Battlegrounds.Phase);
 
-        // Second combat captures a second snapshot of the same opponent.
+        // Second combat captures a second snapshot of the same opponent at
+        // its own first attack.
         _ = session.Apply(NamedTag("GameEntity", "2022", "1"));
         _ = session.Apply(NamedTag("GameEntity", "2022", "0"));
+        _ = session.Apply(AttackBlock(2));
         Assert.Equal(BattlegroundsPhase.Combat, session.Current.Battlegrounds.Phase);
         Assert.Equal(
             2,
@@ -107,4 +114,18 @@ public sealed class RealClientSequenceTests
         Tag: tag,
         Value: value,
         IsCreationTag: false);
+
+    private static BlockStarted AttackBlock(long blockId) => new(
+        Timestamp,
+        new IceCrow.Hearthstone.Protocol.PowerBlock(
+            Id: blockId,
+            ParentId: null,
+            Depth: 0,
+            Type: "ATTACK",
+            EntityId: 301,
+            EntityName: null,
+            EffectCardId: string.Empty,
+            Target: string.Empty,
+            SubOption: null,
+            TriggerKeyword: null));
 }

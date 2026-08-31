@@ -6,7 +6,16 @@ TAG_CHANGE Entity=1 tag=PLAYER_TECH_LEVEL value=2
 TAG_CHANGE Entity=1 tag=NEXT_OPPONENT_PLAYER_ID value=2
 TAG_CHANGE Entity=2 tag=PLAYER_TECH_LEVEL value=3
 TAG_CHANGE Entity=500 tag=STEP value=BEGIN_MULLIGAN
+FULL_ENTITY - Creating ID=201 CardID=BG_MINION_001
+tag=CARDTYPE value=MINION
+tag=ZONE value=PLAY
+tag=CONTROLLER value=2
+tag=ZONE_POSITION value=1
+tag=ATK value=7
+tag=HEALTH value=8
 TAG_CHANGE Entity=500 tag=TURN value=3
 TAG_CHANGE Entity=500 tag=2022 value=1
 TAG_CHANGE Entity=500 tag=2022 value=0
+BLOCK_START BlockType=ATTACK Entity=[name=Attacker id=201 zone=PLAY zonePos=1 cardId=BG_MINION_001 player=2] EffectCardId= EffectIndex=0 Target=0 SubOption=0
+BLOCK_END
 TAG_CHANGE Entity=1 tag=PLAYSTATE value=WON

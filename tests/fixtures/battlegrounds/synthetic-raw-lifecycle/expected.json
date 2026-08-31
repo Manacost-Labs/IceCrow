@@ -19,7 +19,7 @@
     },
     {
       "name": "Turn2Recruit",
-      "eventIndex": 8,
+      "eventIndex": 15,
       "state": {
         "sessionState": "Active",
         "turn": 2,
@@ -31,19 +31,19 @@
     },
     {
       "name": "Turn2Combat",
-      "eventIndex": 10,
+      "eventIndex": 18,
       "state": {
         "sessionState": "Active",
         "phase": "Combat",
         "currentOpponentPlayerId": 2,
         "opponentMemory": [
-          { "playerId": 2, "minionCount": 0, "lastSeenTurn": 2 }
+          { "playerId": 2, "minionCount": 1, "lastSeenTurn": 2 }
         ]
       }
     },
     {
       "name": "GameEnd",
-      "eventIndex": 11,
+      "eventIndex": 20,
       "state": {
         "sessionState": "Ended",
         "isActive": false,

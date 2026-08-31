@@ -8,10 +8,17 @@ namespace IceCrow.Tracking;
 
 public sealed class TrackingSession
 {
+    // Power.log block-type literal for an attack action. By the first attack
+    // of a Battlegrounds combat the enemy board deal is complete, which makes
+    // it the reliable capture moment (proven against the four 2026-08-31 real
+    // captures, where the board was always empty at the phase transition).
+    private const string AttackBlockType = "ATTACK";
+
     private readonly TrackingSessionLimits _limits;
     private readonly EntityStore _entities;
     private readonly OpponentMemoryService _opponentMemory;
     private readonly LobbyTimeline _lobbyTimeline;
+    private (int OpponentPlayerId, int Turn)? _pendingBoardCapture;
     private BattlegroundsState _battlegrounds = BattlegroundsState.Empty;
     private TrackingSessionState _sessionState;
     private DateTimeOffset? _startedAt;
@@ -135,9 +142,7 @@ public sealed class TrackingSession
                     new BattlegroundsEntityChanged(gameEvent.Timestamp, entity, mutation));
         }
 
-        var observedBoard = CaptureOpponentBoardOnCombatEntry(
-            previousPhase,
-            gameEvent.Timestamp);
+        var observedBoard = TrackOpponentBoardCapture(previousPhase, gameEvent);
         _lobbyTimeline.Update(_battlegrounds, gameEvent.Timestamp, observedBoard);
 
         return CompleteUpdate(
@@ -156,6 +161,7 @@ public sealed class TrackingSession
         }
 
         var previousPhase = _battlegrounds.Phase;
+        _pendingBoardCapture = null;
         _battlegrounds = BattlegroundsReducer.Apply(
             _battlegrounds,
             new BattlegroundsGameEnded(timestamp));
@@ -188,6 +194,7 @@ public sealed class TrackingSession
 
     private void ResetMatchState()
     {
+        _pendingBoardCapture = null;
         _entities.Reset();
         _opponentMemory.Reset();
         _lobbyTimeline.Reset();
@@ -244,23 +251,50 @@ public sealed class TrackingSession
         return _entities.CreateSnapshot(id);
     }
 
-    private BoardSnapshot? CaptureOpponentBoardOnCombatEntry(
+    /// <summary>
+    /// One board snapshot per real combat. Combat entry only arms a pending
+    /// capture — the four 2026-08-31 real captures proved the enemy board is
+    /// dealt to a fixed opposing-side controller strictly after the phase
+    /// transition, and that the compatibility phase flip also fires during
+    /// shopping with no fight at all. The first attack block is the moment
+    /// the deal is provably complete, so the snapshot is taken exactly once
+    /// there; a combat window without any attack (shop residue, or an empty
+    /// enemy board that never fights) records no observation instead of a
+    /// false empty board.
+    /// </summary>
+    private BoardSnapshot? TrackOpponentBoardCapture(
         BattlegroundsPhase previousPhase,
-        DateTimeOffset timestamp)
+        GameEvent gameEvent)
     {
-        if (previousPhase == BattlegroundsPhase.Combat ||
-            _battlegrounds.Phase != BattlegroundsPhase.Combat ||
-            _battlegrounds.CurrentOpponentPlayerId is not int opponentPlayerId)
+        if (_battlegrounds.Phase != BattlegroundsPhase.Combat)
+        {
+            _pendingBoardCapture = null;
+            return null;
+        }
+
+        if (previousPhase != BattlegroundsPhase.Combat)
+        {
+            _pendingBoardCapture =
+                _battlegrounds.CurrentOpponentPlayerId is int opponentPlayerId
+                    ? (opponentPlayerId, _battlegrounds.Turn)
+                    : null;
+            return null;
+        }
+
+        if (_pendingBoardCapture is not { } pending ||
+            gameEvent is not BlockStarted { Block.Type: AttackBlockType } ||
+            _battlegrounds.LocalPlayerId is not int localPlayerId)
         {
             return null;
         }
 
-        var opponentBoard = _entities.CreateBoardSnapshots(opponentPlayerId);
+        _pendingBoardCapture = null;
+        var opposingBoard = _entities.CreateOpposingBoardSnapshots(localPlayerId);
         return _opponentMemory.Capture(
-            opponentPlayerId,
-            _battlegrounds.Turn,
-            opponentBoard,
-            timestamp);
+            pending.OpponentPlayerId,
+            pending.Turn,
+            opposingBoard,
+            gameEvent.Timestamp);
     }
 
     private TrackingUpdate CompleteUpdate(

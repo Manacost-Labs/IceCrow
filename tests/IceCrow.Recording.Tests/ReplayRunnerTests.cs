@@ -209,6 +209,19 @@ public sealed class ReplayRunnerTests
                 "2022",
                 "0",
                 false));
+            recorder.Record(new BlockStarted(
+                timestamp,
+                new IceCrow.Hearthstone.Protocol.PowerBlock(
+                    Id: combat + 1000,
+                    ParentId: null,
+                    Depth: 0,
+                    Type: "ATTACK",
+                    EntityId: 1,
+                    EntityName: null,
+                    EffectCardId: string.Empty,
+                    Target: string.Empty,
+                    SubOption: null,
+                    TriggerKeyword: null)));
         }
 
         var runner = new ReplayRunner(recorder.CreateMatch());

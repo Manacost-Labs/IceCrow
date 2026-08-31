@@ -202,6 +202,28 @@ public sealed class EntityStore
         return Array.AsReadOnly(snapshots);
     }
 
+    /// <summary>
+    /// In-play minions on the side opposing <paramref name="localControllerId"/>.
+    /// In real Battlegrounds combat the enemy board is played by a fixed
+    /// opposing-side controller, not by the opponent's lobby player id, so the
+    /// opposing board is "every in-play minion the local player does not
+    /// control" (controller 0 = untagged is excluded).
+    /// </summary>
+    public IReadOnlyList<EntitySnapshot> CreateOpposingBoardSnapshots(int localControllerId)
+    {
+        var snapshots = _entities.Values
+            .Where(entity =>
+                entity.IsMinion &&
+                entity.IsInPlay &&
+                entity.Controller > 0 &&
+                entity.Controller != localControllerId)
+            .OrderBy(static entity => entity.ZonePosition)
+            .ThenBy(static entity => entity.Id)
+            .Select(static entity => new EntitySnapshot(entity))
+            .ToArray();
+        return Array.AsReadOnly(snapshots);
+    }
+
     public IEnumerable<GameEntity> GetEntitiesByController(int controllerId)
     {
         foreach (var entity in _entities.Values)

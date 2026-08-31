@@ -88,14 +88,26 @@
       "isCreationTag": false
     },
     {
+      "type": "blockStarted",
+      "timestamp": "2026-08-14T12:00:00.011+00:00",
+      "block": {
+        "id": 1,
+        "depth": 0,
+        "type": "ATTACK",
+        "entityId": 1,
+        "effectCardId": "",
+        "target": ""
+      }
+    },
+    {
       "type": "matchEnded",
-      "timestamp": "2026-08-14T12:00:00.011+00:00"
+      "timestamp": "2026-08-14T12:00:00.012+00:00"
     }
   ],
   "checkpoints": [
     { "name": "HeroSelection", "eventIndex": 0 },
     { "name": "Turn2Recruit", "eventIndex": 8 },
-    { "name": "Turn2Combat", "eventIndex": 10 },
-    { "name": "GameEnd", "eventIndex": 11 }
+    { "name": "Turn2Combat", "eventIndex": 11 },
+    { "name": "GameEnd", "eventIndex": 12 }
   ]
 }

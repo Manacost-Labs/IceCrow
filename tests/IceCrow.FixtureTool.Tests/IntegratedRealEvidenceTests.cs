@@ -69,6 +69,8 @@ public sealed class IntegratedRealEvidenceTests
             "TAG_CHANGE Entity=GameEntity tag=TURN value=1",
             "TAG_CHANGE Entity=GameEntity tag=2022 value=1",
             "TAG_CHANGE Entity=GameEntity tag=2022 value=0",
+            "BLOCK_START BlockType=ATTACK Entity=[name=Attacker id=301 zone=PLAY zonePos=1 cardId=BG_MINION_001 player=6] EffectCardId= EffectIndex=0 Target=0 SubOption=0",
+            "BLOCK_END",
             "TAG_CHANGE Entity=1 tag=PLAYSTATE value=LOST",
         };
         for (var index = 0; index < live.Length; index++)
