@@ -45,11 +45,16 @@ official replays with exact semantic endings and clean state isolation).
   tests pin it, and all four captures now pass official validation with
   exact semantic parity; see
   [real-client-findings-2026-08-31.md](real-client-findings-2026-08-31.md).
-- F11 combat-entry opponent board snapshots replayed with zero minion
-  work — **NEW (2026-08-31, MEDIUM investigation)**: opponent histories
-  populate (7 per match) but replayed combat-entry boards contained no
-  minions across all four captures; owner Battlegrounds/Tracking snapshot
-  timing; not a Gate B chain blocker.
+- F11 opponent boards remembered empty — **fixed and offline-verified
+  against all four captures** (severity re-assessed HIGH: the live
+  overlay was affected too). Root cause was an identity-space mismatch —
+  the enemy combat board belongs to a fixed opposing-side controller
+  (local slot + 8), never the opponent's lobby id — plus deal-after-
+  transition timing and overlapping combat windows. Boards are now
+  captured once per opponent-round at the first attack, one minion per
+  real board slot; all four replays show fully populated opponent memory
+  (10–12 non-empty boards per match). Live visual verification is the
+  next session's checklist item.
 
 ## Gate A — build: PASS (current-HEAD remote soak pending)
 

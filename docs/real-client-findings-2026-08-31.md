@@ -341,9 +341,42 @@ readings to the digit (6,054 / 6,843 / 5,347).
   through ReplayRunner defaults.
 - MVP blocker: was YES; resolved.
 
-### F11 — combat-entry opponent board snapshots replayed with zero minion work
+### F11 — opponent boards were remembered empty (fixed, offline verified)
 
-- Severity: MEDIUM (investigation)
+- Status: **FIXED and offline-verified against all four captures** (same
+  branch, commits `0128534`–`f7c6243`). Severity re-assessed to **HIGH**:
+  the live pipeline used the same filter, so the product's core opponent
+  memory showed empty boards in real matches too — this was never only a
+  replay-diagnostics artifact.
+- Proven root cause (three layers, all measured from the four captures):
+  1. Identity-space mismatch: the enemy combat board is played by a fixed
+     opposing-side controller (the local slot + 8: 15 with local 7, 16
+     with local 8) — never by the opponent's lobby player id, so both the
+     tracking filter and BoardSnapshot's second controller filter could
+     never match a real minion.
+  2. Timing: the board is dealt strictly after the compatibility phase
+     flip, and the same flip also fires with no fight (shop residue), so
+     transition-time capture was doubly wrong.
+  3. Overlapping windows: the client raises two combat windows per round
+     and cleans the previous fight's minions late, so a naive
+     all-enemy-minions capture overflowed the seven real board slots.
+- New policy: combat entry arms a pending capture; the snapshot is taken
+  once at the first ATTACK block (deal provably complete), as one minion
+  per real board slot (1–7, newest entity id wins the slot), attributed
+  to the armed opponent, one board per opponent-and-round; a window
+  without any attack records no observation (uncertainty preserved — the
+  presentation already distinguishes NotFought from an observed empty
+  board).
+- Post-fix revalidation: all four captures OFFICIAL VALIDATION PASSED
+  with unchanged final turns/phases (10/12/13/10, GameOver) and populated
+  memory — boards per match 10/12/12/10, all non-empty, remembered
+  minions 49/59/58/45, realistic 1→7 escalation by round, board snapshot
+  work 788/963/895/679 (was 0).
+- Remaining limitation (honest): a stale minion from the overlapping
+  previous window can survive in a slot the fresh deal did not occupy;
+  composition is otherwise exact. Verify visually in the next live
+  session.
+- Old severity record (pre-investigation): MEDIUM (investigation)
 - Evidence: all four replays report `board snapshot work: 0` even though
   every replay populated 7 opponent histories. The work counter charges
   1 + tags per minion in each observed board, so 0 total means every
