@@ -11,10 +11,6 @@ public sealed class ReplayRunner
     public const int MaximumLobbyPlayers = 16;
     public const int MaximumBoardMinions = 7;
     public const int MaximumOpponentSnapshots = 64;
-    public const long MaximumSnapshotWorkUnits = 1_000_000;
-    public const long MaximumEventSnapshotWorkUnits = 1_000_000;
-    public const long MaximumStateMaterializationWorkUnits = 10_000_000;
-    public const long MaximumTimelineWorkUnits = 1_000_000;
 
     private readonly RecordedMatch _match;
     private readonly ReplayLimits _limits;

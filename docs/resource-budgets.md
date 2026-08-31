@@ -29,7 +29,8 @@ requires a corpus or soak result and a security review.
 | Private capture temp files | — | removed before the first save of a process |
 | Replay entities/opponent snapshots | — | 4,096 / 64 |
 | Replay materialization work | — | 10,000,000 work units |
-| Replay timeline work | — | 1,000,000 units; charged as one per event plus timeline events actually added (linear, real-match calibrated) |
+| Replay event-snapshot work | — | 4,000,000 units = 250k events x 16/event; four real full matches measured a stable 10.03–10.23 units/event (max total ~2.18M), 1.5x safety on the per-event bound (2026-08-31 calibrated) |
+| Replay timeline work | — | 1,000,000 units; charged as one per event plus timeline events actually added (linear, real-match calibrated; full-match maximum observed 213,502) |
 | Entity name associations | — | 8,192; ambiguous names never resolve; unresolved references counted |
 | Telemetry runtime queue | 16 | oldest optional summary dropped |
 | Telemetry outbox | — | 128 summaries, 8 MiB; streamed read stops at item 129 |
