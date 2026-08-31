@@ -47,6 +47,8 @@ public static class CombatWindowAnalyzer
         var armedIndex = 0;
         var armedTimestamp = DateTimeOffset.MinValue;
         var firstNonEmptyReported = true;
+        var attackReported = false;
+        var attackCount = 0;
         var peakEligible = 0;
         var peakByController = new SortedDictionary<int, int>();
 
@@ -81,6 +83,52 @@ public static class CombatWindowAnalyzer
             var phase = update.Battlegrounds.Phase;
             if (armedOpponent is int opponent)
             {
+                if (update.ObservedBoard is { } captured)
+                {
+                    summary.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                        $"  CAPTURE at +{index - armedIndex} events: {captured.Minions.Count} minions"));
+                }
+
+                if (recorded.Type == RecordedEventType.BlockStarted &&
+                    recorded.Block?.Type == "ATTACK")
+                {
+                    attackCount++;
+                }
+
+                if (recorded.Type == RecordedEventType.BlockStarted &&
+                    recorded.Block?.Type == "ATTACK" &&
+                    !attackReported)
+                {
+                    attackReported = true;
+                    var local = update.Battlegrounds.LocalPlayerId;
+                    var enemySide = 0;
+                    foreach (var entry in facts.Values)
+                    {
+                        if (entry.IsMinion && entry.IsInPlay && entry.Controller > 0 &&
+                            entry.Controller != local)
+                        {
+                            enemySide++;
+                        }
+                    }
+
+                    var enemyDetails = new List<string>();
+                    foreach (var snapshot in tracking.CreateEntitySnapshots())
+                    {
+                        if (snapshot.IsMinion && snapshot.IsInPlay &&
+                            snapshot.Controller > 0 && snapshot.Controller != local &&
+                            enemyDetails.Count < 16)
+                        {
+                            enemyDetails.Add(string.Create(CultureInfo.InvariantCulture,
+                                $"id {snapshot.Id} ctrl {snapshot.Controller} pos {snapshot.ZonePosition}"));
+                        }
+                    }
+
+                    summary.AppendLine(string.Create(CultureInfo.InvariantCulture,
+                        $"  first ATTACK at +{index - armedIndex} events · local {local?.ToString(CultureInfo.InvariantCulture) ?? "-"} · facts enemy-side {enemySide}"));
+                    summary.AppendLine(
+                        "    enemy-side detail: " + string.Join(" · ", enemyDetails));
+                }
+
                 var eligible = CountEligible(facts, opponent);
                 peakEligible = Math.Max(peakEligible, eligible);
                 foreach (var entry in CurrentByController(facts))
@@ -104,7 +152,7 @@ public static class CombatWindowAnalyzer
                         ? string.Empty
                         : ", board never non-empty";
                     summary.AppendLine(string.Create(CultureInfo.InvariantCulture,
-                        $"  combat window ends    : +{index - armedIndex} events, peak eligible {peakEligible}{neverNote}"));
+                        $"  combat window ends    : +{index - armedIndex} events, {attackCount} attack blocks, peak eligible {peakEligible}{neverNote}"));
                     summary.AppendLine(
                         "  peak in-play minions by controller: " +
                         (peakByController.Count == 0
@@ -128,6 +176,8 @@ public static class CombatWindowAnalyzer
                     ? CountEligible(facts, armed)
                     : 0;
                 firstNonEmptyReported = peakEligible > 0;
+                attackReported = false;
+                attackCount = 0;
                 summary.AppendLine(CultureInfo.InvariantCulture,
                     $"Combat #{combatNumber} · turn {update.Battlegrounds.Turn} · " +
                     $"opponent {armedOpponent?.ToString(CultureInfo.InvariantCulture) ?? "-"} · " +
