@@ -55,6 +55,15 @@ public sealed class ReplayRunner
 
     public ReplayState Current => _currentState ??= CreateState();
 
+    public ReplayWorkDiagnostics WorkDiagnostics => new(
+        _nextEventIndex,
+        _eventSnapshotWorkUnits,
+        _timelineWorkUnits,
+        _snapshotWorkUnits,
+        _stateMaterializationWorkUnits,
+        _tracking.EntityCount,
+        _tracking.MaximumTagsOnEntity);
+
     public ReplayState Step(CancellationToken cancellationToken = default)
     {
         ThrowIfFaulted();
