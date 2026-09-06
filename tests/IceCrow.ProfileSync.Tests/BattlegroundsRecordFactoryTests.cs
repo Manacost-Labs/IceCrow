@@ -139,7 +139,8 @@ public sealed class BattlegroundsRecordFactoryTests
         var payload = profileEvent.Payload;
         Assert.Equal("solo", payload.GetProperty("mode").GetString());
         Assert.Equal("unknown", payload.GetProperty("mmrConfidence").GetString());
-        Assert.Equal(JsonValueKind.Null, payload.GetProperty("mmrBefore").ValueKind);
+        // Null optional fields are omitted on the wire; absent means unknown.
+        Assert.False(payload.TryGetProperty("mmrBefore", out _));
         Assert.Equal("exact", payload.GetProperty("placementConfidence").GetString());
         var minion = Assert.Single(payload.GetProperty("finalBoard").GetProperty("minions").EnumerateArray());
         Assert.True(minion.GetProperty("isGolden").GetBoolean());

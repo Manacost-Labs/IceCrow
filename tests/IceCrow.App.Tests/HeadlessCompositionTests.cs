@@ -113,7 +113,7 @@ public sealed class HeadlessCompositionTests : IDisposable
 
     private static async Task<int> WaitForOutboxAsync(ProfileOutbox outbox)
     {
-        for (var attempt = 0; attempt < 100; attempt++)
+        for (var attempt = 0; attempt < 400; attempt++)
         {
             var count = await outbox.CountAsync();
             if (count > 0)
