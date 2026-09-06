@@ -17,6 +17,7 @@ public sealed class PowerLogTailer
     private const int ReadBufferBytes = 16 * 1024;
     private const int MaximumLineBytes = 64 * 1024;
     private const int FingerprintBytes = LogCheckpointContinuity.PrefixFingerprintBytes;
+    private const int LocateEveryRecoveryTicks = 15;
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private static readonly string[] AcceptedPrefixes =
     [
@@ -30,7 +31,11 @@ public sealed class PowerLogTailer
     private readonly Channel<bool> _signals;
     private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _recoveryInterval;
+    private readonly TimeSpan _locateInterval;
     private Task<bool>? _pendingSignal;
+    private string? _cachedPowerLogPath;
+    private DateTimeOffset _nextLocateAt = DateTimeOffset.MinValue;
+    private bool _signalled;
     private readonly Dictionary<string, FileSystemWatcher> _watchers =
         new(StringComparer.OrdinalIgnoreCase);
     private LogReadCheckpoint _checkpoint = LogReadCheckpoint.Empty;
@@ -62,6 +67,12 @@ public sealed class PowerLogTailer
                 nameof(recoveryInterval),
                 "The recovery interval must be positive.");
         }
+
+        // Locating the newest Power.log enumerates processes and session
+        // directories, which is far more expensive than reopening a known
+        // file. Idle ticks reuse the cached path; a watcher signal, a missing
+        // file, or this slower interval re-run the search.
+        _locateInterval = TimeSpan.FromTicks(_recoveryInterval.Ticks * LocateEveryRecoveryTicks);
 
         _lines = Channel.CreateBounded<RawLogLine>(new BoundedChannelOptions(channelCapacity)
         {
@@ -101,7 +112,15 @@ public sealed class PowerLogTailer
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                RefreshWatchers();
+                var now = _timeProvider.GetUtcNow();
+                if (_signalled || _cachedPowerLogPath is null || now >= _nextLocateAt)
+                {
+                    _signalled = false;
+                    _nextLocateAt = now + _locateInterval;
+                    RefreshWatchers();
+                    _cachedPowerLogPath = LocatePowerLog();
+                }
+
                 await ReadAvailableAsync(cancellationToken).ConfigureAwait(false);
                 await WaitForSignalOrRecoveryAsync(cancellationToken).ConfigureAwait(false);
             }
@@ -163,21 +182,23 @@ public sealed class PowerLogTailer
         }
     }
 
-    private async Task ReadAvailableAsync(CancellationToken cancellationToken)
+    private string? LocatePowerLog()
     {
-        string? path;
         try
         {
-            path = _locator.FindPowerLog();
+            return _locator.FindPowerLog();
         }
         catch (Exception exception) when (
             exception is IOException or UnauthorizedAccessException or DirectoryNotFoundException)
         {
             RecoverableError?.Invoke(exception);
-            return;
+            return null;
         }
+    }
 
-        if (path is null)
+    private async Task ReadAvailableAsync(CancellationToken cancellationToken)
+    {
+        if (_cachedPowerLogPath is not { } path)
         {
             return;
         }
@@ -189,6 +210,8 @@ public sealed class PowerLogTailer
         catch (Exception exception) when (
             exception is IOException or UnauthorizedAccessException or FileNotFoundException)
         {
+            // The cached file may have been rotated away; search again next tick.
+            _cachedPowerLogPath = null;
             RecoverableError?.Invoke(exception);
         }
     }
@@ -199,6 +222,7 @@ public sealed class PowerLogTailer
         file.Refresh();
         if (!file.Exists)
         {
+            _cachedPowerLogPath = null;
             return;
         }
 
@@ -512,6 +536,7 @@ public sealed class PowerLogTailer
         {
             var pending = _pendingSignal;
             _pendingSignal = null;
+            _signalled = true;
             _ = await pending.ConfigureAwait(false);
         }
         else
