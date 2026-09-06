@@ -8,6 +8,80 @@ The local Hearthstone Deck Tracker reference is at `../references/Hearthstone-De
 
 HDT is behavioral reference material only. It may be inspected to understand Hearthstone lifecycle transitions, GameTags, edge cases, and Windows overlay APIs. Never copy complete HDT files, copy large source blocks, mechanically rename HDT classes, or reproduce legacy architecture that IceCrow does not need. Prefer primary documentation when it is available and implement IceCrow behavior independently.
 
+## Agent tooling and skill routing
+
+This file is the canonical IceCrow policy for every AI agent (Claude Code,
+Codex, Cursor, and others). `CLAUDE.md` only points here and carries
+Claude-host-specific notes; do not duplicate project policy anywhere else.
+The Manacost catalog profile for this repository is `icecrow` in
+`Manacost-Labs/skills` (`profiles/icecrow.yaml`); profiles are on-demand
+catalogs, not prompt bundles. A normal phase loads 1–3 skills and a complex
+phase at most 4–5; write down a concrete reason before exceeding that.
+Project `AGENTS.md` files stay more specific than any skill.
+
+### Exact C# navigation
+
+Use the C# language server (`csharp-lsp`) or Serena first for definitions,
+references, callers, implementations, overrides, and type hierarchy. Use
+grep/ripgrep for exact text, configuration, generated files, and Power.log
+fixtures. Use Graphify or a code graph only when it saves context; never load
+an entire graph into the conversation.
+
+### Official .NET specialist skills
+
+The official `dotnet/skills` marketplace (`dotnet-agent-skills`) provides the
+required plugin groups `dotnet`, `dotnet-diag`, `dotnet-test`, and
+`dotnet-msbuild`; `dotnet-advanced` is optional and only for the Windows native
+boundary. Do not install MAUI/Blazor/AI plugins for this project. Route by
+task and never load every group at once:
+
+| Task | Load |
+| --- | --- |
+| Runtime performance, allocations, GC | `dotnet-diag/analyzing-dotnet-performance`, `dotnet-diag/dotnet-trace-collect`, `dotnet-diag/microbenchmarking` |
+| Tests | `dotnet-test/run-tests`, `dotnet-test/assertion-quality`; optionally `dotnet-test/coverage-analysis`, `dotnet-test/find-untested-sources` |
+| Build failures only | `dotnet-msbuild/binlog-generation`, `dotnet-msbuild/binlog-failure-analysis`, `dotnet-msbuild/build-perf-diagnostics` |
+| Windows native boundary only | `dotnet-advanced/dotnet-pinvoke` |
+
+`dotnet-artisan` may supplement WPF, concurrency, and testing guidance; when
+it and `dotnet/skills` overlap, prefer the official plugin. IceCrow's own
+`AGENTS.md` files, architecture docs, and tested invariants override generic
+skill advice.
+
+### Manacost skill router
+
+| Phase | Load from the `icecrow` profile |
+| --- | --- |
+| Architecture or domain model | `engineering/codebase-design`, `engineering/domain-modeling`, `hearthpulse/arch-boundaries` |
+| External API, profile sync, data source | `engineering/addy/api-and-interface-design`, `engineering/addy/source-driven-development`, `hearthpulse/api-contract-change` |
+| New vertical slice | `hearthpulse/new-feature-slice`, `data/test-driven-development` |
+| Debugging | `data/systematic-debugging`, `engineering/diagnosing-bugs`, `data/test-driven-development` |
+| Performance | `engineering/addy/performance-optimization` plus `dotnet-diag/analyzing-dotnet-performance` and `dotnet-diag/dotnet-trace-collect` |
+| Completion | `data/verification-before-completion`, `hearthpulse/verify-gate`, `hearthpulse/checkpoint-commit` |
+
+The `hearthpulse/*` skills describe the HearthPulse repository; load them when
+the task crosses into HearthPulse (ingestion contract, profile API, server
+module) and apply their npm-based gates there, not to this .NET solution.
+
+### Before editing
+
+1. Read the owning module's guidance (nearest `AGENTS.md`, `docs/module-boundaries.md`).
+2. Resolve exact symbols and references with the language server.
+3. Inspect nearby tests and fixtures.
+4. Inspect recent Git history if behavior is unclear.
+5. Make the smallest coherent change.
+
+### After editing
+
+1. Run targeted tests, then the standard validation below.
+2. Review diagnostics and warnings (warnings are errors in this solution).
+3. Check model/file growth against the size discipline: models and view state
+   preferred under 120 lines (review above 160, strong review above 220);
+   services and engines preferred under 220 (review above 300, strong review
+   above 400); methods preferred under 35 lines (review above 60, strong
+   review above 90). No artificial fragmentation.
+4. Review `git diff` and `git diff --check`.
+5. Commit the logical unit; do not accumulate a giant uncommitted diff.
+
 ## Projects and responsibilities
 
 | Project | Responsibility | Allowed IceCrow dependencies |
@@ -115,6 +189,31 @@ Before adding an overlay component:
   an item, string, nesting, or work limit.
 - `async void` is permitted only for UI event handlers. Blocking task waits are
   permitted only at a documented synchronous framework boundary.
+
+## Source certainty
+
+Every collected fact carries a typed certainty: `Exact`, `Partial`,
+`Inferred`, or `Unknown`. Lower layers assign it from the evidence they own
+and higher layers (presentation, profile sync, HearthPulse) may simplify the
+wording but must never increase it. Tracking-level identity grades such as
+`SameEntity`/`LikelySameCard` map to `Exact`/`Inferred`, never upward.
+
+`Power.log` is authoritative for: match lifecycle, `PLAYSTATE` result,
+turns, visible mulligan transitions, played and revealed cards, and
+Battlegrounds placement and event history.
+
+Current client state (a licensed HearthMirror-style adapter behind
+`IceCrow.Hearthstone.ClientState`) is authoritative, only when available,
+for: the own selected deck, the full collection, Arena draft and run state,
+Arena rating, Battlegrounds MMR, and current client metadata.
+
+Never report as `Exact`: a full opponent deck reconstructed from observed
+cards, hidden opponent mulligan cards, Arena rewards without source
+evidence, or rank/MMR values that no source actually exposed. An
+archetype or deck guess stays `Inferred`; a value with no source stays
+`Unknown` and is never fabricated. Personal profile data is synced only
+through the authenticated `IceCrow.ProfileSync` boundary, never through the
+anonymous telemetry outbox.
 
 ## Standard validation
 
