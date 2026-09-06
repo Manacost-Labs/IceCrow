@@ -40,7 +40,7 @@ public partial class App : Application, IAsyncDisposable
             localDataDirectory,
             Dispatcher,
             options,
-            OnLiveTrackingProcessed,
+            OnSessionProcessed,
             OnManacostDataStatusChanged,
             OnTelemetryStatusChanged,
             OnProfileSyncStatusChanged,
@@ -131,10 +131,13 @@ public partial class App : Application, IAsyncDisposable
         }
     }
 
-    private void OnLiveTrackingProcessed(LiveTrackingUpdate update)
+    private void OnSessionProcessed(GameSessionUpdate update)
     {
 #if DEBUG
-        _developerDiagnosticsPresenter?.Publish(update);
+        if (update.Battlegrounds is { } battlegrounds)
+        {
+            _developerDiagnosticsPresenter?.Publish(battlegrounds);
+        }
 #else
         _ = update;
 #endif

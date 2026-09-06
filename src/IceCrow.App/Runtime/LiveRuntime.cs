@@ -9,14 +9,14 @@ internal sealed class LiveRuntime : IAsyncDisposable
 {
     private readonly LogConfigManager _logConfigManager = new();
     private readonly HearthstoneLogLocator _logLocator = new();
-    private readonly LiveTrackingCoordinator _coordinator;
+    private readonly GameSessionCoordinator _coordinator;
     private readonly PowerLogTailer _tailer;
-    private readonly Action<LiveTrackingUpdate> _onProcessed;
+    private readonly Action<GameSessionUpdate> _onProcessed;
     private readonly Action<Exception> _onRecoverableError;
     private readonly Action<string> _onStatus;
 
     public LiveRuntime(
-        Action<LiveTrackingUpdate> onProcessed,
+        Action<GameSessionUpdate> onProcessed,
         Action<Exception> onRecoverableError,
         Action<string> onStatus,
         IAppliedMatchEventObserver? appliedEventObserver = null)
@@ -24,7 +24,7 @@ internal sealed class LiveRuntime : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(onProcessed);
         ArgumentNullException.ThrowIfNull(onRecoverableError);
         ArgumentNullException.ThrowIfNull(onStatus);
-        _coordinator = new LiveTrackingCoordinator(
+        _coordinator = new GameSessionCoordinator(
             appliedEventObserver: appliedEventObserver);
         _onProcessed = onProcessed;
         _onRecoverableError = onRecoverableError;
@@ -35,6 +35,15 @@ internal sealed class LiveRuntime : IAsyncDisposable
     }
 
     public PowerLogTailerDiagnostics TailerDiagnostics => _tailer.Diagnostics;
+
+    /// <summary>
+    /// True while a tracked game is in progress; read on the live consumer
+    /// thread only. The constructed tracker keeps an ignored-mode game
+    /// "open" until the next boundary, so it only counts while it is routed.
+    /// </summary>
+    public bool GameplayActive =>
+        _coordinator.Battlegrounds.CurrentSnapshot.SessionState == Tracking.TrackingSessionState.Active ||
+        (_coordinator.Route is GameSessionRoute.Constructed or GameSessionRoute.Both && _coordinator.Constructed.IsGameOpen);
 
     public async Task RunAsync(CancellationToken cancellationToken)
     {

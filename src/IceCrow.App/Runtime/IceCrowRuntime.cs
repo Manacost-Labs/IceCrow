@@ -15,7 +15,8 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
     private readonly ProfileSyncRuntime? _profileSync;
     private readonly RecordingRuntime? _recording;
     private readonly LiveRuntime _live;
-    private readonly Action<LiveTrackingUpdate> _onLiveTrackingProcessed;
+    private readonly ProfileRecordPipeline? _profileRecords;
+    private readonly Action<GameSessionUpdate> _onSessionProcessed;
     private Task[] _backgroundTasks = [];
     private int _started;
     private int _stopRequested;
@@ -25,7 +26,7 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
         string localDataDirectory,
         Dispatcher dispatcher,
         IceCrowRuntimeOptions options,
-        Action<LiveTrackingUpdate> onLiveTrackingProcessed,
+        Action<GameSessionUpdate> onSessionProcessed,
         Action<ManacostDataStatus> onDataStatusChanged,
         Action<bool, int, DateTimeOffset?> onTelemetryStatusChanged,
         Action<ProfileSyncStatus> onProfileSyncStatusChanged,
@@ -36,9 +37,9 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(dispatcher);
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(onLiveTrackingProcessed);
+        ArgumentNullException.ThrowIfNull(onSessionProcessed);
         Options = options;
-        _onLiveTrackingProcessed = onLiveTrackingProcessed;
+        _onSessionProcessed = onSessionProcessed;
         _data = new DataRuntime(localDataDirectory, onDataStatusChanged);
         _telemetry = new TelemetryRuntime(localDataDirectory, clientVersion, onTelemetryStatusChanged);
         // The overlay is an optional feature. Headless composition never calls
@@ -50,6 +51,9 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
         _profileSync = options.ProfileSyncEnabled
             ? new ProfileSyncRuntime(localDataDirectory, options.HearthPulseOrigin, onProfileSyncStatusChanged, clientVersion)
             : null;
+        _profileRecords = _profileSync is { } profileSync
+            ? new ProfileRecordPipeline(profileSync.TryQueue, profileSync.SetGameplayActive)
+            : null;
         // Developer match capture is a Debug-only feature. Release composes a
         // null observer so the live hot path pays exactly one null check per
         // notification point and no capture lock or interface call per event.
@@ -60,7 +64,7 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
         _ = onCaptureStatusChanged;
 #endif
         _live = new LiveRuntime(
-            OnLiveTrackingProcessed,
+            OnSessionProcessed,
             onRecoverableLogError,
             onLogStatus,
             _recording);
@@ -77,6 +81,9 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
     public object? OverlayDiagnostics => _presentation?.Diagnostics;
 
     public ProfileSyncRuntime? ProfileSync => _profileSync;
+
+    /// <summary>Profile records produced from finished matches; null when profile sync is disabled.</summary>
+    public ProfileRecordPipeline? ProfileRecords => _profileRecords;
 
     public PowerLogTailerDiagnostics TailerDiagnostics =>
         _live.TailerDiagnostics;
@@ -163,15 +170,16 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
         _shutdown.Cancel();
     }
 
-    private void OnLiveTrackingProcessed(LiveTrackingUpdate update)
+    private void OnSessionProcessed(GameSessionUpdate update)
     {
-        _onLiveTrackingProcessed(update);
-        if (update is not { StateChanged: true, Snapshot: not null })
+        _onSessionProcessed(update);
+        _profileRecords?.Observe(update, _live.GameplayActive);
+        if (update.Battlegrounds is not { StateChanged: true, Snapshot: { } snapshot })
         {
             return;
         }
 
-        _presentation?.Publish(update.Snapshot);
-        _telemetry.TryQueue(update.Snapshot);
+        _presentation?.Publish(snapshot);
+        _telemetry.TryQueue(snapshot);
     }
 }
