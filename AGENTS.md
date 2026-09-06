@@ -86,7 +86,7 @@ module) and apply their npm-based gates there, not to this .NET solution.
 
 | Project | Responsibility | Allowed IceCrow dependencies |
 | --- | --- | --- |
-| `IceCrow.App` | WPF composition root and application lifetime | `Overlay`, `Platform.Windows`, `Presentation`, `Hearthstone.Logs`, `Hearthstone.Data`, `Hearthstone.Decks`, `Infrastructure.ManacostApi`, `Live`, `Recording`, `Telemetry` |
+| `IceCrow.App` | WPF composition root and application lifetime | `Overlay`, `Platform.Windows`, `Presentation`, `Hearthstone.Logs`, `Hearthstone.Data`, `Hearthstone.Decks`, `Hearthstone.ClientState`, `Infrastructure.ManacostApi`, `Live`, `Recording`, `Telemetry`, `ProfileSync` |
 | `IceCrow.Platform.Windows` | Win32 and Windows-specific integration | None |
 | `IceCrow.Overlay` | WPF overlay rendering and interaction boundary | `Presentation`, `Platform.Windows` |
 | `IceCrow.Presentation` | Immutable WPF-free tracking/data-to-UI projections | `Hearthstone.Data`, `Tracking` |
@@ -103,6 +103,7 @@ module) and apply their npm-based gates there, not to this .NET solution.
 | `IceCrow.Recording` | Offline capture, replay navigation, and replay-specific safety limits | `Hearthstone.Protocol`, `Hearthstone.Entities`, `Battlegrounds`, `Battlegrounds.Memory`, `Tracking` |
 | `IceCrow.Infrastructure.ManacostApi` | Public HTTPS dataset sync, last-known-good cache, and image disk cache | `Hearthstone.Data` |
 | `IceCrow.Telemetry` | Consent-aware derived summaries and bounded offline outbox | `Tracking` |
+| `IceCrow.ProfileSync` | Personal HearthPulse profile records, durable idempotent outbox, batched authenticated sync, device linking, protected credential contract | `Tracking`, `Hearthstone.ClientState` |
 
 Test projects may reference only the production or developer-tool project under
 test and its transitive dependencies. `IceCrow.App.Tests` is the Windows-only

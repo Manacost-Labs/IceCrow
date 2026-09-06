@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\IceCrow.Hearthstone.ClientState\IceCrow.Hearthstone.ClientState.csproj" />
+    <ProjectReference Include="..\IceCrow.Tracking\IceCrow.Tracking.csproj" />
+  </ItemGroup>
+</Project>

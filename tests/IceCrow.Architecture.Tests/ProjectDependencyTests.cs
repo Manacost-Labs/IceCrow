@@ -62,6 +62,7 @@ public sealed class ProjectDependencyTests
                 "IceCrow.Hearthstone.Protocol",
             ],
             ["IceCrow.Telemetry"] = ["IceCrow.Tracking"],
+            ["IceCrow.ProfileSync"] = ["IceCrow.Hearthstone.ClientState", "IceCrow.Tracking"],
         };
 
     private static readonly string[] DomainProjects =
@@ -79,6 +80,7 @@ public sealed class ProjectDependencyTests
         "IceCrow.Recording",
         "IceCrow.Tracking",
         "IceCrow.Telemetry",
+        "IceCrow.ProfileSync",
     ];
 
     private static readonly string[] NetworkIndependentProjects =

@@ -4,4 +4,13 @@
     <TargetFramework>net10.0-windows</TargetFramework>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!--
+      Official Microsoft DPAPI wrapper (MIT, nuget.org). It is the platform
+      security boundary for the profile-sync device credential; no other
+      project may touch DPAPI directly.
+    -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
+  </ItemGroup>
+
 </Project>
