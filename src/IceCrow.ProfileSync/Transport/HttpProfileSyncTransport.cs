@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace IceCrow.ProfileSync.Transport;
 
@@ -15,7 +16,14 @@ namespace IceCrow.ProfileSync.Transport;
 public sealed class HttpProfileSyncTransport : IProfileSyncTransport
 {
     public const string BatchPath = "/api/v1/tracker/events/batch";
-    public const int MaximumResponseBytes = 256 * 1024;
+    public const int MaximumResponseBytes = BoundedResponse.MaximumBytes;
+
+    // Server responses may grow new members; never let an unknown field turn
+    // an accepted batch into an endless retry.
+    private static readonly JsonSerializerOptions ResponseOptions = new(ProfileJson.Options)
+    {
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Skip,
+    };
 
     private readonly HttpClient _httpClient;
     private readonly IProfileCredentialStore _credentials;
@@ -148,29 +156,28 @@ public sealed class HttpProfileSyncTransport : IProfileSyncTransport
         IReadOnlyList<ProfileEvent> events,
         CancellationToken cancellationToken)
     {
-        if (response.Content.Headers.ContentLength is > MaximumResponseBytes)
+        var body = await BoundedResponse.ReadAsync(response.Content, cancellationToken).ConfigureAwait(false);
+        if (body is null)
         {
             return ProfileUploadResult.Unavailable();
         }
 
         try
         {
-            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-            var body = await JsonSerializer.DeserializeAsync<BatchResponse>(stream, ProfileJson.Options, cancellationToken)
-                .ConfigureAwait(false);
-            if (body is null)
+            var parsed = JsonSerializer.Deserialize<BatchResponse>(body, ResponseOptions);
+            if (parsed is null)
             {
                 return ProfileUploadResult.Unavailable();
             }
 
             var submitted = events.Select(static item => item.EventId).ToHashSet();
-            var rejected = (body.Rejected ?? [])
+            var rejected = (parsed.Rejected ?? [])
                 .Where(item => item.EventId.HasValue && submitted.Contains(item.EventId.Value))
                 .Select(static item => item.EventId!.Value)
                 .ToArray();
             return new ProfileUploadResult(
                 ProfileUploadStatus.Accepted,
-                (body.Accepted ?? []).Where(submitted.Contains).ToArray(),
+                (parsed.Accepted ?? []).Where(submitted.Contains).ToArray(),
                 rejected);
         }
         catch (JsonException)

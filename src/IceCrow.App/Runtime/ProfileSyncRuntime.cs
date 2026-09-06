@@ -48,6 +48,7 @@ internal sealed class ProfileSyncRuntime : IAsyncDisposable
         })
         {
             Timeout = TimeSpan.FromSeconds(30),
+            MaxResponseContentBufferSize = HttpProfileSyncTransport.MaximumResponseBytes,
         };
         _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd($"IceCrow/{clientVersion}");
         _authorization = new DeviceAuthorizationClient(_httpClient, hearthPulseOrigin);

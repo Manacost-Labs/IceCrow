@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -169,16 +168,17 @@ public sealed class DeviceAuthorizationClient
         using var content = new FormUrlEncodedContent(form);
         try
         {
+            using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(_origin, path)) { Content = content };
             using var response = await _httpClient
-                .PostAsync(new Uri(_origin, path), content, cancellationToken)
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
                 .ConfigureAwait(false);
-            if (response.Content.Headers.ContentLength is > HttpProfileSyncTransport.MaximumResponseBytes)
+            var body = await BoundedResponse.ReadAsync(response.Content, cancellationToken).ConfigureAwait(false);
+            if (body is null || body.Length == 0)
             {
                 return (response.StatusCode, null);
             }
 
-            var body = await response.Content.ReadFromJsonAsync<TBody>(WireOptions, cancellationToken).ConfigureAwait(false);
-            return (response.StatusCode, body);
+            return (response.StatusCode, JsonSerializer.Deserialize<TBody>(body, WireOptions));
         }
         catch (HttpRequestException)
         {
@@ -228,6 +228,11 @@ public sealed record DeviceLinkStart(
     string VerificationUri,
     string? VerificationUriComplete,
     DateTimeOffset ExpiresAt,
-    TimeSpan Interval);
+    TimeSpan Interval)
+{
+    /// <summary>The device code is a bearer-equivalent secret while polling; never print it.</summary>
+    public override string ToString() =>
+        $"DeviceLinkStart {{ UserCode = {UserCode}, VerificationUri = {VerificationUri}, ExpiresAt = {ExpiresAt:O}, DeviceCode = [redacted] }}";
+}
 
 public sealed record DeviceLinkPoll(DeviceLinkOutcome Outcome, ProfileCredential? Credential, TimeSpan NextInterval);

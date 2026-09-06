@@ -169,24 +169,25 @@ public sealed class CollectionSyncCoordinatorTests : IDisposable
     }
 
     [Fact]
-    public async Task OversizedCollectionIsRejectedVisiblyNotTruncated()
+    public async Task MaximalCollectionIsAcceptedWholeNotTruncated()
     {
-        var huge = Snapshot(
+        // The largest snapshot the client-state contract allows (20 000 cards
+        // with 64-character ids) must fit the collection payload bound; a
+        // real collection is never silently truncated or rejected.
+        var maximal = Snapshot(
             Timestamp,
             Enumerable.Range(0, CollectionSnapshot.MaximumCards)
-                .Select(index => new CollectionCard($"CARD_{index:D6}", 1, 0, null, null))
+                .Select(index => new CollectionCard($"CARD_{index:D6}".PadRight(64, 'x'), 1, 1, 1, 1))
                 .ToArray());
-        var source = new ScriptedCollectionSource(
-            () => huge,
-            () => Snapshot(Timestamp.AddHours(1), new CollectionCard("A", 1, 0, null, null)));
+        var source = new ScriptedCollectionSource(() => maximal);
         using var coordinator = Create(source);
 
-        Assert.Equal(CollectionSyncOutcome.Rejected, await coordinator.RefreshAsync(CollectionRefreshTrigger.Startup));
+        Assert.Equal(CollectionSyncOutcome.Enqueued, await coordinator.RefreshAsync(CollectionRefreshTrigger.Startup));
 
-        Assert.Equal(0, await _outbox.CountAsync());
-        Assert.Equal(1, coordinator.Status.RejectedSnapshots);
-        Assert.Null(coordinator.Status.LastHashPrefix);
-        Assert.Equal(CollectionSyncOutcome.Enqueued, await coordinator.RefreshAsync(CollectionRefreshTrigger.Manual));
+        var pending = Assert.Single(await _outbox.PeekBatchAsync(1));
+        Assert.Equal(CollectionSnapshot.MaximumCards, pending.Payload.GetProperty("cards").GetArrayLength());
+        Assert.Equal(0, coordinator.Status.RejectedSnapshots);
+        Assert.Equal(CollectionSnapshot.MaximumCards, coordinator.Status.CardCount);
     }
 
     private string StatePath => Path.Combine(_directory, "collection-sync.json");

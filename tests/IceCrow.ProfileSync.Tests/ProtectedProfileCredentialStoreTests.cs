@@ -62,6 +62,19 @@ public sealed class ProtectedProfileCredentialStoreTests : IDisposable
     }
 
     [Fact]
+    public void CredentialNeverPrintsItsTokens()
+    {
+        var credential = Credential("https://hearthpulse.net");
+
+        var printed = credential.ToString();
+
+        Assert.DoesNotContain(credential.AccessToken, printed, StringComparison.Ordinal);
+        Assert.DoesNotContain(credential.RefreshToken, printed, StringComparison.Ordinal);
+        Assert.Contains("[redacted]", printed, StringComparison.Ordinal);
+        Assert.Contains("tracker.write", printed, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task OnlyHttpsOriginsAreAccepted()
     {
         using var store = Create();

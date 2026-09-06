@@ -37,6 +37,37 @@ public sealed class HttpProfileSyncTransportTests
     }
 
     [Fact]
+    public async Task UnknownResponseMembersDoNotBreakAcknowledgement()
+    {
+        var profileEvent = Event();
+        var handler = new ScriptedHandler(_ => Json(
+            HttpStatusCode.OK,
+            $$"""{"accepted":["{{profileEvent.EventId}}"],"rejected":[],"received":1,"serverTime":"2026-09-06T12:00:00Z"}"""));
+        var transport = Create(handler, Credential("access-1"));
+
+        var result = await transport.UploadAsync([profileEvent], CancellationToken.None);
+
+        Assert.Equal(ProfileUploadStatus.Accepted, result.Status);
+        Assert.Equal([profileEvent.EventId], result.AcknowledgedEventIds);
+    }
+
+    [Fact]
+    public async Task OversizedChunkedResponseBodyIsRejectedWithoutBuffering()
+    {
+        var handler = new ScriptedHandler(_ =>
+        {
+            // No Content-Length: a chunked body larger than the cap.
+            var body = "{\"accepted\":[],\"rejected\":[],\"padding\":\"" + new string('p', HttpProfileSyncTransport.MaximumResponseBytes + 1024) + "\"}";
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(body))) };
+        });
+        var transport = Create(handler, Credential("access-1"));
+
+        var result = await transport.UploadAsync([Event()], CancellationToken.None);
+
+        Assert.Equal(ProfileUploadStatus.Unavailable, result.Status);
+    }
+
+    [Fact]
     public async Task RefreshesOnceAfterUnauthorizedAndRetriesWithTheNewToken()
     {
         var store = new MemoryCredentialStore(Credential("stale"));

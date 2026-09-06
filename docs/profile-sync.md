@@ -61,7 +61,7 @@ written atomically (temp file + move) behind a single gate.
 | --- | --- |
 | History events (matches, Arena) | 256; a full outbox returns an explicit `Full` result that the runtime counts and reports, never a silent drop |
 | Collection snapshots | latest-only; a newer pending snapshot replaces the older one |
-| Payload per event | 512 KiB |
+| Payload per event | 512 KiB (collection snapshot 4 MiB); null optional fields are omitted on the wire |
 | File | 16 MiB; a larger or malformed file is `InvalidDataException`, never partially trusted |
 | Upload batch | 25 events (hard cap 50) |
 | Producer channel in the App | 64 events, `DropWrite` with a counted overflow |

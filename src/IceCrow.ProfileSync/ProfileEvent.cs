@@ -17,6 +17,15 @@ public sealed record ProfileEvent(
     public const int CurrentSchemaVersion = 1;
     public const int MaximumPayloadBytes = 512 * 1024;
 
+    /// <summary>
+    /// A full collection is thousands of cards; it is state (latest-only in
+    /// the outbox) so it gets its own larger bound, mirrored by the server.
+    /// </summary>
+    public const int MaximumCollectionPayloadBytes = 4 * 1024 * 1024;
+
+    public static int MaximumPayloadBytesFor(string type) =>
+        ProfileEventType.IsLatestOnly(type) ? MaximumCollectionPayloadBytes : MaximumPayloadBytes;
+
     public static ProfileEvent Create<TPayload>(
         string type,
         DateTimeOffset occurredAt,
@@ -48,7 +57,8 @@ public sealed record ProfileEvent(
             !ProfileEventType.IsKnown(profileEvent.Type) ||
             profileEvent.SchemaVersion != CurrentSchemaVersion ||
             profileEvent.Payload.ValueKind != JsonValueKind.Object ||
-            Encoding.UTF8.GetByteCount(profileEvent.Payload.GetRawText()) > MaximumPayloadBytes)
+            Encoding.UTF8.GetByteCount(profileEvent.Payload.GetRawText()) > MaximumPayloadBytesFor(profileEvent.Type) ||
+            !ProfileEventLimits.IsWithinLimits(profileEvent.Type, profileEvent.Payload))
         {
             throw new InvalidDataException("The profile event is outside the sync contract limits.");
         }

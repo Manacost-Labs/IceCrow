@@ -88,11 +88,34 @@ public sealed class ProfileSyncCoordinator : IDisposable
             while (!cancellationToken.IsCancellationRequested)
             {
                 await _wake.WaitAsync(ComputeWait(), cancellationToken).ConfigureAwait(false);
-                await UploadPendingAsync(cancellationToken).ConfigureAwait(false);
+                await UploadPendingSafelyAsync(cancellationToken).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+        }
+    }
+
+    /// <summary>
+    /// A corrupt, oversized, or locked outbox file must not kill the only
+    /// uploader for the rest of the process; it becomes a counted backoff
+    /// so the next tick retries after the file is repaired or replaced.
+    /// </summary>
+    public async Task UploadPendingSafelyAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await UploadPendingAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is InvalidDataException or IOException or UnauthorizedAccessException)
+        {
+            var failures = Status.ConsecutiveFailures + 1;
+            Publish(Status with
+            {
+                Phase = ProfileSyncPhase.BackingOff,
+                ConsecutiveFailures = failures,
+                RetryAt = _time.GetUtcNow() + ComputeBackoff(failures),
+            });
         }
     }
 

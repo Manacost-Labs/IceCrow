@@ -35,7 +35,7 @@ requires a corpus or soak result and a security review.
 | Telemetry runtime queue | 16 | oldest optional summary dropped |
 | Telemetry outbox | — | 128 summaries, 8 MiB; streamed read stops at item 129 |
 | Profile-sync producer channel | 64 events | `DropWrite` with a counted, reported overflow |
-| Profile outbox history (matches, Arena) | — | 256 events, 512 KiB per payload, 16 MiB file; a full outbox is an explicit `Full` result, never a silent drop |
+| Profile outbox history (matches, Arena) | — | 256 events, 512 KiB per payload (collection snapshot 4 MiB), 16 MiB file; a full outbox is an explicit `Full` result, never a silent drop |
 | Profile outbox collection snapshot | — | latest-only: a newer pending snapshot replaces the older one |
 | Profile upload batch | 25 events | hard cap 50; backoff 30 s–30 min with ±20% jitter; no HTTP per gameplay event |
 | Power.log locate | every 15 recovery ticks (15 s) | idle ticks reuse the cached path; a watcher signal or a missing file re-runs the search |

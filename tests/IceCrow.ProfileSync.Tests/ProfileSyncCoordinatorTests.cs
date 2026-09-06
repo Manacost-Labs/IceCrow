@@ -172,6 +172,23 @@ public sealed class ProfileSyncCoordinatorTests : IDisposable
     }
 
     [Fact]
+    public async Task CorruptOutboxBacksOffInsteadOfKillingTheUploader()
+    {
+        await EnqueueMatchAsync();
+        await File.WriteAllTextAsync(Path.Combine(_directory, "outbox.json"), "{ definitely not an array");
+        var transport = new ScriptedTransport(
+            batch => new ProfileUploadResult(ProfileUploadStatus.Accepted, batch.Select(static item => item.EventId).ToArray(), []));
+        using var coordinator = Create(transport, linked: true);
+
+        await coordinator.UploadPendingSafelyAsync(CancellationToken.None);
+
+        Assert.Equal(ProfileSyncPhase.BackingOff, coordinator.Status.Phase);
+        Assert.Equal(1, coordinator.Status.ConsecutiveFailures);
+        Assert.Empty(transport.Calls);
+        Assert.NotNull(coordinator.Status.RetryAt);
+    }
+
+    [Fact]
     public async Task RunLoopWakesOnNotifyAndDrainsTheOutbox()
     {
         var transport = new ScriptedTransport(

@@ -17,6 +17,10 @@ public sealed record ProfileCredential(
     public const int MaximumScopes = 16;
 
     public bool IsAccessTokenExpired(DateTimeOffset now) => AccessTokenExpiresAt <= now;
+
+    /// <summary>Records print themselves by default; the tokens must never appear in that output.</summary>
+    public override string ToString() =>
+        $"ProfileCredential {{ ServerOrigin = {ServerOrigin}, Scopes = {string.Join(' ', Scopes)}, AccessTokenExpiresAt = {AccessTokenExpiresAt:O}, LinkedAt = {LinkedAt:O}, AccessToken = [redacted], RefreshToken = [redacted] }}";
 }
 
 public interface IProfileCredentialStore

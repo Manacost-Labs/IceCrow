@@ -9,6 +9,7 @@ public static class ProfileJson
     public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
     {
         MaxDepth = 32,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: false) },
     };

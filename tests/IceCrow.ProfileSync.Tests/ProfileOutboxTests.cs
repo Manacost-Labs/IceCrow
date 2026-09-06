@@ -94,13 +94,42 @@ public sealed class ProfileOutboxTests : IDisposable
     [Fact]
     public void OversizedPayloadsAndUnknownTypesAreRejectedAtCreation()
     {
-        var huge = new CollectionSnapshotRecord(
+        var fullCollection = new CollectionSnapshotRecord(
             Timestamp,
             "hash",
-            Enumerable.Range(0, 30_000).Select(index => new CollectionCardRecord($"CARD_{index:D6}", 1, 0, null, null)).ToArray());
+            Enumerable.Range(0, 6_000).Select(index => new CollectionCardRecord($"CARD_{index:D6}", 2, 1, null, null)).ToArray());
+        var huge = fullCollection with
+        {
+            Cards = Enumerable.Range(0, 30_000)
+                .Select(index => new CollectionCardRecord(new string('x', 150) + index, 1, 0, null, null))
+                .ToArray(),
+        };
+        var oversizedHistory = new ConstructedMatchRecord(
+            Guid.CreateVersion7(), "ranked", "standard", MatchResult.Won, Certainty.Exact, Timestamp, Timestamp, 0, 0,
+            null, null, DeckEvidence.Unknown, MulliganRecord.Unknown, null,
+            new OpponentDeckEvidence(Enumerable.Range(0, 20_000).Select(static index => $"CARD_{index:D6}_padding_padding_padding").ToArray(), null, null, Certainty.Partial),
+            null, null, null);
 
+        var accepted = ProfileEvent.Create(ProfileEventType.CollectionSnapshot, Timestamp, fullCollection);
+        Assert.DoesNotContain("signatureCount", accepted.Payload.GetRawText(), StringComparison.Ordinal);
         Assert.Throws<InvalidDataException>(() => ProfileEvent.Create(ProfileEventType.CollectionSnapshot, Timestamp, huge));
+        Assert.Throws<InvalidDataException>(() => ProfileEvent.Create(ProfileEventType.ConstructedMatch, Timestamp, oversizedHistory));
         Assert.Throws<ArgumentException>(() => ProfileEvent.Create("future_event", Timestamp, Collection("x")));
+
+        var tooManyMulliganCards = oversizedHistory with
+        {
+            OpponentDeck = OpponentDeckEvidence.Unknown,
+            PlayerMulligan = new MulliganRecord(
+                Enumerable.Range(0, ProfileRecordLimits.MaximumMulliganCards + 1).Select(static index => $"CARD_{index}").ToArray(),
+                [], [], [], Certainty.Exact),
+        };
+        Assert.Throws<InvalidDataException>(() => ProfileEvent.Create(ProfileEventType.ConstructedMatch, Timestamp, tooManyMulliganCards));
+        var eightMinions = new BattlegroundsMatchRecord(
+            Guid.CreateVersion7(), BattlegroundsMode.Solo, null, null, Certainty.Unknown, null, null, Certainty.Unknown,
+            Timestamp, Timestamp, 0, 0,
+            new FinalBoardRecord(Timestamp, 1, Enumerable.Range(1, 8).Select(static slot => new FinalBoardMinion(slot, "M", 1, 1, null)).ToArray(), Certainty.Exact),
+            null);
+        Assert.Throws<InvalidDataException>(() => ProfileEvent.Create(ProfileEventType.BattlegroundsMatch, Timestamp, eightMinions));
         Assert.Throws<InvalidDataException>(() => ProfileEvent.Validate(
             new ProfileEvent(Guid.Empty, ProfileEventType.ArenaRun, 1, Timestamp, JsonDocument.Parse("{}").RootElement)));
     }
