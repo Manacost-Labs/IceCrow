@@ -30,6 +30,7 @@ public sealed class PowerLogTailer
     private readonly Channel<bool> _signals;
     private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _recoveryInterval;
+    private Task<bool>? _pendingSignal;
     private readonly Dictionary<string, FileSystemWatcher> _watchers =
         new(StringComparer.OrdinalIgnoreCase);
     private LogReadCheckpoint _checkpoint = LogReadCheckpoint.Empty;
@@ -496,21 +497,26 @@ public sealed class PowerLogTailer
         return true;
     }
 
+    /// <summary>
+    /// Waits for a watcher signal or the recovery tick. The pending signal
+    /// read is kept armed across ticks instead of being cancelled, so an
+    /// idle tailer raises no exception and allocates no linked token source
+    /// per second; only process shutdown cancels it.
+    /// </summary>
     private async Task WaitForSignalOrRecoveryAsync(CancellationToken cancellationToken)
     {
-        using var waitCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var signalTask = _signals.Reader.ReadAsync(waitCancellation.Token).AsTask();
-        var recoveryTask = Task.Delay(_recoveryInterval, _timeProvider, waitCancellation.Token);
-        var completed = await Task.WhenAny(signalTask, recoveryTask).ConfigureAwait(false);
-        waitCancellation.Cancel();
-
-        try
+        _pendingSignal ??= _signals.Reader.WaitToReadAsync(cancellationToken).AsTask();
+        var recoveryTask = Task.Delay(_recoveryInterval, _timeProvider, cancellationToken);
+        var completed = await Task.WhenAny(_pendingSignal, recoveryTask).ConfigureAwait(false);
+        if (ReferenceEquals(completed, _pendingSignal))
         {
-            await completed.ConfigureAwait(false);
+            var pending = _pendingSignal;
+            _pendingSignal = null;
+            _ = await pending.ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        else
         {
-            throw;
+            await recoveryTask.ConfigureAwait(false);
         }
 
         while (_signals.Reader.TryRead(out _))
