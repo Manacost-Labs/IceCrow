@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using IceCrow.Hearthstone.Protocol.Events;
 
 namespace IceCrow.Recording;
 
@@ -280,6 +281,16 @@ public static class RecordingSerializer
                 break;
             case RecordedEventType.UnknownPower:
                 RequireReference(recordedEvent.Content, nameof(recordedEvent.Content));
+                break;
+            case RecordedEventType.GameMetadata:
+                _ = RecordedEvent.ParseMetadataField(
+                    RequireReference(recordedEvent.Tag, nameof(recordedEvent.Tag)));
+                if (RequireReference(recordedEvent.Value, nameof(recordedEvent.Value)).Length >
+                    GameMetadataObserved.MaximumValueLength)
+                {
+                    throw new InvalidDataException("Game metadata value exceeds its limit.");
+                }
+
                 break;
             default:
                 throw new InvalidDataException(

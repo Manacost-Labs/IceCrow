@@ -18,6 +18,7 @@ public enum RecordedEventType
     BlockStarted,
     BlockEnded,
     UnknownPower,
+    GameMetadata,
 }
 
 public sealed record RecordedEvent
@@ -136,6 +137,13 @@ public sealed record RecordedEvent
             {
                 Content = unknown.Content,
             },
+            GameMetadataObserved metadata => Base(
+                RecordedEventType.GameMetadata,
+                metadata) with
+            {
+                Tag = metadata.Field.ToString(),
+                Value = metadata.Value,
+            },
             _ => throw new NotSupportedException(
                 $"Recording does not support normalized event '{gameEvent.GetType().Name}'."),
         };
@@ -189,9 +197,18 @@ public sealed record RecordedEvent
             Timestamp,
             BlockId,
             Content!),
+        RecordedEventType.GameMetadata => new GameMetadataObserved(
+            Timestamp,
+            ParseMetadataField(Tag!),
+            Value!),
         _ => throw new InvalidOperationException(
             $"'{Type}' is a replay control event, not a normalized game event."),
     };
+
+    internal static GameMetadataField ParseMetadataField(string tag) =>
+        Enum.TryParse<GameMetadataField>(tag, ignoreCase: false, out var field) && Enum.IsDefined(field)
+            ? field
+            : throw new InvalidDataException($"Unsupported game metadata field '{tag}'.");
 
     private static RecordedEvent Base(RecordedEventType type, GameEvent gameEvent) => new()
     {

@@ -152,7 +152,7 @@ public sealed class LiveTrackingCoordinatorTests
         var tracking = new TrackingSession(new TrackingSessionLimits(
             maximumTrackedEntities: 4,
             trackedEntityWarningThreshold: 1,
-            maximumTagsPerEntity: 2,
+            maximumTagsPerEntity: 3,
             tagsPerEntityWarningThreshold: 1,
             maximumLobbyPlayers: 2,
             lobbyPlayerWarningThreshold: 1,
@@ -171,7 +171,7 @@ public sealed class LiveTrackingCoordinatorTests
         Assert.Equal(1, rejected.Diagnostics.SafetyLimitRejections);
         Assert.True(rejected.Diagnostics.Warnings.HasFlag(LiveTrackingWarnings.TrackedEntities));
         Assert.True(rejected.Diagnostics.Warnings.HasFlag(LiveTrackingWarnings.TagsPerEntity));
-        Assert.Equal(2, rejected.Diagnostics.MaximumTagsOnEntity);
+        Assert.Equal(3, rejected.Diagnostics.MaximumTagsOnEntity);
     }
 
     [Fact]

@@ -114,6 +114,14 @@ public sealed class RecordingEventShapeContractTests
         {
             yield return new UnknownPowerEvent(Timestamp, null, content);
         }
+
+        yield return new GameMetadataObserved(Timestamp, GameMetadataField.BuildNumber, "224857");
+        yield return new GameMetadataObserved(Timestamp, GameMetadataField.GameType, "GT_RANKED");
+        yield return new GameMetadataObserved(Timestamp, GameMetadataField.FormatType, "FT_WILD");
+        yield return new GameMetadataObserved(
+            Timestamp,
+            GameMetadataField.ScenarioId,
+            new string('9', GameMetadataObserved.MaximumValueLength));
     }
 
     private static IEnumerable<PowerBlock> GenerateBlockVariants()

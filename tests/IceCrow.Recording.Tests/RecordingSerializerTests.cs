@@ -62,6 +62,7 @@ public sealed class RecordingSerializerTests
             new BlockStarted(Timestamp, block),
             new BlockEnded(Timestamp, block),
             new UnknownPowerEvent(Timestamp, null, "FUTURE_EVENT value=1"),
+            new GameMetadataObserved(Timestamp, GameMetadataField.GameType, "GT_RANKED"),
         ];
         var match = new RecordedMatch(
             RecordedMatch.CurrentFormatVersion,

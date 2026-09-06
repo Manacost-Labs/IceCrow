@@ -17,6 +17,26 @@ public static class PowerProtocolFixtures
     {
         yield return
         [
+            "GameState.DebugPrintGame() - BuildNumber=224857",
+            new GameMetadataObserved(Timestamp, GameMetadataField.BuildNumber, "224857"),
+        ];
+        yield return
+        [
+            "GameState.DebugPrintGame() - GameType=GT_RANKED",
+            new GameMetadataObserved(Timestamp, GameMetadataField.GameType, "GT_RANKED"),
+        ];
+        yield return
+        [
+            "GameState.DebugPrintGame() - FormatType=FT_STANDARD",
+            new GameMetadataObserved(Timestamp, GameMetadataField.FormatType, "FT_STANDARD"),
+        ];
+        yield return
+        [
+            "GameState.DebugPrintGame() - ScenarioID=2",
+            new GameMetadataObserved(Timestamp, GameMetadataField.ScenarioId, "2"),
+        ];
+        yield return
+        [
             "PowerTaskList.DebugPrintPower() - CREATE_GAME",
             new GameCreated(Timestamp),
         ];

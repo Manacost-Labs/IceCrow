@@ -75,7 +75,7 @@ public sealed class AppliedMatchEventObserverTests
         var tracking = new TrackingSession(new TrackingSessionLimits(
             maximumTrackedEntities: 4,
             trackedEntityWarningThreshold: 1,
-            maximumTagsPerEntity: 2,
+            maximumTagsPerEntity: 3,
             tagsPerEntityWarningThreshold: 1,
             maximumLobbyPlayers: 2,
             lobbyPlayerWarningThreshold: 1,

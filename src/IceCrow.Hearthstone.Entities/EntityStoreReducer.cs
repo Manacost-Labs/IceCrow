@@ -125,7 +125,12 @@ public static class EntityStoreReducer
 
         tag = rawTag switch
         {
+            "PREMIUM" => GameTag.Premium,
             "PLAYSTATE" => GameTag.PlayState,
+            "STEP" => GameTag.Step,
+            "STATE" => GameTag.State,
+            "MULLIGAN_STATE" => GameTag.MulliganState,
+            "PLAYER_LEADERBOARD_PLACE" => GameTag.PlayerLeaderboardPlace,
             "TURN" => GameTag.Turn,
             "CURRENT_PLAYER" => GameTag.CurrentPlayer,
             "HERO_ENTITY" => GameTag.HeroEntity,
@@ -172,6 +177,24 @@ public static class EntityStoreReducer
         if (tag == GameTag.PlayState && TryParsePlayState(rawValue, out var playState))
         {
             value = (int)playState;
+            return true;
+        }
+
+        if (tag == GameTag.MulliganState && TryParseMulliganState(rawValue, out var mulliganState))
+        {
+            value = (int)mulliganState;
+            return true;
+        }
+
+        if (tag == GameTag.Step && TryParseStep(rawValue, out var step))
+        {
+            value = (int)step;
+            return true;
+        }
+
+        if (tag == GameTag.State && TryParseGameLifecycleState(rawValue, out var lifecycleState))
+        {
+            value = (int)lifecycleState;
             return true;
         }
 
@@ -234,6 +257,65 @@ public static class EntityStoreReducer
             _ => default,
         };
         return playState != default || rawValue == "INVALID";
+    }
+
+    private static bool TryParseMulliganState(string rawValue, out MulliganState state)
+    {
+        state = rawValue switch
+        {
+            "INVALID" => MulliganState.Invalid,
+            "INPUT" => MulliganState.Input,
+            "DEALING" => MulliganState.Dealing,
+            "WAITING" => MulliganState.Waiting,
+            "DONE" => MulliganState.Done,
+            "REFRESHING" => MulliganState.Refreshing,
+            "PREREFRESHING" => MulliganState.PreRefreshing,
+            _ => default,
+        };
+        return state != default || rawValue == "INVALID";
+    }
+
+    private static bool TryParseStep(string rawValue, out GameStep step)
+    {
+        step = rawValue switch
+        {
+            "INVALID" => GameStep.Invalid,
+            "BEGIN_FIRST" => GameStep.BeginFirst,
+            "BEGIN_SHUFFLE" => GameStep.BeginShuffle,
+            "BEGIN_DRAW" => GameStep.BeginDraw,
+            "BEGIN_MULLIGAN" => GameStep.BeginMulligan,
+            "MAIN_BEGIN" => GameStep.MainBegin,
+            "MAIN_READY" => GameStep.MainReady,
+            "MAIN_RESOURCE" => GameStep.MainResource,
+            "MAIN_DRAW" => GameStep.MainDraw,
+            "MAIN_START" => GameStep.MainStart,
+            "MAIN_ACTION" => GameStep.MainAction,
+            "MAIN_COMBAT" => GameStep.MainCombat,
+            "MAIN_END" => GameStep.MainEnd,
+            "MAIN_NEXT" => GameStep.MainNext,
+            "FINAL_WRAPUP" => GameStep.FinalWrapup,
+            "FINAL_GAMEOVER" => GameStep.FinalGameover,
+            "MAIN_CLEANUP" => GameStep.MainCleanup,
+            "MAIN_START_TRIGGERS" => GameStep.MainStartTriggers,
+            "MAIN_SET_ACTION_STEP_TYPE" => GameStep.MainSetActionStepType,
+            "MAIN_PRE_ACTION" => GameStep.MainPreAction,
+            "MAIN_POST_ACTION" => GameStep.MainPostAction,
+            _ => default,
+        };
+        return step != default || rawValue == "INVALID";
+    }
+
+    private static bool TryParseGameLifecycleState(string rawValue, out GameLifecycleState state)
+    {
+        state = rawValue switch
+        {
+            "INVALID" => GameLifecycleState.Invalid,
+            "LOADING" => GameLifecycleState.Loading,
+            "RUNNING" => GameLifecycleState.Running,
+            "COMPLETE" => GameLifecycleState.Complete,
+            _ => default,
+        };
+        return state != default || rawValue == "INVALID";
     }
 
     private static string? NullIfEmpty(string? value) =>

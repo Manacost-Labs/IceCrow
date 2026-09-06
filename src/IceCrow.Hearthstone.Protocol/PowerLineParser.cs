@@ -10,6 +10,8 @@ public sealed class PowerLineParser
 
     private const string PowerTaskListPrefix = "PowerTaskList.DebugPrintPower() -";
     private const string GameStatePrefix = "GameState.DebugPrintPower() -";
+    private const string GameMetadataPrefix = "GameState.DebugPrintGame() -";
+    private const string PlayerIdentityPayloadPrefix = "PlayerID=";
     private const string EndCurrentTaskListPrefix = "PowerProcessor.EndCurrentTaskList";
     private const string CreateGamePayload = "CREATE_GAME";
 
@@ -38,6 +40,11 @@ public sealed class PowerLineParser
                 return _context.RecordMalformed(
                     "input.too_long",
                     $"Power line exceeds the {MaximumInputCharacters} character limit.");
+            }
+
+            if (content.StartsWith(GameMetadataPrefix, StringComparison.Ordinal))
+            {
+                return ParseGameMetadata(content[GameMetadataPrefix.Length..].Trim(), timestamp);
             }
 
             var payload = StripKnownPrefix(content).Trim();
@@ -110,6 +117,54 @@ public sealed class PowerLineParser
             return _context.RecordUnknown(
                 new UnknownPowerEvent(timestamp, _context.CurrentBlockId, payload));
         }
+    }
+
+    /// <summary>
+    /// <c>GameState.DebugPrintGame()</c> prints a small metadata block once per
+    /// game. Build, game type, format and scenario become typed events; the
+    /// <c>PlayerID=…, PlayerName=…</c> identity lines are ignored on purpose
+    /// because player names are account identity that IceCrow never retains.
+    /// </summary>
+    private PowerParseResult ParseGameMetadata(string payload, DateTimeOffset timestamp)
+    {
+        ClearCreationContext();
+        if (payload.StartsWith(PlayerIdentityPayloadPrefix, StringComparison.Ordinal))
+        {
+            return _context.RecordIgnored();
+        }
+
+        var match = PowerLinePatterns.GameMetadata().Match(payload);
+        GameMetadataField? field = match.Success
+            ? match.Groups["field"].Value switch
+            {
+                "BuildNumber" => GameMetadataField.BuildNumber,
+                "GameType" => GameMetadataField.GameType,
+                "FormatType" => GameMetadataField.FormatType,
+                "ScenarioID" => GameMetadataField.ScenarioId,
+                _ => null,
+            }
+            : null;
+        if (field is not { } knownField)
+        {
+            return _context.RecordUnknown(
+                new UnknownPowerEvent(timestamp, _context.CurrentBlockId, payload));
+        }
+
+        var value = match.Groups["value"].Value;
+        if (value.Length is 0 or > GameMetadataObserved.MaximumValueLength)
+        {
+            return Malformed(
+                "DebugPrintGame.value",
+                $"Game metadata value must be 1 to {GameMetadataObserved.MaximumValueLength} characters.");
+        }
+
+        if (knownField is GameMetadataField.BuildNumber or GameMetadataField.ScenarioId &&
+            !TryReadInt32(value, out _))
+        {
+            return Malformed("DebugPrintGame.numeric", $"Game metadata {knownField} is not a number.");
+        }
+
+        return _context.RecordParsed(new GameMetadataObserved(timestamp, knownField, value));
     }
 
     private PowerParseResult ParseGameEntity(string payload, DateTimeOffset timestamp)
@@ -510,6 +565,9 @@ internal static partial class PowerLinePatterns
         RegexOptions.CultureInvariant |
         RegexOptions.ExplicitCapture |
         RegexOptions.NonBacktracking;
+
+    [GeneratedRegex(@"^(?<field>[A-Za-z]+)=(?<value>[A-Za-z0-9_\-]*)\s*$", Options)]
+    internal static partial Regex GameMetadata();
 
     [GeneratedRegex(@"^GameEntity\s+EntityID=(?<id>[0-9]+)\s*$", Options)]
     internal static partial Regex GameEntity();
