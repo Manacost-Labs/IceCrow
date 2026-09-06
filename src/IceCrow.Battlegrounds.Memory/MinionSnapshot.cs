@@ -12,6 +12,7 @@ public sealed class MinionSnapshot
         Attack = entity.Attack;
         Health = entity.Health;
         ZonePosition = entity.ZonePosition;
+        IsGolden = entity.Tags.ContainsKey(GameTag.Premium) ? entity.Premium > 0 : null;
         Tags = entity.Tags.ToFrozenDictionary();
     }
 
@@ -24,6 +25,13 @@ public sealed class MinionSnapshot
     public int Health { get; }
 
     public int ZonePosition { get; }
+
+    /// <summary>
+    /// True when the client tagged the entity PREMIUM (golden), false when it
+    /// tagged it plain, and null when the tag was never observed: an
+    /// unobserved tag is not evidence of a plain minion.
+    /// </summary>
+    public bool? IsGolden { get; }
 
     public IReadOnlyDictionary<GameTag, int> Tags { get; }
 

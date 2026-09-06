@@ -297,7 +297,10 @@ public sealed class OpponentChangesViewStateTests
             MaximumOpponentSnapshotsOnPlayer: 0,
             Battlegrounds: state,
             OpponentMemory: memory,
-            LobbyTimeline: LobbyTimelineSnapshot.Empty);
+            LobbyTimeline: LobbyTimelineSnapshot.Empty,
+            Metadata: GameMetadataState.Empty,
+            LocalBoard: null,
+            Result: null);
 
         return Assert.Single(BattlegroundsOverlayViewStateFactory.Create(snapshot).Opponents);
     }

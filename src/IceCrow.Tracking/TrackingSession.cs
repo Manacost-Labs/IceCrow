@@ -8,18 +8,14 @@ namespace IceCrow.Tracking;
 
 public sealed class TrackingSession
 {
-    // Power.log block-type literal for an attack action. By the first attack
-    // of a Battlegrounds combat the enemy board deal is complete, which makes
-    // it the reliable capture moment (proven against the four 2026-08-31 real
-    // captures, where the board was always empty at the phase transition).
-    private const string AttackBlockType = "ATTACK";
-
     private readonly TrackingSessionLimits _limits;
     private readonly EntityStore _entities;
     private readonly OpponentMemoryService _opponentMemory;
     private readonly LobbyTimeline _lobbyTimeline;
-    private (int OpponentPlayerId, int Turn)? _pendingBoardCapture;
+    private readonly CombatBoardCapture _boardCapture;
     private BattlegroundsState _battlegrounds = BattlegroundsState.Empty;
+    private GameMetadataState _metadata = GameMetadataState.Empty;
+    private BattlegroundsMatchResult? _result;
     private TrackingSessionState _sessionState;
     private DateTimeOffset? _startedAt;
     private DateTimeOffset? _endedAt;
@@ -38,6 +34,7 @@ public sealed class TrackingSession
         _lobbyTimeline = new LobbyTimeline(
             _limits.MaximumLobbyPlayers,
             _limits.MaximumTimelineEventsPerPlayer);
+        _boardCapture = new CombatBoardCapture(_opponentMemory);
     }
 
     public TrackingSnapshot Current => _current ??= CreateCurrent();
@@ -86,7 +83,7 @@ public sealed class TrackingSession
             previousPhase,
             entityMutation: null,
             entity: null,
-            observedBoard: null);
+            observedBoards: default);
     }
 
     public TrackingUpdate Apply(GameEvent gameEvent)
@@ -130,6 +127,12 @@ public sealed class TrackingSession
                 exception.Message,
                 exception);
         }
+
+        if (gameEvent is GameMetadataObserved metadata)
+        {
+            _metadata = _metadata.Apply(metadata);
+        }
+
         var entity = TryCreateEventEntitySnapshot(gameEvent, mutation);
         if (entity is not null)
         {
@@ -142,17 +145,21 @@ public sealed class TrackingSession
                     new BattlegroundsEntityChanged(gameEvent.Timestamp, entity, mutation));
         }
 
-        var observedBoard = TrackOpponentBoardCapture(previousPhase, gameEvent);
-        _lobbyTimeline.Update(_battlegrounds, gameEvent.Timestamp, observedBoard);
+        var observedBoards = _boardCapture.Track(previousPhase, _battlegrounds, gameEvent, _entities);
+        _lobbyTimeline.Update(_battlegrounds, gameEvent.Timestamp, observedBoards.Opponent);
 
         return CompleteUpdate(
             TrackingSessionState.Active,
             previousPhase,
             mutation,
             entity,
-            observedBoard);
+            observedBoards);
     }
 
+    /// <summary>
+    /// Ends the match and freezes its result. The last local board survives
+    /// the end so the result can report the warband that fought last.
+    /// </summary>
     public TrackingUpdate EndMatch(DateTimeOffset timestamp)
     {
         if (_sessionState != TrackingSessionState.Active)
@@ -161,20 +168,26 @@ public sealed class TrackingSession
         }
 
         var previousPhase = _battlegrounds.Phase;
-        _pendingBoardCapture = null;
+        _boardCapture.Disarm();
         _battlegrounds = BattlegroundsReducer.Apply(
             _battlegrounds,
             new BattlegroundsGameEnded(timestamp));
         _lobbyTimeline.Update(_battlegrounds, timestamp);
         _sessionState = TrackingSessionState.Ended;
         _endedAt = timestamp;
+        _result = BattlegroundsMatchResult.Create(
+            _battlegrounds,
+            _boardCapture.LatestLocalBoard,
+            _metadata,
+            _startedAt ?? timestamp,
+            timestamp);
 
         return CompleteUpdate(
             TrackingSessionState.Active,
             previousPhase,
             entityMutation: null,
             entity: null,
-            observedBoard: null);
+            observedBoards: default);
     }
 
     public void Reset()
@@ -194,11 +207,13 @@ public sealed class TrackingSession
 
     private void ResetMatchState()
     {
-        _pendingBoardCapture = null;
+        _boardCapture.Reset();
         _entities.Reset();
         _opponentMemory.Reset();
         _lobbyTimeline.Reset();
         _battlegrounds = BattlegroundsState.Empty;
+        _metadata = GameMetadataState.Empty;
+        _result = null;
         _startedAt = null;
         _endedAt = null;
         _current = null;
@@ -251,69 +266,12 @@ public sealed class TrackingSession
         return _entities.CreateSnapshot(id);
     }
 
-    /// <summary>
-    /// One board snapshot per real combat. Combat entry only arms a pending
-    /// capture — the four 2026-08-31 real captures proved the enemy board is
-    /// dealt to a fixed opposing-side controller strictly after the phase
-    /// transition, and that the compatibility phase flip also fires during
-    /// shopping with no fight at all. The first attack block is the moment
-    /// the deal is provably complete, so the snapshot is taken exactly once
-    /// there; a combat window without any attack (shop residue, or an empty
-    /// enemy board that never fights) records no observation instead of a
-    /// false empty board.
-    /// </summary>
-    private BoardSnapshot? TrackOpponentBoardCapture(
-        BattlegroundsPhase previousPhase,
-        GameEvent gameEvent)
-    {
-        if (_battlegrounds.Phase != BattlegroundsPhase.Combat)
-        {
-            _pendingBoardCapture = null;
-            return null;
-        }
-
-        if (previousPhase != BattlegroundsPhase.Combat)
-        {
-            _pendingBoardCapture =
-                _battlegrounds.CurrentOpponentPlayerId is int opponentPlayerId
-                    ? (opponentPlayerId, _battlegrounds.Turn)
-                    : null;
-            return null;
-        }
-
-        if (_pendingBoardCapture is not { } pending ||
-            gameEvent is not BlockStarted { Block.Type: AttackBlockType } ||
-            _battlegrounds.LocalPlayerId is not int localPlayerId)
-        {
-            return null;
-        }
-
-        _pendingBoardCapture = null;
-
-        // The client raises a second combat window inside the same round
-        // (the raw turn increments mid-fight), whose attacks would overwrite
-        // the entering board with a mid-fight remnant. One board per
-        // opponent-and-round keeps the first (entering) observation.
-        if (_opponentMemory.Memory.GetLatest(pending.OpponentPlayerId) is { } latest &&
-            latest.Turn == pending.Turn)
-        {
-            return null;
-        }
-
-        var opposingBoard = _entities.CreateOpposingBoardSnapshots(localPlayerId);
-        return _opponentMemory.Capture(
-            pending.OpponentPlayerId,
-            pending.Turn,
-            opposingBoard,
-            gameEvent.Timestamp);
-    }
-
     private TrackingUpdate CompleteUpdate(
         TrackingSessionState previousSessionState,
         BattlegroundsPhase previousPhase,
         EntityMutation? entityMutation,
         EntitySnapshot? entity,
-        BoardSnapshot? observedBoard)
+        (BoardSnapshot? Opponent, BoardSnapshot? Local) observedBoards)
     {
         _revision = checked(_revision + 1);
         _current = null;
@@ -325,7 +283,8 @@ public sealed class TrackingSession
             _battlegrounds,
             entityMutation,
             entity,
-            observedBoard);
+            observedBoards.Opponent,
+            observedBoards.Local);
     }
 
     private TrackingSnapshot CreateCurrent() => new(
@@ -342,7 +301,10 @@ public sealed class TrackingSession
         _opponentMemory.MaximumSnapshotCount,
         _battlegrounds,
         _opponentMemory.Memory,
-        _lobbyTimeline.CreateSnapshot());
+        _lobbyTimeline.CreateSnapshot(),
+        _metadata,
+        _boardCapture.LatestLocalBoard,
+        _result);
 
     private static int? TryGetEntityId(GameEvent gameEvent) => gameEvent switch
     {

@@ -12,7 +12,8 @@ public sealed record TrackingUpdate(
     BattlegroundsState Battlegrounds,
     EntityMutation? EntityMutation,
     EntitySnapshot? Entity,
-    BoardSnapshot? ObservedBoard)
+    BoardSnapshot? ObservedBoard,
+    BoardSnapshot? ObservedLocalBoard)
 {
     public bool EnteredCombat =>
         PreviousPhase != BattlegroundsPhase.Combat &&

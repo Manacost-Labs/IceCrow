@@ -343,7 +343,10 @@ public sealed class BattlegroundsOverlayViewStateFactoryTests
             MaximumOpponentSnapshotsOnPlayer: 0,
             Battlegrounds: state,
             OpponentMemory: opponentMemory ?? OpponentMemory.Empty,
-            LobbyTimeline: LobbyTimelineSnapshot.Empty);
+            LobbyTimeline: LobbyTimelineSnapshot.Empty,
+            Metadata: GameMetadataState.Empty,
+            LocalBoard: null,
+            Result: null);
 
     private sealed class StubCardArtSource(string availableCardId, string availableArtPath)
         : ICardArtSource

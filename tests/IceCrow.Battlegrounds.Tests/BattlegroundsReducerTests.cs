@@ -174,6 +174,143 @@ public sealed class BattlegroundsReducerTests
         Assert.Equal(BattlegroundsPhase.GameOver, state.Phase);
     }
 
+    [Fact]
+    public void LocalHeroLeaderboardPlaceBecomesTheLocalPlacementAndTheLatestValueWins()
+    {
+        var fixture = new NormalizedEventFixture();
+        var state = Apply(BattlegroundsState.Empty, new BattlegroundsGameStarted(Timestamp));
+        state = ApplyAll(state, fixture.CreateLobbyEvents());
+        Assert.Null(state.LocalPlacement);
+
+        state = Apply(state, fixture.Tag(101, "PLAYER_LEADERBOARD_PLACE", "5"));
+        Assert.Equal(5, state.LocalPlacement);
+
+        // The place is the live leaderboard row until the local player is out.
+        state = Apply(state, fixture.Tag(101, "PLAYER_LEADERBOARD_PLACE", "1"));
+        Assert.Equal(1, state.LocalPlacement);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("17")]
+    public void LeaderboardPlaceOutsideTheLargestLobbyIsIgnored(string value)
+    {
+        var fixture = new NormalizedEventFixture();
+        var state = Apply(BattlegroundsState.Empty, new BattlegroundsGameStarted(Timestamp));
+        state = ApplyAll(state, fixture.CreateLobbyEvents());
+        state = Apply(state, fixture.Tag(101, "PLAYER_LEADERBOARD_PLACE", "5"));
+
+        // A value outside the lobby is not a place; the last real one stays.
+        state = Apply(state, fixture.Tag(101, "PLAYER_LEADERBOARD_PLACE", value));
+
+        Assert.Equal(5, state.LocalPlacement);
+    }
+
+    [Fact]
+    public void SixteenIsTheLargestAcceptedLeaderboardPlace()
+    {
+        var fixture = new NormalizedEventFixture();
+        var state = Apply(BattlegroundsState.Empty, new BattlegroundsGameStarted(Timestamp));
+        state = ApplyAll(state, fixture.CreateLobbyEvents());
+
+        state = Apply(state, fixture.Tag(101, "PLAYER_LEADERBOARD_PLACE", "16"));
+
+        Assert.Equal(16, state.LocalPlacement);
+    }
+
+    [Fact]
+    public void OtherPlayersLeaderboardPlacesAreIgnored()
+    {
+        var fixture = new NormalizedEventFixture();
+        var state = Apply(BattlegroundsState.Empty, new BattlegroundsGameStarted(Timestamp));
+        state = ApplyAll(state, fixture.CreateLobbyEvents());
+
+        // The opponent's own hero and the enemy hero dealt to the opposing
+        // combat side (controller = local slot + 8) both carry the tag.
+        state = Apply(state, fixture.Tag(102, "PLAYER_LEADERBOARD_PLACE", "7"));
+        state = Apply(state, fixture.Tag(109, "CARDTYPE", "HERO"));
+        state = Apply(state, fixture.Tag(109, "CONTROLLER", "9"));
+        state = Apply(state, fixture.Tag(109, "PLAYER_LEADERBOARD_PLACE", "2"));
+
+        Assert.Null(state.LocalPlacement);
+    }
+
+    [Fact]
+    public void LocalHeroWithoutAPlayerIdTagIsAttributedByItsController()
+    {
+        // HDT resolves the placement hero by CONTROLLER alone, so a client
+        // that omits PLAYER_ID on the hero must still attribute the tag.
+        var fixture = new NormalizedEventFixture();
+        var state = Apply(
+            BattlegroundsState.Empty,
+            new BattlegroundsGameStarted(Timestamp, LocalPlayerId: 1));
+        state = Apply(state, fixture.Tag(111, "CARDTYPE", "HERO"));
+        state = Apply(state, fixture.Tag(111, "CONTROLLER", "1"));
+
+        state = Apply(state, fixture.Tag(111, "PLAYER_LEADERBOARD_PLACE", "4"));
+        Assert.Equal(4, state.LocalPlacement);
+
+        // A minion the local player controls is not the hero.
+        state = Apply(state, fixture.Tag(112, "CARDTYPE", "MINION"));
+        state = Apply(state, fixture.Tag(112, "CONTROLLER", "1"));
+        state = Apply(state, fixture.Tag(112, "PLAYER_LEADERBOARD_PLACE", "6"));
+        Assert.Equal(4, state.LocalPlacement);
+    }
+
+    [Fact]
+    public void DuosTeammatePlacementIsNotTheLocalPlacement()
+    {
+        var fixture = new NormalizedEventFixture();
+        var state = Apply(BattlegroundsState.Empty, new BattlegroundsGameStarted(Timestamp));
+        state = ApplyAll(state, fixture.CreateLobbyEvents());
+        state = Apply(state, fixture.Tag(3, "CARDTYPE", "PLAYER"));
+        state = Apply(state, fixture.Tag(3, "PLAYER_ID", "3"));
+        state = Apply(state, fixture.Tag(103, "CARDTYPE", "HERO"));
+        state = Apply(state, fixture.Tag(103, "PLAYER_ID", "3"));
+        state = Apply(state, fixture.Tag(500, "3533", "1"));
+        state = Apply(state, fixture.Tag(500, "3533", "0"));
+
+        state = Apply(state, fixture.Tag(103, "PLAYER_LEADERBOARD_PLACE", "2"));
+        Assert.Null(state.LocalPlacement);
+
+        state = Apply(state, fixture.Tag(101, "PLAYER_LEADERBOARD_PLACE", "2"));
+        Assert.Equal(2, state.LocalPlacement);
+        Assert.Equal(BattlegroundsPhase.Combat, state.Phase);
+    }
+
+    [Fact]
+    public void LeaderboardPlacePrintedDuringGameOverWrapUpIsStillAccepted()
+    {
+        var fixture = new NormalizedEventFixture();
+        var state = Apply(BattlegroundsState.Empty, new BattlegroundsGameStarted(Timestamp));
+        state = ApplyAll(state, fixture.CreateLobbyEvents());
+        state = Apply(state, fixture.Tag(1, "PLAYSTATE", "LOST"));
+        Assert.False(state.IsActive);
+        var frozenLobby = state.Lobby;
+
+        state = Apply(state, fixture.Tag(101, "PLAYER_LEADERBOARD_PLACE", "6"));
+        state = Apply(state, fixture.Tag(101, "DAMAGE", "40"));
+
+        Assert.Equal(6, state.LocalPlacement);
+        Assert.False(state.IsActive);
+        Assert.Equal(BattlegroundsPhase.GameOver, state.Phase);
+        Assert.Same(frozenLobby, state.Lobby);
+    }
+
+    [Fact]
+    public void GameStartClearsThePreviousPlacement()
+    {
+        var fixture = new NormalizedEventFixture();
+        var state = Apply(BattlegroundsState.Empty, new BattlegroundsGameStarted(Timestamp));
+        state = ApplyAll(state, fixture.CreateLobbyEvents());
+        state = Apply(state, fixture.Tag(101, "PLAYER_LEADERBOARD_PLACE", "3"));
+
+        state = Apply(state, new BattlegroundsGameStarted(Timestamp.AddMinutes(20), LocalPlayerId: 1));
+
+        Assert.Null(state.LocalPlacement);
+    }
+
     private static BattlegroundsState Replay(IReadOnlyList<BattlegroundsEvent> events) =>
         ApplyAll(BattlegroundsState.Empty, events);
 

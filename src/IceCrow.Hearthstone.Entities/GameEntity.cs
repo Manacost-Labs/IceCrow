@@ -39,6 +39,8 @@ public sealed class GameEntity
 
     public int Health => BaseHealth - Damage;
 
+    public int Premium => GetTag(GameTag.Premium);
+
     public int PlayerId => GetTag(GameTag.PlayerId);
 
     public bool IsPlayer => PlayerId > 0;

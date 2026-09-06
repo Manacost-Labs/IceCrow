@@ -183,6 +183,25 @@ public sealed class OpponentMemoryServiceTests
         Assert.Equal(3, service.MaximumSnapshotCount);
     }
 
+    [Fact]
+    public void GoldenIsTriStateFromThePremiumTag()
+    {
+        // PREMIUM observed positive is golden, observed zero is plain, and an
+        // unobserved tag is no evidence either way.
+        var fixture = new EntityFixture();
+        fixture.AddMinion(101, playerId: 2, zonePosition: 1, attack: 2, health: 2);
+        fixture.AddMinion(102, playerId: 2, zonePosition: 2, attack: 2, health: 2);
+        fixture.AddMinion(103, playerId: 2, zonePosition: 3, attack: 2, health: 2);
+        fixture.SetTag(101, "PREMIUM", "1");
+        fixture.SetTag(102, "PREMIUM", "1");
+        fixture.SetTag(102, "PREMIUM", "0");
+
+        var service = CaptureBoard(fixture, opponentPlayerId: 2, turn: 1);
+
+        var board = Assert.IsType<BoardSnapshot>(service.Memory.GetLatest(2));
+        Assert.Equal([true, false, null], board.Minions.Select(static minion => minion.IsGolden));
+    }
+
     private static OpponentMemoryService CaptureBoard(
         EntityFixture fixture,
         int opponentPlayerId,

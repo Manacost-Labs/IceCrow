@@ -4,6 +4,11 @@ namespace IceCrow.Battlegrounds;
 
 public static class BattlegroundsReducer
 {
+    // A solo lobby seats eight heroes and the largest client lobby sixteen;
+    // any other value is not a leaderboard place.
+    private const int MinimumLeaderboardPlace = 1;
+    private const int MaximumLeaderboardPlace = 16;
+
     public static BattlegroundsState Apply(
         BattlegroundsState state,
         BattlegroundsEvent gameEvent)
@@ -35,7 +40,12 @@ public static class BattlegroundsReducer
     {
         if (!state.IsActive)
         {
-            return state;
+            // The client may still print the local leaderboard place while it
+            // wraps the game up. That result fact is the one change accepted
+            // after the terminal playstate, and only for a finished game.
+            return state.Phase == BattlegroundsPhase.GameOver
+                ? ApplyLeaderboardPlace(state, changed.Entity, changed.Mutation)
+                : state;
         }
 
         state = ObserveEntity(state, changed.Entity);
@@ -54,6 +64,11 @@ public static class BattlegroundsReducer
         if (IsCombatTransition(mutation))
         {
             return state with { Phase = BattlegroundsPhase.Combat };
+        }
+
+        if (mutation.Tag == GameTag.PlayerLeaderboardPlace)
+        {
+            return ApplyLeaderboardPlace(state, changed.Entity, mutation);
         }
 
         if (mutation.Tag == GameTag.PlayState &&
@@ -144,6 +159,41 @@ public static class BattlegroundsReducer
         };
     }
 
+    /// <summary>
+    /// HDT GameEventHandler.CaptureBattlegroundsGame at revision
+    /// d73b3a8220bbc88e836af8cd67a15c44a1fb7021, inspected 2026-09-06, reads
+    /// the final placement from the hero entity the local player controls;
+    /// the player entity itself never carries the tag. The place is the live
+    /// leaderboard row until the local player is out, so the latest value
+    /// wins and the rows of every other player are ignored, never guessed.
+    /// </summary>
+    private static BattlegroundsState ApplyLeaderboardPlace(
+        BattlegroundsState state,
+        EntitySnapshot entity,
+        EntityMutation mutation)
+    {
+        if (mutation.Tag != GameTag.PlayerLeaderboardPlace ||
+            mutation.Value is < MinimumLeaderboardPlace or > MaximumLeaderboardPlace ||
+            !BelongsToLocalPlayer(state, entity))
+        {
+            return state;
+        }
+
+        return state with { LocalPlacement = mutation.Value };
+    }
+
+    private static bool BelongsToLocalPlayer(BattlegroundsState state, EntitySnapshot entity)
+    {
+        if (state.LocalPlayerId is not int localPlayerId)
+        {
+            return false;
+        }
+
+        return entity.PlayerId == localPlayerId ||
+               state.Lobby.GetPlayer(localPlayerId)?.HeroEntityId == entity.Id ||
+               (entity.IsHero && entity.Controller == localPlayerId);
+    }
+
     private static BattlegroundsState EndGame(BattlegroundsState state) => state with
     {
         IsActive = false,
@@ -190,5 +240,4 @@ public static class BattlegroundsReducer
         HasTag(entity, first) || HasTag(entity, second);
 
     private static int? PositiveOrNull(int? value) => value > 0 ? value : null;
-
 }

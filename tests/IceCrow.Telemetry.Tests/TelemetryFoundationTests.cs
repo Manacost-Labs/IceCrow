@@ -181,7 +181,10 @@ public sealed class TelemetryFoundationTests
             0, 0, 0, 0, 0, 0, 0,
             new BattlegroundsState(true, 12, BattlegroundsPhase.GameOver, 1, null, lobby),
             OpponentMemory.Empty,
-            LobbyTimelineSnapshot.Empty);
+            LobbyTimelineSnapshot.Empty,
+            GameMetadataState.Empty,
+            null,
+            null);
 
         var summary = MatchSummaryFactory.Create(snapshot, "0.1.0");
 
