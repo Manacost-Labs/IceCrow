@@ -17,6 +17,7 @@ public sealed class ProjectDependencyTests
                 "IceCrow.Overlay",
                 "IceCrow.Platform.Windows",
                 "IceCrow.Presentation",
+                "IceCrow.ProfileSync",
                 "IceCrow.Recording",
                 "IceCrow.Telemetry",
             ],

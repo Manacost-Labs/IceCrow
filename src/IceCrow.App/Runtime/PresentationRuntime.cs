@@ -5,7 +5,7 @@ using IceCrow.Tracking;
 
 namespace IceCrow.App.Runtime;
 
-internal sealed class PresentationRuntime : IAsyncDisposable
+internal sealed class PresentationRuntime : IOverlayPresentation
 {
     private readonly Dispatcher _dispatcher;
     private readonly OverlayHost _overlayHost = new();
@@ -24,6 +24,8 @@ internal sealed class PresentationRuntime : IAsyncDisposable
 
     /// <summary>Overlay rendering counters for the developer diagnostics view.</summary>
     public OverlayRenderDiagnostics OverlayDiagnostics => _overlayHost.Diagnostics;
+
+    object? IOverlayPresentation.Diagnostics => OverlayDiagnostics;
 
     public void Start() => _overlayHost.Start();
 

@@ -15,7 +15,7 @@ internal sealed class DeveloperDiagnosticsPresenter : IDisposable
 
     private readonly object _gate = new();
     private readonly MainWindow _window;
-    private readonly OverlayRenderDiagnostics _overlayDiagnostics;
+    private readonly OverlayRenderDiagnostics? _overlayDiagnostics;
     private readonly Func<PowerLogTailerDiagnostics> _tailerDiagnostics;
     private readonly DispatcherTimer _timer;
     private readonly Queue<RawLogLine> _pendingLines = [];
@@ -29,11 +29,10 @@ internal sealed class DeveloperDiagnosticsPresenter : IDisposable
 
     public DeveloperDiagnosticsPresenter(
         MainWindow window,
-        OverlayRenderDiagnostics overlayDiagnostics,
+        OverlayRenderDiagnostics? overlayDiagnostics,
         Func<PowerLogTailerDiagnostics> tailerDiagnostics)
     {
         ArgumentNullException.ThrowIfNull(window);
-        ArgumentNullException.ThrowIfNull(overlayDiagnostics);
         ArgumentNullException.ThrowIfNull(tailerDiagnostics);
         _window = window;
         _overlayDiagnostics = overlayDiagnostics;
@@ -176,7 +175,10 @@ internal sealed class DeveloperDiagnosticsPresenter : IDisposable
             _window.AddPowerLogLine(line);
         }
 
-        _window.SetOverlayRenderDiagnostics(_overlayDiagnostics);
+        if (_overlayDiagnostics is not null)
+        {
+            _window.SetOverlayRenderDiagnostics(_overlayDiagnostics);
+        }
         _window.SetTailerDiagnostics(_tailerDiagnostics());
 
         if (diagnostics is not null)

@@ -6,6 +6,10 @@ using IceCrow.App.Runtime;
 using IceCrow.Hearthstone.Decks;
 using IceCrow.Infrastructure.ManacostApi;
 using IceCrow.Live;
+using IceCrow.ProfileSync;
+#if DEBUG
+using IceCrow.Overlay;
+#endif
 
 namespace IceCrow.App;
 
@@ -31,12 +35,15 @@ public partial class App : Application, IAsyncDisposable
         var localDataDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "IceCrow");
+        var options = IceCrowRuntimeOptions.Load(localDataDirectory);
         _runtime = new IceCrowRuntime(
             localDataDirectory,
             Dispatcher,
+            options,
             OnLiveTrackingProcessed,
             OnManacostDataStatusChanged,
             OnTelemetryStatusChanged,
+            OnProfileSyncStatusChanged,
             OnCaptureStatusChanged,
             ReportRecoverableLogError,
             ReportLogStatus,
@@ -46,7 +53,7 @@ public partial class App : Application, IAsyncDisposable
         var runtime = _runtime;
         _developerDiagnosticsPresenter = new DeveloperDiagnosticsPresenter(
             _developerWindow,
-            _runtime.OverlayDiagnostics,
+            _runtime.OverlayDiagnostics as OverlayRenderDiagnostics,
             () => runtime.TailerDiagnostics);
         _developerDiagnosticsPresenter.PublishDeckstringsStatus(ManacostDeckCodec.PackageVersion, "Ready");
         _developerDiagnosticsPresenter.PublishTelemetryStatus(false, 0, null);
@@ -54,6 +61,7 @@ public partial class App : Application, IAsyncDisposable
 #endif
 
         _runtime.Start();
+        _ = RunLinkCommandAsync(e.Args);
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -93,6 +101,34 @@ public partial class App : Application, IAsyncDisposable
         }
 
         DisposeDiagnostics();
+    }
+
+    /// <summary>
+    /// Device linking is an explicit user action started from the command
+    /// line; the headless runtime keeps tracking while the user approves it.
+    /// </summary>
+    private async Task RunLinkCommandAsync(string[] arguments)
+    {
+        if (_runtime?.ProfileSync is not { } profileSync)
+        {
+            return;
+        }
+
+        try
+        {
+            if (ProfileLinkCommand.IsUnlinkRequest(arguments))
+            {
+                await ProfileLinkCommand.UnlinkAsync(profileSync, CancellationToken.None);
+            }
+            else if (ProfileLinkCommand.IsLinkRequest(arguments))
+            {
+                _ = await ProfileLinkCommand.LinkAsync(profileSync, CancellationToken.None);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            ReportLogStatus($"HearthPulse link failed: {exception.GetType().Name}");
+        }
     }
 
     private void OnLiveTrackingProcessed(LiveTrackingUpdate update)
@@ -135,6 +171,16 @@ public partial class App : Application, IAsyncDisposable
         _ = queued;
         _ = lastUpload;
 #endif
+    }
+
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "The Debug build forwards status to the developer presenter instance.")]
+    private void OnProfileSyncStatusChanged(ProfileSyncStatus status)
+    {
+        // Secret-free by construction; safe to trace.
+        Debug.WriteLine($"Profile sync: {status.Phase}, pending={status.PendingEvents}, uploaded={status.UploadedEvents}");
     }
 
     private void ReportRecoverableLogError(Exception exception)

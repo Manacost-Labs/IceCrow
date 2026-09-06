@@ -8,6 +8,7 @@
     <ProjectReference Include="..\IceCrow.Hearthstone.Decks\IceCrow.Hearthstone.Decks.csproj" />
     <ProjectReference Include="..\IceCrow.Infrastructure.ManacostApi\IceCrow.Infrastructure.ManacostApi.csproj" />
     <ProjectReference Include="..\IceCrow.Telemetry\IceCrow.Telemetry.csproj" />
+    <ProjectReference Include="..\IceCrow.ProfileSync\IceCrow.ProfileSync.csproj" />
     <ProjectReference Include="..\IceCrow.Hearthstone.Logs\IceCrow.Hearthstone.Logs.csproj" />
     <ProjectReference Include="..\IceCrow.Live\IceCrow.Live.csproj" />
     <ProjectReference Include="..\IceCrow.Recording\IceCrow.Recording.csproj" />

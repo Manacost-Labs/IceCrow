@@ -2,7 +2,7 @@ using System.Windows.Threading;
 using IceCrow.Hearthstone.Logs;
 using IceCrow.Infrastructure.ManacostApi;
 using IceCrow.Live;
-using IceCrow.Overlay;
+using IceCrow.ProfileSync;
 
 namespace IceCrow.App.Runtime;
 
@@ -11,7 +11,8 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
     private readonly CancellationTokenSource _shutdown = new();
     private readonly DataRuntime _data;
     private readonly TelemetryRuntime _telemetry;
-    private readonly PresentationRuntime _presentation;
+    private readonly IOverlayPresentation? _presentation;
+    private readonly ProfileSyncRuntime? _profileSync;
     private readonly RecordingRuntime? _recording;
     private readonly LiveRuntime _live;
     private readonly Action<LiveTrackingUpdate> _onLiveTrackingProcessed;
@@ -23,19 +24,32 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
     public IceCrowRuntime(
         string localDataDirectory,
         Dispatcher dispatcher,
+        IceCrowRuntimeOptions options,
         Action<LiveTrackingUpdate> onLiveTrackingProcessed,
         Action<ManacostDataStatus> onDataStatusChanged,
         Action<bool, int, DateTimeOffset?> onTelemetryStatusChanged,
+        Action<ProfileSyncStatus> onProfileSyncStatusChanged,
         Action<RecordingCaptureStatus> onCaptureStatusChanged,
         Action<Exception> onRecoverableLogError,
         Action<string> onLogStatus,
         string clientVersion)
     {
+        ArgumentNullException.ThrowIfNull(dispatcher);
+        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(onLiveTrackingProcessed);
+        Options = options;
         _onLiveTrackingProcessed = onLiveTrackingProcessed;
         _data = new DataRuntime(localDataDirectory, onDataStatusChanged);
         _telemetry = new TelemetryRuntime(localDataDirectory, clientVersion, onTelemetryStatusChanged);
-        _presentation = new PresentationRuntime(dispatcher, _data.Database);
+        // The overlay is an optional feature. Headless composition never calls
+        // into OverlayComposition, so the overlay and presentation assemblies
+        // are never loaded and no WPF dispatch happens per tracking snapshot.
+        _presentation = options.OverlayEnabled
+            ? OverlayComposition.Create(dispatcher, _data.Database)
+            : null;
+        _profileSync = options.ProfileSyncEnabled
+            ? new ProfileSyncRuntime(localDataDirectory, options.HearthPulseOrigin, onProfileSyncStatusChanged, clientVersion)
+            : null;
         // Developer match capture is a Debug-only feature. Release composes a
         // null observer so the live hot path pays exactly one null check per
         // notification point and no capture lock or interface call per event.
@@ -52,13 +66,22 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
             _recording);
     }
 
-    public void SetCaptureEnabled(bool enabled) => _recording?.SetEnabled(enabled);
+    public IceCrowRuntimeOptions Options { get; }
 
-    public OverlayRenderDiagnostics OverlayDiagnostics =>
-        _presentation.OverlayDiagnostics;
+    /// <summary>True when the overlay presentation was composed for this process.</summary>
+    public bool OverlayComposed => _presentation is not null;
+
+    public bool ProfileSyncComposed => _profileSync is not null;
+
+    /// <summary>Overlay render counters when the overlay is enabled; null in headless mode.</summary>
+    public object? OverlayDiagnostics => _presentation?.Diagnostics;
+
+    public ProfileSyncRuntime? ProfileSync => _profileSync;
 
     public PowerLogTailerDiagnostics TailerDiagnostics =>
         _live.TailerDiagnostics;
+
+    public void SetCaptureEnabled(bool enabled) => _recording?.SetEnabled(enabled);
 
     public void Start()
     {
@@ -67,12 +90,13 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
             throw new InvalidOperationException("The IceCrow runtime can only be started once.");
         }
 
-        _presentation.Start();
+        _presentation?.Start();
         _recording?.Start();
         _backgroundTasks =
         [
             _data.RunAsync(_shutdown.Token),
             _telemetry.RunAsync(_shutdown.Token),
+            _profileSync?.RunAsync(_shutdown.Token) ?? Task.CompletedTask,
             _live.RunAsync(_shutdown.Token),
         ];
     }
@@ -101,8 +125,17 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
             }
 
             await _telemetry.DisposeAsync().ConfigureAwait(false);
+            if (_profileSync is not null)
+            {
+                await _profileSync.DisposeAsync().ConfigureAwait(false);
+            }
+
             await _data.DisposeAsync().ConfigureAwait(false);
-            await _presentation.DisposeAsync().ConfigureAwait(false);
+            if (_presentation is not null)
+            {
+                await _presentation.DisposeAsync().ConfigureAwait(false);
+            }
+
             _shutdown.Dispose();
         }
     }
@@ -112,7 +145,7 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
         // Called only from WPF's dispatcher-bound OnExit fallback. Releasing the
         // UI owner here prevents a later background continuation from waiting on
         // the dispatcher while OnExit synchronously waits for background tasks.
-        _presentation.DisposeSynchronouslyForExit();
+        _presentation?.DisposeSynchronouslyForExit();
         RequestStop();
     }
 
@@ -126,6 +159,7 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
         // Stop accepting work, then cancel every producer and consumer through
         // the single process-lifetime token.
         _telemetry.Complete();
+        _profileSync?.Complete();
         _shutdown.Cancel();
     }
 
@@ -137,7 +171,7 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
             return;
         }
 
-        _presentation.Publish(update.Snapshot);
+        _presentation?.Publish(update.Snapshot);
         _telemetry.TryQueue(update.Snapshot);
     }
 }
