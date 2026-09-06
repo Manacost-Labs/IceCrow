@@ -43,6 +43,28 @@ Player names, account ids, raw `Power.log`, and server game handles are never
 stored. `gameJoinEvidence` stays null until an authoritative handle source
 exists; IceCrow never fabricates a join key from timestamps.
 
+## Data flow
+
+```text
+Power.log
+  -> PowerLineParser (one parse per line)
+  -> GameSessionCoordinator (IceCrow.Live)
+       route by GameMetadataState.Mode:
+       Battlegrounds / Duos -> LiveTrackingCoordinator -> TrackingSession (existing engine)
+       Ranked / Arena       -> ConstructedMatchTracker (bounded entity table, mulligan, result)
+       Casual / other       -> ignored (boundary only)
+  -> ProfileRecordPipeline (IceCrow.App)
+       completed ranked game     -> ConstructedRecordFactory.CreateRanked -> constructed_match
+       completed Arena game      -> ConstructedRecordFactory.CreateArena + ArenaRunCollector.Associate -> arena_match
+       ended Battlegrounds match -> BattlegroundsRecordFactory.Create -> battlegrounds_match
+  -> ProfileSyncRuntime (bounded channel) -> ProfileOutbox (durable) -> ProfileSyncCoordinator -> HearthPulse
+```
+
+Constructed and Arena games never construct the Battlegrounds
+`OpponentMemory`/board-diff engine; the Battlegrounds coordinator only starts
+a `TrackingSession` on its own confirmed evidence. Uploads are held while any
+routed game is open and resume when it ends.
+
 ## Records and events
 
 Wire records live in `src/IceCrow.ProfileSync/Records`. Each finished record

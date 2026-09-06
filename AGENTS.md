@@ -121,6 +121,11 @@ fixture or treat synthetic input as real evidence.
   normalization belongs in `Hearthstone.Protocol`.
 - Authoritative atomic match transitions belong in `Tracking`; optional
   features consume `TrackingUpdate` or `TrackingSnapshot` outside that engine.
+- Game-type routing belongs in `Live` (`GameSessionCoordinator`); the
+  lightweight Constructed/Arena tracker lives in `Tracking/Constructed` and
+  never enters `TrackingSession`. Profile records are produced in
+  `App/Runtime/ProfileRecordPipeline` from finished results and mapped by the
+  factories in `ProfileSync/Factories`; certainty may only go down there.
 - Static card/hero contracts belong in `Hearthstone.Data`; HTTP/cache concerns
   belong in `Infrastructure.ManacostApi`.
 - WPF-free UI mapping belongs in `Presentation`; controls and interaction belong
