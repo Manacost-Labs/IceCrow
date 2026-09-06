@@ -72,9 +72,19 @@ public sealed class LiveTrackingCoordinator
     public LiveTrackingUpdate Process(RawLogLine rawLine)
     {
         ArgumentNullException.ThrowIfNull(rawLine);
-        Increment(ref _rawLinesReceived);
+        return ProcessParsed(rawLine, _parser.Parse(rawLine.Content, rawLine.Timestamp));
+    }
 
-        var parseResult = _parser.Parse(rawLine.Content, rawLine.Timestamp);
+    /// <summary>
+    /// Applies a line that a caller already parsed (a session coordinator
+    /// routing several trackers parses each line exactly once). Equivalent to
+    /// <see cref="Process"/> for the same line, including every counter.
+    /// </summary>
+    public LiveTrackingUpdate ProcessParsed(RawLogLine rawLine, PowerParseResult parseResult)
+    {
+        ArgumentNullException.ThrowIfNull(rawLine);
+        ArgumentNullException.ThrowIfNull(parseResult);
+        Increment(ref _rawLinesReceived);
         CountParseResult(parseResult.Status);
         if (parseResult.Status != PowerParseStatus.Parsed || parseResult.Event is null)
         {
