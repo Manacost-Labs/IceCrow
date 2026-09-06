@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Manacost-Labs/IceCrow/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Manacost-Labs/IceCrow/actions/workflows/ci.yml)
 
-IceCrow is a local-first Windows companion for Hearthstone Battlegrounds. It reads Hearthstone's `Power.log`, normalizes game events, reconstructs deterministic match state, remembers previously observed opponent boards, and renders a non-activating WPF overlay over the Hearthstone client.
+IceCrow is a local-first Windows companion for Hearthstone. It reads Hearthstone's `Power.log`, normalizes game events, reconstructs deterministic match state, remembers previously observed Battlegrounds opponent boards, and can sync the user's own results to their HearthPulse profile through an authenticated, batched outbox (`docs/profile-sync.md`). The Release build runs headless by default (overlay off); the non-activating WPF overlay remains available through `settings.json`.
 
 > [!IMPORTANT]
 > IceCrow is under active development and is **not production-ready**. The live `Power.log` → parser → deterministic tracking → overlay composition is implemented and covered by synthetic integration tests, but the real-client acceptance matrix has not yet been executed. See the [v0.1 quality report](docs/v0.1-quality-report.md) and [live acceptance checklist](docs/live-acceptance-checklist.md) for the current evidence and remaining gates.
@@ -230,7 +230,7 @@ The immediate priorities are intentionally engineering-focused:
 2. Run and stabilize the first remote GitHub Actions quality gate, then require it through branch protection.
 3. Grow a minimized corpus of real, anonymized replay regressions.
 4. Calibrate the new live warning/hard limits against anonymized real-match recordings.
-5. Replace the conservative Power.log-only Battlegrounds mode fallback if a stronger supported client signal becomes available.
+5. ~~Replace the conservative Power.log-only Battlegrounds mode fallback~~ — done: `GameState.DebugPrintGame()` metadata now classifies the game type and format from `Power.log` alone (`docs/profile-sync.md`).
 
 Strategy recommendations, simulation, telemetry server authentication/ingest,
 and a complete card-art UI are outside the current milestone.

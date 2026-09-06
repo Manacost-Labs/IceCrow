@@ -2,6 +2,11 @@
 
 Telemetry is optional and defaults to off. IceCrow never uploads `Power.log`.
 
+Telemetry is anonymous. Personal data linked to a HearthPulse account (match
+history, mulligans, Arena runs, collection) never passes through this outbox;
+it belongs to the separate authenticated `IceCrow.ProfileSync` boundary
+described in `docs/profile-sync.md`.
+
 ```text
 ended TrackingSnapshot
   -> MatchSummaryFactory

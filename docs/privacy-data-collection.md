@@ -26,3 +26,21 @@ no API token.
 
 Installation identity, if introduced, is for authentication, rate limiting,
 and deduplication and should be stripped before analytics where practical.
+
+## Personal profile sync (linked device)
+
+Profile sync is a separate, personal boundary (`IceCrow.ProfileSync`,
+`docs/profile-sync.md`). It is inert until the user explicitly links the
+device to their HearthPulse account through the OAuth device flow
+(`--link-hearthpulse`); the device credential is revocable, least-privilege,
+and stored only behind Windows DPAPI. After linking, the following is synced
+to the user's own profile in bounded, idempotent batches: ranked
+Standard/Wild and Arena match results with turns, duration, hero card ids,
+the user's own mulligan, the count of opponent mulligan replacements, and
+opponent card ids actually observed; Battlegrounds mode, hero, placement,
+duration, final turn, and the user's own final board; the user's collection
+counts by card id (hash-deduplicated, latest state only). Player names,
+BattleTags, account ids, raw `Power.log`, hidden opponent cards, and
+server game handles are never stored or uploaded. `--unlink-hearthpulse`
+revokes the credential and clears it locally; pending events stay local and
+are never uploaded without a credential.

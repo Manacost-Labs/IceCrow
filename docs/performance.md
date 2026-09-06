@@ -93,6 +93,51 @@ marketing targets:
 Small timing changes are noise. Any intentional algorithm, allocation, or
 budget regression must include the measurement and user-visible justification.
 
+## Headless companion (2026-09-06)
+
+Measured with `tools/perf/Measure-IdleProcess.ps1` (Release build, this
+machine: 8 logical cores, Windows 11 26100) while the Hearthstone client was
+open at the menu with a 108 MiB stale `Power.log` from an earlier session.
+`dotnet-counters` sampled `System.Runtime` once per second; process CPU is
+`TotalProcessorTime` over the window divided by all eight cores. Numbers are
+same-machine evidence, not CI thresholds.
+
+| Run (30 s window after 10 s warm-up) | Overlay | Process avg CPU (8 cores) | Working set | Private | Steady alloc | Steady CPU (one core) | Exceptions | IceCrow modules loaded |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Baseline `806ebb1` | on | 5.9 % | 163 MiB | 100 MiB | 90 KiB/s | 3.4 % | 0.96/s | 15 (incl. Overlay, Presentation) |
+| Headless default (`460731a`) | off | 2.4 % | 125 MiB | 69 MiB | 77 KiB/s | 2.2 % | 0.93/s | 14 (no Overlay, no Presentation) |
+| + idle tailer fixes (`dc9c8dd`) | off | 3.1 % | 125 MiB | 69 MiB | 48 KiB/s | 1.5 % | 0 | 14 |
+
+"Steady" excludes the start-up burst (seconds whose allocation rate exceeded
+5 MiB/s). Every process average is dominated by that burst: on a cold start
+the tailer replays the whole existing `Power.log` from offset 0 so an
+in-progress match is never missed, and a 108 MiB stale log costs roughly
+1.7 GiB of transient allocations and about 10 s of CPU in the baseline run
+(spread over one to six seconds of the window depending on where the warm-up
+cut). The 60 s steady-state run below starts after that burst.
+
+| Run (60 s window after 45 s warm-up) | Overlay | Process avg CPU (8 cores) | Working set | Private | Alloc | Gen0 / Gen1 / Gen2 | Exceptions | Threads |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Headless steady state at the menu (`dc9c8dd`) | off | 0.125 % (≈ 1 % of one core) | 120 MiB (max 121) | 65 MiB | 51 KiB/s | 0 / 1 / 0 | 4 in 60 s | 27 |
+
+Findings:
+
+- Disabling the overlay removes the 33 ms modifier-polling and 1 s window
+  timers, ~38 MiB of working set, and two assemblies; the Release default is
+  now headless (`docs/profile-sync.md`).
+- The tailer raised one `OperationCanceledException` per recovery tick
+  (`dotnet.exceptions` ≈ 1/s at idle) and re-ran the full Power.log locate
+  (process enumeration plus a session-directory scan) every second; both are
+  gone (`6b7413b`, `dc9c8dd`).
+- Menu idle after the fixes is well inside the `< 0.5 % average CPU` target
+  once the cold-start replay is over; the replay of a large stale log is the
+  remaining start-up cost and is recorded as a residual, not hidden inside
+  the averages.
+- Working set ~125 MiB at the menu is within the 100–120 MiB aim only after
+  the burst-inflated GC heap is trimmed; private bytes sit at ~69 MiB. Menu,
+  Constructed, Arena, and Battlegrounds match scenarios with the client in
+  those states still need a live run (see the acceptance checklist).
+
 ## Settled decisions
 
 - **Board-diff allocations (2026-08-16).** The ambiguity-safe duplicate-group

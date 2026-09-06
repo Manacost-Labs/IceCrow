@@ -134,8 +134,8 @@ fixture or treat synthetic input as real evidence.
   reason, never saved as complete evidence.
 
 See `docs/module-boundaries.md`, `docs/threading-model.md`,
-`docs/resource-budgets.md`, and `docs/feature-development.md` before changing a
-cross-module flow.
+`docs/resource-budgets.md`, `docs/profile-sync.md`, and
+`docs/feature-development.md` before changing a cross-module flow.
 
 ## UI rules
 

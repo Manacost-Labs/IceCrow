@@ -196,3 +196,11 @@ one way down, ambiguous duplicate pairings never render an exact stat
 transition, and `BoardChangeSet.StatGrowth` ignores deltas that an arbitrary
 pairing would fabricate. Apply the same rule to future composition detection,
 threat estimation, combat simulation, and telemetry analysis.
+
+Profile sync carries the same rule across the process boundary: every
+synced fact holds a typed `IceCrow.ProfileSync.Certainty`
+(`Exact` / `Partial` / `Inferred` / `Unknown`), record factories may only keep
+or lower the certainty they receive from tracking (`CertaintyRules.Lowest`),
+and HearthPulse may raise an opponent deck to `Exact` only from the
+opponent's own exact submission for the same authoritative game, never from
+inference. See `docs/profile-sync.md`.

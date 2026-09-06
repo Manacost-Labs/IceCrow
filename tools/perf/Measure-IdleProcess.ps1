@@ -45,7 +45,7 @@ try {
     $countersCsv = Join-Path $OutputDirectory "$Label.counters.csv"
     $counters = Start-Process -FilePath "dotnet-counters" -ArgumentList @(
         "collect", "-p", $ProcessId, "--refresh-interval", "1", "--format", "csv",
-        "-o", $countersCsv, "--duration", ("00:00:{0:00}" -f $DurationSeconds), "--counters", "System.Runtime"
+        "-o", $countersCsv, "--duration", ([TimeSpan]::FromSeconds($DurationSeconds).ToString("dd\:hh\:mm\:ss")), "--counters", "System.Runtime"
     ) -PassThru -WindowStyle Hidden
 
     $samples = @()
