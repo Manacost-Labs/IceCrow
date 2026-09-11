@@ -52,6 +52,23 @@ public sealed class ProfileHistoryStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task RestartReplayCollapsesLegacyMatchesWithDifferentGeneratedIds()
+    {
+        var first = Constructed(eventId: Guid.CreateVersion7());
+        var duplicate = Constructed(eventId: Guid.CreateVersion7());
+        Directory.CreateDirectory(_directory);
+        await File.WriteAllLinesAsync(HistoryPath, [Serialize(first), Serialize(duplicate)]);
+
+        using var history = History();
+        var snapshot = await history.ReadAsync();
+
+        Assert.Single(snapshot.Matches);
+        Assert.Equal(first.EventId, snapshot.Matches[0].EventId);
+        Assert.Single(await File.ReadAllLinesAsync(HistoryPath));
+        Assert.Equal(ProfileHistoryAppendResult.Duplicate, await history.AppendAsync(duplicate));
+    }
+
+    [Fact]
     public async Task TruncatedFinalLineIsRecoveredAndRewrittenBeforeNextAppend()
     {
         var first = Constructed(eventId: Guid.Parse("00000000-0000-0000-0000-000000000001"));
@@ -92,7 +109,9 @@ public sealed class ProfileHistoryStoreTests : IDisposable
     public async Task CapacityIsExplicitAndPreservesTheOldestAcceptedMatch()
     {
         var first = Constructed(eventId: Guid.Parse("00000000-0000-0000-0000-000000000001"));
-        var second = Constructed(eventId: Guid.Parse("00000000-0000-0000-0000-000000000002"));
+        var second = Constructed(
+            eventId: Guid.Parse("00000000-0000-0000-0000-000000000002"),
+            startOffsetMinutes: 1);
         using var history = History(maximumItems: 1);
 
         Assert.Equal(ProfileHistoryAppendResult.Added, await history.AppendAsync(first));
@@ -148,18 +167,22 @@ public sealed class ProfileHistoryStoreTests : IDisposable
         string format = "wild",
         MatchResult result = MatchResult.Lost,
         Guid? eventId = null,
-        DeckEvidence? deck = null) =>
+        DeckEvidence? deck = null,
+        int startOffsetMinutes = 0)
+    {
+        var startedAt = Timestamp.AddMinutes(startOffsetMinutes);
+        return
         ProfileEvent.Create(
             ProfileEventType.ConstructedMatch,
-            Timestamp,
+            startedAt,
             new ConstructedMatchRecord(
                 Guid.CreateVersion7(),
                 "ranked",
                 format,
                 result,
                 Certainty.Exact,
-                Timestamp,
-                Timestamp.AddMinutes(8),
+                startedAt,
+                startedAt.AddMinutes(8),
                 480,
                 10,
                 "HERO_01",
@@ -172,6 +195,7 @@ public sealed class ProfileHistoryStoreTests : IDisposable
                 224857,
                 2),
             eventId);
+    }
 
     private static ProfileEvent Arena(Guid? eventId = null) =>
         ProfileEvent.Create(
@@ -195,4 +219,7 @@ public sealed class ProfileHistoryStoreTests : IDisposable
                 null,
                 224857),
             eventId);
+
+    private static string Serialize(ProfileEvent profileEvent) =>
+        System.Text.Json.JsonSerializer.Serialize(profileEvent, ProfileJson.Options);
 }

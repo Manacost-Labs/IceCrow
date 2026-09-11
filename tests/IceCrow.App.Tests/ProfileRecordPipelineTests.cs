@@ -117,6 +117,44 @@ public sealed class ProfileRecordPipelineTests
         Assert.Equal(1, pipeline.BattlegroundsRecords);
     }
 
+    [Fact]
+    public void ReplayingTheSameLogAfterRestartProducesStableMatchIdentities()
+    {
+        var first = ReplayFinishedMatches();
+        var second = ReplayFinishedMatches();
+
+        Assert.Equal(first.Select(static item => item.EventId), second.Select(static item => item.EventId));
+        Assert.Equal(
+            first.Select(static item => item.Payload.GetProperty("matchId").GetGuid()),
+            second.Select(static item => item.Payload.GetProperty("matchId").GetGuid()));
+        Assert.Equal(2, first.Count);
+        Assert.Equal(2, first.Select(static item => item.EventId).Distinct().Count());
+    }
+
+    private static List<ProfileEvent> ReplayFinishedMatches()
+    {
+        var events = new List<ProfileEvent>();
+        var coordinator = new GameSessionCoordinator();
+        var pipeline = new ProfileRecordPipeline(
+            profileEvent =>
+            {
+                events.Add(profileEvent);
+                return true;
+            },
+            static _ => { });
+        var line = 0;
+        foreach (var payload in RankedGame("FT_STANDARD", "WON").Concat(BattlegroundsGame()))
+        {
+            var content = payload.StartsWith("GameState.DebugPrintGame()", StringComparison.Ordinal)
+                ? payload
+                : "PowerTaskList.DebugPrintPower() - " + payload;
+            var update = coordinator.Process(new RawLogLine(Timestamp.AddSeconds(line++), "Power", content, content));
+            pipeline.Observe(update, GameplayActive(coordinator));
+        }
+
+        return events;
+    }
+
     private static bool GameplayActive(GameSessionCoordinator coordinator) =>
         coordinator.Battlegrounds.CurrentSnapshot.SessionState == IceCrow.Tracking.TrackingSessionState.Active ||
         (coordinator.Route is GameSessionRoute.Constructed or GameSessionRoute.Both && coordinator.Constructed.IsGameOpen);

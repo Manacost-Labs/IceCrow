@@ -65,16 +65,21 @@ internal sealed class ProfileRecordPipeline
 
     private void RecordCompletedMatch(ConstructedMatchSummary summary)
     {
+        var eventType = summary.Mode == GameMode.Arena
+            ? ProfileEventType.ArenaMatch
+            : ProfileEventType.ConstructedMatch;
+        var matchId = ProfileMatchIdentity.CreateMatchId(eventType, summary.StartedAt, summary.EndedAt);
+        var eventId = ProfileMatchIdentity.CreateEventId(eventType, summary.StartedAt, summary.EndedAt);
         switch (summary.Mode)
         {
-            case GameMode.Ranked when ConstructedRecordFactory.CreateRanked(summary, Guid.CreateVersion7()) is { } ranked:
-                if (_enqueue(ProfileEvent.Create(ProfileEventType.ConstructedMatch, summary.EndedAt, ranked)))
+            case GameMode.Ranked when ConstructedRecordFactory.CreateRanked(summary, matchId) is { } ranked:
+                if (_enqueue(ProfileEvent.Create(ProfileEventType.ConstructedMatch, summary.EndedAt, ranked, eventId)))
                 {
                     ConstructedRecords++;
                 }
 
                 break;
-            case GameMode.Arena when ConstructedRecordFactory.CreateArena(summary, Guid.CreateVersion7()) is { } arena:
+            case GameMode.Arena when ConstructedRecordFactory.CreateArena(summary, matchId) is { } arena:
                 var association = _arenaRuns.Associate(summary.StartedAt, summary.EndedAt);
                 var associated = arena with
                 {
@@ -83,7 +88,7 @@ internal sealed class ProfileRecordPipeline
                     ScoreAfter = association.ScoreAfter,
                     ScoreConfidence = association.Confidence,
                 };
-                if (_enqueue(ProfileEvent.Create(ProfileEventType.ArenaMatch, summary.EndedAt, associated)))
+                if (_enqueue(ProfileEvent.Create(ProfileEventType.ArenaMatch, summary.EndedAt, associated, eventId)))
                 {
                     ArenaRecords++;
                 }
@@ -105,8 +110,16 @@ internal sealed class ProfileRecordPipeline
         }
 
         _lastBattlegroundsResult = key;
-        if (BattlegroundsRecordFactory.Create(snapshot, Guid.CreateVersion7()) is { } record &&
-            _enqueue(ProfileEvent.Create(ProfileEventType.BattlegroundsMatch, result.EndedAt, record)))
+        var matchId = ProfileMatchIdentity.CreateMatchId(
+            ProfileEventType.BattlegroundsMatch,
+            result.StartedAt,
+            result.EndedAt);
+        var eventId = ProfileMatchIdentity.CreateEventId(
+            ProfileEventType.BattlegroundsMatch,
+            result.StartedAt,
+            result.EndedAt);
+        if (BattlegroundsRecordFactory.Create(snapshot, matchId) is { } record &&
+            _enqueue(ProfileEvent.Create(ProfileEventType.BattlegroundsMatch, result.EndedAt, record, eventId)))
         {
             BattlegroundsRecords++;
         }

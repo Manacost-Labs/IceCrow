@@ -35,6 +35,36 @@ public sealed class ProfileOutboxTests : IDisposable
     }
 
     [Fact]
+    public async Task EnqueueRejectsTheSameMatchWithDifferentGeneratedIds()
+    {
+        using var outbox = Create();
+        var first = Match(Guid.CreateVersion7());
+        var duplicate = Match(Guid.CreateVersion7());
+
+        Assert.Equal(ProfileOutboxResult.Enqueued, await outbox.EnqueueAsync(first));
+        Assert.Equal(ProfileOutboxResult.Duplicate, await outbox.EnqueueAsync(duplicate));
+        Assert.Equal(first.EventId, Assert.Single(await outbox.PeekBatchAsync(10)).EventId);
+    }
+
+    [Fact]
+    public async Task ReloadCompactsLegacyDuplicateMatchesBeforeUpload()
+    {
+        var first = Match(Guid.CreateVersion7());
+        var duplicate = Match(Guid.CreateVersion7());
+        Directory.CreateDirectory(_directory);
+        var journalPath = Path.Combine(_directory, "outbox.jsonl");
+        await File.WriteAllLinesAsync(
+            journalPath,
+            [JournalLine(first), JournalLine(duplicate)]);
+
+        using var outbox = Create();
+
+        Assert.Equal(1, await outbox.CountAsync());
+        Assert.Equal(first.EventId, Assert.Single(await outbox.PeekBatchAsync(10)).EventId);
+        Assert.Single(await File.ReadAllLinesAsync(journalPath));
+    }
+
+    [Fact]
     public async Task LatestCollectionSnapshotReplacesThePendingOne()
     {
         using var outbox = Create();
@@ -57,10 +87,10 @@ public sealed class ProfileOutboxTests : IDisposable
         using var outbox = new ProfileOutbox(Path.Combine(_directory, "outbox.json"), maximumHistoryItems: capacity);
         for (var index = 0; index < capacity; index++)
         {
-            Assert.Equal(ProfileOutboxResult.Enqueued, await outbox.EnqueueAsync(Match(Guid.CreateVersion7())));
+            Assert.Equal(ProfileOutboxResult.Enqueued, await outbox.EnqueueAsync(Match(Guid.CreateVersion7(), index)));
         }
 
-        Assert.Equal(ProfileOutboxResult.Full, await outbox.EnqueueAsync(Match(Guid.CreateVersion7())));
+        Assert.Equal(ProfileOutboxResult.Full, await outbox.EnqueueAsync(Match(Guid.CreateVersion7(), capacity)));
         Assert.Equal(ProfileOutboxResult.Enqueued, await outbox.EnqueueAsync(
             ProfileEvent.Create(ProfileEventType.CollectionSnapshot, Timestamp, Collection("still-fits"))));
         Assert.Equal(capacity + 1, await outbox.CountAsync());
@@ -72,7 +102,7 @@ public sealed class ProfileOutboxTests : IDisposable
     {
         using var outbox = Create();
         var first = Match(Guid.CreateVersion7());
-        var second = Match(Guid.CreateVersion7());
+        var second = Match(Guid.CreateVersion7(), 1);
         await outbox.EnqueueAsync(first);
         await outbox.EnqueueAsync(second);
 
@@ -144,9 +174,12 @@ public sealed class ProfileOutboxTests : IDisposable
 
     private ProfileOutbox Create() => new(Path.Combine(_directory, "outbox.json"));
 
-    private static ProfileEvent Match(Guid eventId) => ProfileEvent.Create(
+    private static ProfileEvent Match(Guid eventId, int startOffsetMinutes = 0)
+    {
+        var startedAt = Timestamp.AddMinutes(startOffsetMinutes);
+        return ProfileEvent.Create(
         ProfileEventType.BattlegroundsMatch,
-        Timestamp,
+        startedAt,
         new BattlegroundsMatchRecord(
             Guid.CreateVersion7(),
             BattlegroundsMode.Solo,
@@ -156,14 +189,18 @@ public sealed class ProfileOutboxTests : IDisposable
             "TB_BaconShop_HERO_41",
             3,
             Certainty.Exact,
-            Timestamp,
-            Timestamp.AddMinutes(20),
+            startedAt,
+            startedAt.AddMinutes(20),
             1200,
             14,
             null,
             224857),
         eventId);
+    }
 
     private static CollectionSnapshotRecord Collection(string hash) =>
         new(Timestamp, hash, [new CollectionCardRecord("CS2_029", 2, 0, null, null)]);
+
+    private static string JournalLine(ProfileEvent profileEvent) =>
+        JsonSerializer.Serialize(new { Event = profileEvent }, ProfileJson.Options);
 }

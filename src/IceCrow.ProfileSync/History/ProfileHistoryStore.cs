@@ -23,6 +23,7 @@ public sealed class ProfileHistoryStore : IDisposable
     private readonly int _maximumItems;
     private List<ProfileEvent>? _events;
     private HashSet<Guid>? _ids;
+    private HashSet<ProfileMatchKey>? _matchKeys;
     private bool _requiresRewrite;
 
     public ProfileHistoryStore(string path, int maximumItems = MaximumItems)
@@ -67,7 +68,7 @@ public sealed class ProfileHistoryStore : IDisposable
         try
         {
             var events = await LoadUnsafeAsync(cancellationToken).ConfigureAwait(false);
-            if (_ids!.Contains(profileEvent.EventId))
+            if (_ids!.Contains(profileEvent.EventId) || IsDuplicateMatch(profileEvent))
             {
                 return ProfileHistoryAppendResult.Duplicate;
             }
@@ -88,6 +89,7 @@ public sealed class ProfileHistoryStore : IDisposable
 
             events.Add(profileEvent);
             _ids.Add(profileEvent.EventId);
+            AddMatchKey(profileEvent);
             _requiresRewrite = false;
             if (rewroteHistory)
             {
@@ -116,10 +118,39 @@ public sealed class ProfileHistoryStore : IDisposable
         }
 
         var replay = await _file.ReplayAsync(_maximumItems, cancellationToken).ConfigureAwait(false);
+        var duplicateMatches = ProfileMatchIdentity.CollapseDuplicateMatches(replay.Events);
         _events = replay.Events;
         _ids = replay.Events.Select(static item => item.EventId).ToHashSet();
-        _requiresRewrite = replay.RequiresRewrite;
+        _matchKeys = MatchKeys(replay.Events);
+        _requiresRewrite = replay.RequiresRewrite || duplicateMatches > 0;
         RecoveredTruncatedTail = replay.RecoveredTruncatedTail;
+        if (duplicateMatches > 0 && !replay.RequiresRewrite)
+        {
+            if (!await _file.RewriteAsync(replay.Events, cancellationToken).ConfigureAwait(false))
+            {
+                throw new InvalidDataException("The deduplicated local match history exceeds its size limit.");
+            }
+
+            _requiresRewrite = false;
+        }
+
         return _events;
     }
+
+    private bool IsDuplicateMatch(ProfileEvent profileEvent) =>
+        ProfileMatchIdentity.TryGetKey(profileEvent, out var key) && _matchKeys!.Contains(key);
+
+    private void AddMatchKey(ProfileEvent profileEvent)
+    {
+        if (ProfileMatchIdentity.TryGetKey(profileEvent, out var key))
+        {
+            _matchKeys!.Add(key);
+        }
+    }
+
+    private static HashSet<ProfileMatchKey> MatchKeys(IEnumerable<ProfileEvent> events) =>
+        events
+            .Select(static profileEvent => ProfileMatchIdentity.TryGetKey(profileEvent, out var key) ? key : (ProfileMatchKey?)null)
+            .OfType<ProfileMatchKey>()
+            .ToHashSet();
 }

@@ -26,6 +26,7 @@ public sealed class ProfileOutbox : IDisposable
     private readonly ProfileCollectionFile _collectionFile;
     private List<ProfileEvent>? _history;
     private HashSet<Guid>? _ids;
+    private HashSet<ProfileMatchKey>? _matchKeys;
     private ProfileEvent? _collection;
     private int _tombstones;
 
@@ -82,7 +83,9 @@ public sealed class ProfileOutbox : IDisposable
         try
         {
             var history = await LoadUnsafeAsync(cancellationToken).ConfigureAwait(false);
-            if (_ids!.Contains(profileEvent.EventId) || _collection?.EventId == profileEvent.EventId)
+            if (_ids!.Contains(profileEvent.EventId) ||
+                _collection?.EventId == profileEvent.EventId ||
+                IsDuplicateMatch(profileEvent))
             {
                 return ProfileOutboxResult.Duplicate;
             }
@@ -117,6 +120,7 @@ public sealed class ProfileOutbox : IDisposable
 
             history.Add(profileEvent);
             _ids.Add(profileEvent.EventId);
+            AddMatchKey(profileEvent);
             return ProfileOutboxResult.Enqueued;
         }
         finally
@@ -194,6 +198,7 @@ public sealed class ProfileOutbox : IDisposable
 
             history.RemoveAll(item => removable.Contains(item.EventId));
             _ids!.ExceptWith(acknowledged);
+            _matchKeys = MatchKeys(history);
             _tombstones += acknowledged.Length;
             removed += acknowledged.Length;
             if (_tombstones >= CompactionTombstones)
@@ -222,11 +227,13 @@ public sealed class ProfileOutbox : IDisposable
             cancellationToken).ConfigureAwait(false);
         TruncatedTailRecovered = replay.TruncatedTailRecovered;
         _history = replay.Events;
+        var duplicateMatches = ProfileMatchIdentity.CollapseDuplicateMatches(_history);
         _ids = replay.Events.Select(static item => item.EventId).ToHashSet();
+        _matchKeys = MatchKeys(replay.Events);
         _tombstones = replay.Tombstones;
         _collection = await _collectionFile.ReadAsync(cancellationToken).ConfigureAwait(false);
         await ImportLegacyUnsafeAsync(_history, cancellationToken).ConfigureAwait(false);
-        if (_tombstones >= CompactionTombstones || replay.TruncatedTailRecovered)
+        if (_tombstones >= CompactionTombstones || replay.TruncatedTailRecovered || duplicateMatches > 0)
         {
             await CompactUnsafeAsync(_history, cancellationToken).ConfigureAwait(false);
         }
@@ -259,7 +266,7 @@ public sealed class ProfileOutbox : IDisposable
 
         foreach (var item in legacy.History)
         {
-            if (_ids!.Contains(item.EventId))
+            if (_ids!.Contains(item.EventId) || IsDuplicateMatch(item))
             {
                 continue;
             }
@@ -272,6 +279,7 @@ public sealed class ProfileOutbox : IDisposable
 
             history.Add(item);
             _ids.Add(item.EventId);
+            AddMatchKey(item);
         }
 
         if (legacy.Collection is { } collection && _collection?.EventId != collection.EventId)
@@ -282,5 +290,22 @@ public sealed class ProfileOutbox : IDisposable
 
         LegacyProfileOutboxFile.MarkMigrated(_legacyPath);
     }
+
+    private bool IsDuplicateMatch(ProfileEvent profileEvent) =>
+        ProfileMatchIdentity.TryGetKey(profileEvent, out var key) && _matchKeys!.Contains(key);
+
+    private void AddMatchKey(ProfileEvent profileEvent)
+    {
+        if (ProfileMatchIdentity.TryGetKey(profileEvent, out var key))
+        {
+            _matchKeys!.Add(key);
+        }
+    }
+
+    private static HashSet<ProfileMatchKey> MatchKeys(IEnumerable<ProfileEvent> events) =>
+        events
+            .Select(static profileEvent => ProfileMatchIdentity.TryGetKey(profileEvent, out var key) ? key : (ProfileMatchKey?)null)
+            .OfType<ProfileMatchKey>()
+            .ToHashSet();
 
 }
