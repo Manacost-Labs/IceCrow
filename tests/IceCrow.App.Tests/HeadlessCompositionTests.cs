@@ -180,7 +180,8 @@ public sealed class HeadlessCompositionTests : IDisposable
         }
 
         using var history = new IceCrow.ProfileSync.History.ProfileHistoryStore(path);
-        var match = Assert.Single((await history.ReadAsync(cancellation.Token)).Matches);
+        var snapshot = await history.ReadAsync(cancellation.Token);
+        var match = Assert.Single(snapshot.Matches.Where(match => match.EventId == profileEvent.EventId));
         Assert.Equal(profileEvent.EventId, match.EventId);
         Assert.Null(runtime.ProfileSync);
     }

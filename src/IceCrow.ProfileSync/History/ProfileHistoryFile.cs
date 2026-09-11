@@ -34,7 +34,7 @@ internal sealed class ProfileHistoryFile
             _path,
             FileMode.Open,
             FileAccess.Read,
-            FileShare.Read,
+            FileShare.ReadWrite,
             64 * 1024,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
         var endsWithNewLine = EndsWithNewLine(stream);

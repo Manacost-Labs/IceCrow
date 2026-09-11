@@ -52,6 +52,26 @@ public sealed class ProfileHistoryStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task ReplayCanReadWhileTheHistoryWriterIsOpen()
+    {
+        using (var history = History())
+        {
+            Assert.Equal(ProfileHistoryAppendResult.Added, await history.AppendAsync(Constructed()));
+        }
+
+        await using var writer = new FileStream(
+            HistoryPath,
+            FileMode.Open,
+            FileAccess.Write,
+            FileShare.Read,
+            4096,
+            FileOptions.Asynchronous);
+        using var reader = History();
+
+        Assert.Single((await reader.ReadAsync()).Matches);
+    }
+
+    [Fact]
     public async Task RestartReplayCollapsesLegacyMatchesWithDifferentGeneratedIds()
     {
         var first = Constructed(eventId: Guid.CreateVersion7());
