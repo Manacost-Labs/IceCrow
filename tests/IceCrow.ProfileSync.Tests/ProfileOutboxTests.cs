@@ -65,6 +65,18 @@ public sealed class ProfileOutboxTests : IDisposable
     }
 
     [Fact]
+    public void StableMatchIdentityDoesNotTurnOutOfOrderLogTimesIntoAnException()
+    {
+        var startedAt = Timestamp.AddMinutes(1);
+
+        var first = ProfileMatchIdentity.CreateEventId(ProfileEventType.ConstructedMatch, startedAt, Timestamp);
+        var replay = ProfileMatchIdentity.CreateEventId(ProfileEventType.ConstructedMatch, startedAt, Timestamp);
+
+        Assert.Equal(first, replay);
+        Assert.NotEqual(Guid.Empty, first);
+    }
+
+    [Fact]
     public async Task LatestCollectionSnapshotReplacesThePendingOne()
     {
         using var outbox = Create();

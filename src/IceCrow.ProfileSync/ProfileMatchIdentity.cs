@@ -84,11 +84,6 @@ public static class ProfileMatchIdentity
             throw new ArgumentException("A stable identity can only be created for a match event.", nameof(eventType));
         }
 
-        if (endedAt < startedAt)
-        {
-            throw new ArgumentException("A match cannot end before it starts.", nameof(endedAt));
-        }
-
         var canonical = string.Create(
             System.Globalization.CultureInfo.InvariantCulture,
             $"{IdentityVersion}\n{purpose}\n{eventType}\n{startedAt.UtcDateTime.Ticks}\n{endedAt.UtcDateTime.Ticks}");

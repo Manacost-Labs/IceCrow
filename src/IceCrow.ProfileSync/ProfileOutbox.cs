@@ -193,6 +193,7 @@ public sealed class ProfileOutbox : IDisposable
                 history.Clear();
                 history.AddRange(remaining);
                 _ids!.ExceptWith(acknowledged);
+                _matchKeys = MatchKeys(history);
                 return removed + acknowledged.Length;
             }
 
