@@ -17,4 +17,3 @@ internal sealed record ActiveDeckState(
         "Выберите колоду перед игрой — IceCrow сохранит её статистику.",
         false);
 }
-
