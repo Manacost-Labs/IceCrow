@@ -65,6 +65,21 @@ public sealed class ProfileLinkWorkflowTests
         Assert.Equal(ProfileLinkStage.Unavailable, updates[^1].Stage);
     }
 
+    [Theory]
+    [InlineData("https://evil.test/connect/")]
+    [InlineData("https://hearthpulse.test.evil.test/connect/")]
+    [InlineData("https://hearthpulse.test@evil.test/connect/")]
+    public async Task RunRejectsACrossOriginVerificationPageBeforePolling(string verificationUri)
+    {
+        var gateway = new FakeGateway(Start(verificationUri));
+
+        var result = await CreateWorkflow(gateway).RunAsync(static _ => { }, CancellationToken.None);
+
+        Assert.Equal(ProfileLinkStage.Unavailable, result);
+        Assert.Equal(0, gateway.PollCount);
+        Assert.Null(gateway.SavedCredential);
+    }
+
     [Fact]
     public async Task RunPropagatesCancellationWithoutSaving()
     {
@@ -104,6 +119,8 @@ public sealed class ProfileLinkWorkflowTests
         public int PollCount { get; private set; }
 
         public ProfileCredential? SavedCredential { get; private set; }
+
+        public Uri ServerOrigin { get; } = new("https://hearthpulse.test");
 
         public Task<DeviceLinkStart?> StartAsync(CancellationToken cancellationToken) => Task.FromResult(start);
 

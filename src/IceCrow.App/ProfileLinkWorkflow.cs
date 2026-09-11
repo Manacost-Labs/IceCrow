@@ -24,6 +24,8 @@ internal sealed record ProfileLinkUpdate(
 
 internal interface IProfileLinkGateway
 {
+    Uri ServerOrigin { get; }
+
     Task<DeviceLinkStart?> StartAsync(CancellationToken cancellationToken);
 
     Task<DeviceLinkPoll> PollAsync(DeviceLinkStart start, CancellationToken cancellationToken);
@@ -33,6 +35,8 @@ internal interface IProfileLinkGateway
 
 internal sealed class ProfileSyncLinkGateway(ProfileSyncRuntime runtime) : IProfileLinkGateway
 {
+    public Uri ServerOrigin => runtime.Authorization.ServerOrigin;
+
     public Task<DeviceLinkStart?> StartAsync(CancellationToken cancellationToken) =>
         runtime.Authorization.StartAsync(cancellationToken);
 
@@ -62,7 +66,7 @@ internal sealed class ProfileLinkWorkflow(
         ArgumentNullException.ThrowIfNull(onUpdate);
         onUpdate(new ProfileLinkUpdate(ProfileLinkStage.Starting));
         var start = await gateway.StartAsync(cancellationToken).ConfigureAwait(false);
-        if (start is null || !TryGetSafeVerificationUri(start, out var verificationUri))
+        if (start is null || !TryGetSafeVerificationUri(start, gateway.ServerOrigin, out var verificationUri))
         {
             onUpdate(new ProfileLinkUpdate(ProfileLinkStage.Unavailable));
             return ProfileLinkStage.Unavailable;
@@ -101,10 +105,19 @@ internal sealed class ProfileLinkWorkflow(
         return ProfileLinkStage.Expired;
     }
 
-    private static bool TryGetSafeVerificationUri(DeviceLinkStart start, out Uri verificationUri)
+    private static bool TryGetSafeVerificationUri(
+        DeviceLinkStart start,
+        Uri serverOrigin,
+        out Uri verificationUri)
     {
         var target = start.VerificationUriComplete ?? start.VerificationUri;
-        if (Uri.TryCreate(target, UriKind.Absolute, out var parsed) && parsed.Scheme == Uri.UriSchemeHttps)
+        if (Uri.TryCreate(target, UriKind.Absolute, out var parsed) &&
+            parsed.Scheme == Uri.UriSchemeHttps &&
+            string.IsNullOrEmpty(parsed.UserInfo) &&
+            string.Equals(
+                parsed.GetLeftPart(UriPartial.Authority),
+                serverOrigin.GetLeftPart(UriPartial.Authority),
+                StringComparison.OrdinalIgnoreCase))
         {
             verificationUri = parsed;
             return true;
