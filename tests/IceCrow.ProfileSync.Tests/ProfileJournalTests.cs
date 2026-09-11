@@ -36,6 +36,26 @@ public sealed class ProfileJournalTests : IDisposable
     }
 
     [Fact]
+    public async Task ReplayCanReadWhileTheJournalWriterIsOpen()
+    {
+        using (var outbox = Create())
+        {
+            await outbox.EnqueueAsync(Match());
+        }
+
+        await using var writer = new FileStream(
+            JournalPath,
+            FileMode.Open,
+            FileAccess.Write,
+            FileShare.Read,
+            4096,
+            FileOptions.Asynchronous);
+        using var reader = Create();
+
+        Assert.Equal(1, await reader.CountAsync());
+    }
+
+    [Fact]
     public async Task AcknowledgementsAreTombstonesUntilCompaction()
     {
         using var outbox = Create();

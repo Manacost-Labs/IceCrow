@@ -63,7 +63,7 @@ internal sealed class ProfileJournalFile
         var index = new Dictionary<Guid, int>();
         var tombstones = 0;
         var truncatedTail = false;
-        await using var stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        await using var stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
         var endsWithNewLine = EndsWithNewLine(stream);
         using var reader = new StreamReader(stream, new UTF8Encoding(false, true));
         string? line;
