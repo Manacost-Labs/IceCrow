@@ -2,8 +2,8 @@
 
 ## Owners
 
-- The WPF dispatcher owns `App`, `OverlayHost`, `OverlayWindow`,
-  `LiveOverlayPresenter`, and debug diagnostics.
+- The WPF dispatcher owns `App`, `HistoryWindow`, `OverlayHost`,
+  `OverlayWindow`, `LiveOverlayPresenter`, and debug diagnostics.
 - `PowerLogTailer` is the single writer to its bounded raw-line channel.
 - `LiveTrackingCoordinator` is the single consumer and the only live caller of
   its `TrackingSession`.
@@ -15,28 +15,32 @@
   consumer thread, guards its state with one private gate, and is the single
   reader of a bounded two-slot completed-capture channel drained by one
   sequential persistence worker.
+- `ProfileHistoryRuntime` accepts completed personal records through a bounded
+  non-blocking handoff. Its single worker owns file access and publishes an
+  immutable history snapshot only after a durable commit.
 
 ## Startup
 
-`App.OnStartup` creates diagnostics, constructs `IceCrowRuntime`, and calls
-`Start`. The runtime starts overlay presentation and then three background
-pipelines: data initialization/refresh, consent/outbox processing, and live log
-tracking. Optional card data never blocks live tracking.
+`App.OnStartup` opens the normal history window, creates Debug diagnostics when
+applicable, constructs `IceCrowRuntime`, and calls `Start`. The runtime starts
+overlay presentation and then the data, telemetry, optional profile sync,
+always-on local history, and live log pipelines. Optional card data never blocks
+live tracking.
 
 ## Shutdown order
 
-1. Stop accepting telemetry summaries and cancel the one root token.
-2. Await data, telemetry, and live background tasks.
+1. Stop accepting telemetry/profile/history work and cancel the one root token.
+2. Await data, telemetry, profile, history-drain, and live background tasks.
 3. Detach/dispose live log resources.
 4. Dispose the recording runtime (Debug builds): discard any in-flight match
    capture as intentional, complete the capture queue, drain pending saves for
    a bounded grace period, then cancel — and, if a save ignores cancellation,
    abandon it with its fault observed rather than block WPF shutdown.
-5. Dispose telemetry storage and data HTTP resources.
+5. Dispose telemetry/profile/history storage and data HTTP resources.
 6. Dispose the presenter and overlay on the WPF dispatcher.
-7. Dispose debug presentation and the root cancellation source.
+7. Dispose product/debug presentation and the root cancellation source.
 
-The Debug window's UI event handler awaits this path. WPF's `Application.OnExit`
+The product window's UI event handler awaits this path. WPF's `Application.OnExit`
 is synchronous, so `App.xaml.cs` contains the only permitted blocking task wait
 as an idempotent final fallback. Architecture tests reject such waits elsewhere.
 
@@ -51,6 +55,9 @@ as an idempotent final fallback. Architecture tests reject such waits elsewhere.
 - Completed match captures: capacity 2, `TryWrite` from the observer path; a
   full queue reports an explicit persistence error instead of blocking the
   tracking consumer or silently dropping evidence.
+- Local match history: capacity 64, `TryWrite`; accepted records are appended
+  and flushed by one worker, transient IO failures retry, and a full handoff or
+  4096-item/64 MiB archive is reported instead of replacing accepted history.
 - Overlay presentation: latest-only dispatcher scheduling; intermediate UI
   frames may coalesce without losing canonical state.
 

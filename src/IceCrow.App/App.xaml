@@ -2,10 +2,11 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              ShutdownMode="OnExplicitShutdown">
-    <!--
-        No application-level resources on purpose. The IceCrow design system is
-        merged by the overlay library itself (OverlayWindow and Generic.xaml),
-        so the headless Release composition never loads the overlay assembly
-        just to satisfy an application resource dictionary.
-    -->
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/IceCrow.Overlay;component/Design/IceCrowTheme.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
 </Application>

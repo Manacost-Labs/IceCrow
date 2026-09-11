@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Manacost-Labs/IceCrow/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Manacost-Labs/IceCrow/actions/workflows/ci.yml)
 
-IceCrow is a local-first Windows companion for Hearthstone. It reads Hearthstone's `Power.log`, normalizes game events, reconstructs deterministic match state, remembers previously observed Battlegrounds opponent boards, and can sync the user's own results to their HearthPulse profile through an authenticated, batched outbox (`docs/profile-sync.md`). The Release build runs headless by default (overlay off); the non-activating WPF overlay remains available through `settings.json`.
+IceCrow is a local-first Windows companion for Hearthstone. It reads Hearthstone's `Power.log`, normalizes game events, reconstructs deterministic match state, remembers previously observed Battlegrounds opponent boards, and can sync the user's own results to their HearthPulse profile through an authenticated, batched outbox (`docs/profile-sync.md`). The Release build opens the IceCrow history window while the in-game overlay remains off by default and independently configurable through `settings.json`.
 
 > [!IMPORTANT]
 > IceCrow is under active development and is **not production-ready**. The live `Power.log` → parser → deterministic tracking → overlay composition is implemented and covered by synthetic integration tests, but the real-client acceptance matrix has not yet been executed. See the [v0.1 quality report](docs/v0.1-quality-report.md) and [live acceptance checklist](docs/live-acceptance-checklist.md) for the current evidence and remaining gates.
@@ -34,6 +34,10 @@ and diagnostic performance baselines are documented in the
 - Real owned-card collection import from complete schema-v3 snapshots produced
   by the Manacost HDT Collection Exporter, with bounded validation, canonical
   hash deduplication, and latest-only authenticated profile sync.
+- A normal Release UI with overview, searchable mode filters, match details,
+  and exact-known deck aggregates backed by a permanent local archive. The
+  archive remains available when HearthPulse sync is disabled and is not
+  cleared when the server acknowledges an upload.
 
 IceCrow does **not** automate gameplay, click Hearthstone controls, install global keyboard hooks, call an AI service, contain a shared Manacost token, or require a backend.
 
@@ -101,7 +105,7 @@ flowchart TD
 | `IceCrow.Recording` | Versioned capture, replay navigation, and replay-specific resource budgets | `Tracking` and its typed domain contracts; no WPF, HWND, or log input |
 | `IceCrow.Infrastructure.ManacostApi` | Optional public HTTPS synchronization, atomic data cache, and bounded image cache | `Hearthstone.Data` |
 | `IceCrow.Telemetry` | Consent-aware match summaries and bounded persistent outbox | `Tracking` |
-| `IceCrow.ProfileSync` | Bounded personal result/collection records, protected device linking, durable outbox, and authenticated upload | `Tracking`, `Hearthstone.ClientState` |
+| `IceCrow.ProfileSync` | Bounded personal result/collection records, permanent local history, protected device linking, durable upload outbox, and authenticated upload | `Tracking`, `Hearthstone.ClientState` |
 
 Architecture tests enforce this graph, reject cycles, prevent WPF/Win32 APIs from entering portable projects, keep developer tools out of runtime dependencies, require bounded channels, and limit every ordinary test project to one direct production-project dependency. The maintained design is in [architecture.md](docs/architecture.md); new work starts with the [feature development guide](docs/feature-development.md), [module boundaries](docs/module-boundaries.md), and [error model](docs/error-model.md).
 
@@ -145,6 +149,16 @@ Power.log
 ```
 
 The same `TrackingSession` consumes normalized events during live processing, direct integration tests, and offline replay. Replays run without Hearthstone, HWNDs, WPF, network access, or real-time delays. Unknown and malformed records update bounded diagnostics but never enter the tracking engine.
+
+Completed personal match records fan out through the App composition root:
+
+```text
+ProfileEvent -> bounded local history worker -> %LOCALAPPDATA%\IceCrow\history\matches.jsonl -> History UI
+             -> optional profile worker     -> upload outbox -> HearthPulse
+```
+
+The two destinations have independent lifetimes. Disabling or completing a
+server upload never erases the local user history.
 
 Static enrichment follows an independent path:
 

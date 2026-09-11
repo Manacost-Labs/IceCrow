@@ -7,6 +7,7 @@ using IceCrow.Hearthstone.Decks;
 using IceCrow.Infrastructure.ManacostApi;
 using IceCrow.Live;
 using IceCrow.ProfileSync;
+using IceCrow.ProfileSync.History;
 #if DEBUG
 using IceCrow.Overlay;
 #endif
@@ -17,6 +18,7 @@ public partial class App : Application, IAsyncDisposable
 {
     private IceCrowRuntime? _runtime;
     private Task? _stopTask;
+    private HistoryWindow? _historyWindow;
 #if DEBUG
     private MainWindow? _developerWindow;
     private DeveloperDiagnosticsPresenter? _developerDiagnosticsPresenter;
@@ -25,6 +27,10 @@ public partial class App : Application, IAsyncDisposable
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        _historyWindow = new HistoryWindow();
+        _historyWindow.Closed += OnHistoryWindowClosed;
+        _historyWindow.Show();
 
 #if DEBUG
         _developerWindow = new MainWindow();
@@ -44,6 +50,7 @@ public partial class App : Application, IAsyncDisposable
             OnManacostDataStatusChanged,
             OnTelemetryStatusChanged,
             OnProfileSyncStatusChanged,
+            OnHistoryChanged,
             OnCaptureStatusChanged,
             ReportRecoverableLogError,
             ReportLogStatus,
@@ -188,7 +195,11 @@ public partial class App : Application, IAsyncDisposable
     {
         // Secret-free by construction; safe to trace.
         Debug.WriteLine($"Profile sync: {status.Phase}, pending={status.PendingEvents}, uploaded={status.UploadedEvents}");
+        _ = Dispatcher.BeginInvoke(() => _historyWindow?.SetSyncStatus(status));
     }
+
+    private void OnHistoryChanged(ProfileHistorySnapshot snapshot) =>
+        _ = Dispatcher.BeginInvoke(() => _historyWindow?.ApplySnapshot(snapshot));
 
     private void ReportRecoverableLogError(Exception exception)
     {
@@ -202,6 +213,7 @@ public partial class App : Application, IAsyncDisposable
         Justification = "The Debug build forwards status to the developer presenter instance.")]
     private void ReportLogStatus(string status)
     {
+        _ = Dispatcher.BeginInvoke(() => _historyWindow?.SetRuntimeStatus(status));
 #if DEBUG
         _developerDiagnosticsPresenter?.PublishStatus(status);
 #else
@@ -225,15 +237,33 @@ public partial class App : Application, IAsyncDisposable
             _developerWindow = null;
         }
 #endif
+        if (_historyWindow is not null)
+        {
+            _historyWindow.Closed -= OnHistoryWindowClosed;
+            _historyWindow = null;
+        }
     }
 
 #if DEBUG
-    private async void OnDeveloperWindowClosed(object? sender, EventArgs eventArgs)
+    private void OnDeveloperWindowClosed(object? sender, EventArgs eventArgs)
+    {
+        _ = sender;
+        _ = eventArgs;
+        _developerDiagnosticsPresenter?.Dispose();
+        _developerDiagnosticsPresenter = null;
+        if (_developerWindow is not null)
+        {
+            _developerWindow.Closed -= OnDeveloperWindowClosed;
+            _developerWindow = null;
+        }
+    }
+#endif
+
+    private async void OnHistoryWindowClosed(object? sender, EventArgs eventArgs)
     {
         _ = sender;
         _ = eventArgs;
         await StopRuntimeAsync();
         Shutdown();
     }
-#endif
 }

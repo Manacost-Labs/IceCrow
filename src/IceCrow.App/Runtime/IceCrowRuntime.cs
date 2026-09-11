@@ -3,6 +3,7 @@ using IceCrow.Hearthstone.Logs;
 using IceCrow.Infrastructure.ManacostApi;
 using IceCrow.Live;
 using IceCrow.ProfileSync;
+using IceCrow.ProfileSync.History;
 
 namespace IceCrow.App.Runtime;
 
@@ -13,9 +14,10 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
     private readonly TelemetryRuntime _telemetry;
     private readonly IOverlayPresentation? _presentation;
     private readonly ProfileSyncRuntime? _profileSync;
+    private readonly ProfileHistoryRuntime _history;
     private readonly RecordingRuntime? _recording;
     private readonly LiveRuntime _live;
-    private readonly ProfileRecordPipeline? _profileRecords;
+    private readonly ProfileRecordPipeline _profileRecords;
     private readonly Action<GameSessionUpdate> _onSessionProcessed;
     private Task[] _backgroundTasks = [];
     private int _started;
@@ -30,6 +32,7 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
         Action<ManacostDataStatus> onDataStatusChanged,
         Action<bool, int, DateTimeOffset?> onTelemetryStatusChanged,
         Action<ProfileSyncStatus> onProfileSyncStatusChanged,
+        Action<ProfileHistorySnapshot> onHistoryChanged,
         Action<RecordingCaptureStatus> onCaptureStatusChanged,
         Action<Exception> onRecoverableLogError,
         Action<string> onLogStatus,
@@ -51,9 +54,13 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
         _profileSync = options.ProfileSyncEnabled
             ? new ProfileSyncRuntime(localDataDirectory, options.HearthPulseOrigin, onProfileSyncStatusChanged, clientVersion)
             : null;
-        _profileRecords = _profileSync is { } profileSync
-            ? new ProfileRecordPipeline(profileSync.TryQueue, profileSync.SetGameplayActive)
-            : null;
+        _history = new ProfileHistoryRuntime(
+            localDataDirectory,
+            onHistoryChanged,
+            failure => onLogStatus($"Match history unavailable: {failure}"));
+        _profileRecords = new ProfileRecordPipeline(
+            PublishProfileRecord,
+            _profileSync is { } profileSync ? profileSync.SetGameplayActive : static _ => { });
         // Developer match capture is a Debug-only feature. Release composes a
         // null observer so the live hot path pays exactly one null check per
         // notification point and no capture lock or interface call per event.
@@ -77,13 +84,17 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
 
     public bool ProfileSyncComposed => _profileSync is not null;
 
+    public bool HistoryComposed => _history is not null;
+
     /// <summary>Overlay render counters when the overlay is enabled; null in headless mode.</summary>
     public object? OverlayDiagnostics => _presentation?.Diagnostics;
 
     public ProfileSyncRuntime? ProfileSync => _profileSync;
 
-    /// <summary>Profile records produced from finished matches; null when profile sync is disabled.</summary>
-    public ProfileRecordPipeline? ProfileRecords => _profileRecords;
+    public ProfileHistoryRuntime History => _history;
+
+    /// <summary>Profile records produced from finished matches for local history and optional sync.</summary>
+    public ProfileRecordPipeline ProfileRecords => _profileRecords;
 
     public PowerLogTailerDiagnostics TailerDiagnostics =>
         _live.TailerDiagnostics;
@@ -104,6 +115,7 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
             _data.RunAsync(_shutdown.Token),
             _telemetry.RunAsync(_shutdown.Token),
             _profileSync?.RunAsync(_shutdown.Token) ?? Task.CompletedTask,
+            _history.RunAsync(_shutdown.Token),
             _live.RunAsync(_shutdown.Token),
         ];
     }
@@ -137,6 +149,8 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
                 await _profileSync.DisposeAsync().ConfigureAwait(false);
             }
 
+            _history.Dispose();
+
             await _data.DisposeAsync().ConfigureAwait(false);
             if (_presentation is not null)
             {
@@ -167,13 +181,21 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
         // the single process-lifetime token.
         _telemetry.Complete();
         _profileSync?.Complete();
+        _history.Complete();
         _shutdown.Cancel();
+    }
+
+    private bool PublishProfileRecord(ProfileEvent profileEvent)
+    {
+        var archived = _history.TryQueue(profileEvent) == ProfileHandoffResult.Accepted;
+        _ = _profileSync?.TryQueue(profileEvent);
+        return archived;
     }
 
     private void OnSessionProcessed(GameSessionUpdate update)
     {
         _onSessionProcessed(update);
-        _profileRecords?.Observe(update, _live.GameplayActive);
+        _profileRecords.Observe(update, _live.GameplayActive);
         if (update.Battlegrounds is not { StateChanged: true, Snapshot: { } snapshot })
         {
             return;

@@ -10,6 +10,9 @@ Rules:
 
 - Records are immutable, bounded, and carry typed `Certainty`. A factory maps
   tracking results into records; never raise a certainty while mapping.
+- Local match history is permanent and independent from the transient upload
+  outbox. It uses a bounded JSON Lines archive and exposes only immutable,
+  WPF-free read models.
 - No HTTP per gameplay event. Completed records go to the outbox; the
   coordinator uploads bounded batches with backoff and jitter, preferably
   outside gameplay.

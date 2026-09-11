@@ -1,7 +1,7 @@
 # Personal profile sync (HearthPulse companion)
 
-IceCrow can run as a headless companion that collects the local player's
-Hearthstone results and syncs them to the user's HearthPulse profile. This
+IceCrow runs as a local companion that collects the local player's Hearthstone
+results, keeps a permanent on-device history, and can sync them to the user's HearthPulse profile. This
 document is the contract: what is collected, from which source, with which
 certainty, how it is stored locally, how it is authenticated, and what the
 resource budgets are. Anonymous telemetry (`docs/telemetry.md`) is a separate
@@ -13,14 +13,14 @@ boundary and is never used for personal data.
 | --- | --- | --- |
 | Overlay | off (`overlayEnabled: false`) | `IceCrowRuntimeOptions`, `%LOCALAPPDATA%\IceCrow\settings.json` |
 | Power.log tracking | on | `IceCrow.Live` |
+| Local history UI/archive | on | `IceCrow.App`, `IceCrow.ProfileSync.History` |
 | Profile sync | on, inert until the device is linked | `IceCrow.ProfileSync` |
 | Debug capture | Debug-only, unchanged | `IceCrow.Recording` |
 
-When the overlay is disabled the runtime never calls `OverlayComposition`,
-so `IceCrow.Overlay.dll` and `IceCrow.Presentation.dll` are not loaded and no
-WPF dispatch happens per tracking snapshot. `App.xaml` carries no
-application-level resource dictionary for the same reason. The Debug build
-defaults the overlay on to keep the developer window and design preview.
+When the overlay is disabled the runtime never calls `OverlayComposition`, so
+no WPF dispatch happens per tracking snapshot. The normal history window still
+uses the shared IceCrow design resources. The Debug build additionally defaults
+the in-game overlay on and opens the developer diagnostics window.
 
 ## Sources and certainty
 
@@ -58,7 +58,8 @@ Power.log
        completed ranked game     -> ConstructedRecordFactory.CreateRanked -> constructed_match
        completed Arena game      -> ConstructedRecordFactory.CreateArena + ArenaRunCollector.Associate -> arena_match
        ended Battlegrounds match -> BattlegroundsRecordFactory.Create -> battlegrounds_match
-  -> ProfilePersistenceWorker (bounded handoff, owns the event until committed) -> ProfileOutbox journal -> ProfileSyncCoordinator -> HearthPulse
+  -> local ProfileHistoryWorker -> permanent bounded history -> History UI
+  -> optional ProfilePersistenceWorker -> ProfileOutbox journal -> ProfileSyncCoordinator -> HearthPulse
 ```
 
 Constructed and Arena games never construct the Battlegrounds
@@ -76,6 +77,12 @@ becomes one `ProfileEvent` (`eventId` UUIDv7, `type`, `schemaVersion` 1,
 `docs/specs/tracker-profile-ingestion-v1.md` in the HearthPulse repository.
 
 ## Local outbox
+
+The permanent history is `%LOCALAPPDATA%\IceCrow\history\matches.jsonl`.
+It is a separate, idempotent JSON Lines archive capped at 4096 events and
+64 MiB. It recovers an incomplete final line, rejects interior corruption,
+and publishes immutable projections for the UI. A server acknowledgement never
+removes this file. The upload outbox below remains transient by design.
 
 `ProfileOutbox` keeps history in `%LOCALAPPDATA%\IceCrow\profile\outbox.jsonl`
 and the newest pending collection in `collection-pending.json`, behind a single

@@ -1,0 +1,260 @@
+<Window x:Class="IceCrow.App.HistoryWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:IceCrow.Overlay.Controls;assembly=IceCrow.Overlay"
+        Title="IceCrow"
+        Width="1180"
+        Height="760"
+        MinWidth="900"
+        MinHeight="600"
+        Background="{StaticResource IceCrow.Brush.Surface}"
+        Foreground="{StaticResource IceCrow.Brush.TextPrimary}"
+        UseLayoutRounding="True"
+        WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="{StaticResource IceCrow.Brush.TextSecondary}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="16,10" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource IceCrow.Brush.AccentStrong}" />
+                    <Setter Property="Background" Value="{StaticResource IceCrow.Brush.SurfaceSelected}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="HistoryListItem" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="12" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Background" Value="{StaticResource IceCrow.Brush.SurfaceRaised}" />
+            <Setter Property="BorderBrush" Value="{StaticResource IceCrow.Brush.Border}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource IceCrow.Brush.SurfaceHover}" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{StaticResource IceCrow.Brush.SurfaceSelected}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource IceCrow.Brush.Accent}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="16" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Style="{StaticResource IceCrow.Text.HeroTitle}" Text="ICECROW" />
+                <TextBlock Margin="0,4,0,0"
+                           Style="{StaticResource IceCrow.Text.Label}"
+                           Text="Личная история Hearthstone — локально и без обязательного сервера" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                <TextBlock x:Name="TrackingStatus"
+                           HorizontalAlignment="Right"
+                           Style="{StaticResource IceCrow.Text.SectionTitle}"
+                           Text="Отслеживание запущено" />
+                <TextBlock x:Name="SyncStatus"
+                           Margin="0,4,0,0"
+                           HorizontalAlignment="Right"
+                           Style="{StaticResource IceCrow.Text.Caption}"
+                           Text="HearthPulse: проверка подключения…" />
+            </StackPanel>
+        </Grid>
+
+        <TabControl Grid.Row="2">
+            <TabItem Header="ОБЗОР">
+                <Grid Margin="0,18,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="18" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <UniformGrid Rows="1" Columns="4">
+                        <controls:IcePanel Margin="0,0,8,0" Header="Всего матчей" IsSignature="True">
+                            <TextBlock x:Name="TotalMatches" Style="{StaticResource IceCrow.Text.HeroTitle}" Text="0" />
+                        </controls:IcePanel>
+                        <controls:IcePanel Margin="8,0" Header="Победы">
+                            <TextBlock x:Name="TotalWins" Style="{StaticResource IceCrow.Text.HeroTitle}" Text="0" />
+                        </controls:IcePanel>
+                        <controls:IcePanel Margin="8,0" Header="Поражения">
+                            <TextBlock x:Name="TotalLosses" Style="{StaticResource IceCrow.Text.HeroTitle}" Text="0" />
+                        </controls:IcePanel>
+                        <controls:IcePanel Margin="8,0,0,0" Header="Поля сражений">
+                            <TextBlock x:Name="TotalBattlegrounds" Style="{StaticResource IceCrow.Text.HeroTitle}" Text="0" />
+                        </controls:IcePanel>
+                    </UniformGrid>
+                    <controls:IcePanel Grid.Row="2" Header="Последние игры">
+                        <ListBox x:Name="RecentMatches"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 IsHitTestVisible="False"
+                                 ItemContainerStyle="{StaticResource HistoryListItem}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="150" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource IceCrow.Text.SectionTitle}" Text="{Binding Mode}" />
+                                        <TextBlock Grid.Column="1" Style="{StaticResource IceCrow.Text.Body}" Text="{Binding Summary}" />
+                                        <TextBlock Grid.Column="2" Style="{StaticResource IceCrow.Text.Caption}" Text="{Binding PlayedAt}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </controls:IcePanel>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="МАТЧИ">
+                <Grid Margin="0,18,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="12" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="220" />
+                            <ColumnDefinition Width="12" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <ComboBox x:Name="ModeFilter" SelectionChanged="OnFilterChanged" SelectedIndex="0">
+                            <ComboBoxItem Tag="all" Content="Все режимы" />
+                            <ComboBoxItem Tag="standard" Content="Стандарт" />
+                            <ComboBoxItem Tag="wild" Content="Вольный" />
+                            <ComboBoxItem Tag="arena" Content="Арена" />
+                            <ComboBoxItem Tag="battlegrounds" Content="Поля сражений" />
+                        </ComboBox>
+                        <TextBox x:Name="SearchBox"
+                                 Grid.Column="2"
+                                 Padding="10,6"
+                                 TextChanged="OnFilterChanged"
+                                 ToolTip="Поиск по режиму, результату или идентификатору героя" />
+                    </Grid>
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.15*" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <controls:IcePanel Header="История матчей">
+                            <Grid>
+                                <ListBox x:Name="MatchList"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         ItemContainerStyle="{StaticResource HistoryListItem}"
+                                         SelectionChanged="OnMatchSelected">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="120" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Style="{StaticResource IceCrow.Text.SectionTitle}" Text="{Binding Mode}" />
+                                                <StackPanel Grid.Column="1">
+                                                    <TextBlock Style="{StaticResource IceCrow.Text.Body}" Text="{Binding Outcome}" />
+                                                    <TextBlock Margin="0,3,0,0" Style="{StaticResource IceCrow.Text.Caption}" Text="{Binding Confidence}" />
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="2" Style="{StaticResource IceCrow.Text.Caption}" Text="{Binding PlayedAt}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                                <TextBlock x:Name="NoMatches"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Style="{StaticResource IceCrow.Text.Label}"
+                                           Text="Подходящих матчей пока нет" />
+                            </Grid>
+                        </controls:IcePanel>
+                        <controls:IcePanel Grid.Column="2" Header="Детали игры" IsSignature="True">
+                            <StackPanel>
+                                <TextBlock x:Name="DetailOutcome" Style="{StaticResource IceCrow.Text.HeroTitle}" Text="Выберите матч" />
+                                <TextBlock x:Name="DetailMode" Margin="0,6,0,18" Style="{StaticResource IceCrow.Text.Label}" Text="—" />
+                                <TextBlock Style="{StaticResource IceCrow.Text.Caption}" Text="Время" />
+                                <TextBlock x:Name="DetailTime" Margin="0,3,0,12" Style="{StaticResource IceCrow.Text.Body}" Text="—" />
+                                <TextBlock Style="{StaticResource IceCrow.Text.Caption}" Text="Продолжительность / ходы" />
+                                <TextBlock x:Name="DetailDuration" Margin="0,3,0,12" Style="{StaticResource IceCrow.Text.Body}" Text="—" />
+                                <TextBlock Style="{StaticResource IceCrow.Text.Caption}" Text="Ваш герой" />
+                                <TextBlock x:Name="DetailPlayerHero" Margin="0,3,0,12" Style="{StaticResource IceCrow.Text.Body}" Text="—" />
+                                <TextBlock Style="{StaticResource IceCrow.Text.Caption}" Text="Герой соперника" />
+                                <TextBlock x:Name="DetailOpponentHero" Margin="0,3,0,12" Style="{StaticResource IceCrow.Text.Body}" Text="—" />
+                                <TextBlock Style="{StaticResource IceCrow.Text.Caption}" Text="Источник результата" />
+                                <TextBlock x:Name="DetailConfidence" Margin="0,3,0,0" Style="{StaticResource IceCrow.Text.Body}" Text="—" />
+                            </StackPanel>
+                        </controls:IcePanel>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="КОЛОДЫ">
+                <controls:IcePanel Margin="0,18,0,0" Header="Колоды из сыгранных матчей">
+                    <Grid>
+                        <ListBox x:Name="DeckList"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 ItemContainerStyle="{StaticResource HistoryListItem}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="150" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource IceCrow.Text.SectionTitle}" Text="{Binding Identity}" />
+                                            <TextBlock Margin="0,3,0,0" Style="{StaticResource IceCrow.Text.Caption}" Text="{Binding Mode}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Style="{StaticResource IceCrow.Text.Body}" Text="{Binding Record}" />
+                                            <TextBlock Margin="0,3,0,0" Style="{StaticResource IceCrow.Text.Caption}" Text="{Binding Confidence}" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="2" Style="{StaticResource IceCrow.Text.Caption}" Text="{Binding LastPlayed}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <StackPanel x:Name="NoDecks" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock HorizontalAlignment="Center" Style="{StaticResource IceCrow.Text.SectionTitle}" Text="Точные колоды пока не определены" />
+                            <TextBlock Margin="0,6,0,0"
+                                       HorizontalAlignment="Center"
+                                       Style="{StaticResource IceCrow.Text.Label}"
+                                       Text="IceCrow не будет угадывать колоду: здесь появятся только подтверждённые данные клиента." />
+                        </StackPanel>
+                    </Grid>
+                </controls:IcePanel>
+            </TabItem>
+        </TabControl>
+
+        <TextBlock x:Name="ArchiveStatus"
+                   Grid.Row="3"
+                   Margin="0,12,0,0"
+                   Style="{StaticResource IceCrow.Text.Caption}"
+                   Text="Локальная история загружается…" />
+    </Grid>
+</Window>

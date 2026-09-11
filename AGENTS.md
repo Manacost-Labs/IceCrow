@@ -103,7 +103,7 @@ module) and apply their npm-based gates there, not to this .NET solution.
 | `IceCrow.Recording` | Offline capture, replay navigation, and replay-specific safety limits | `Hearthstone.Protocol`, `Hearthstone.Entities`, `Battlegrounds`, `Battlegrounds.Memory`, `Tracking` |
 | `IceCrow.Infrastructure.ManacostApi` | Public HTTPS dataset sync, last-known-good cache, and image disk cache | `Hearthstone.Data` |
 | `IceCrow.Telemetry` | Consent-aware derived summaries and bounded offline outbox | `Tracking` |
-| `IceCrow.ProfileSync` | Personal HearthPulse profile records, durable idempotent outbox, batched authenticated sync, device linking, protected credential contract | `Tracking`, `Hearthstone.ClientState` |
+| `IceCrow.ProfileSync` | Personal profile records, permanent bounded local history, durable idempotent HearthPulse outbox, batched authenticated sync, device linking, protected credential contract | `Tracking`, `Hearthstone.ClientState` |
 
 Test projects may reference only the production or developer-tool project under
 test and its transitive dependencies. `IceCrow.App.Tests` is the Windows-only
@@ -126,6 +126,9 @@ fixture or treat synthetic input as real evidence.
   never enters `TrackingSession`. Profile records are produced in
   `App/Runtime/ProfileRecordPipeline` from finished results and mapped by the
   factories in `ProfileSync/Factories`; certainty may only go down there.
+- Permanent personal match history belongs in `ProfileSync/History`; it is
+  independent from upload acknowledgement and remains active when remote
+  profile synchronization is disabled. WPF rendering stays in `App`.
 - Static card/hero contracts belong in `Hearthstone.Data`; HTTP/cache concerns
   belong in `Infrastructure.ManacostApi`.
 - WPF-free UI mapping belongs in `Presentation`; controls and interaction belong

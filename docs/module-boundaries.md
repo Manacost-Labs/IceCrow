@@ -22,7 +22,7 @@ project-reference graph is executable in `IceCrow.Architecture.Tests`.
 | `IceCrow.Recording` | versioned recording and deterministic replay | tracking and typed domain contracts | live HWND/files, WPF, runtime type metadata |
 | `IceCrow.Infrastructure.ManacostApi` | optional public HTTPS sync, validated cache, image cache | `Hearthstone.Data` | authoritative tracking, credentials |
 | `IceCrow.Telemetry` | explicit consent, derived summaries, bounded local outbox | `Tracking` | raw logs, identifiers, enabled HTTP transport |
-| `IceCrow.ProfileSync` | personal profile records with typed certainty, durable idempotent outbox, batched authenticated upload, device linking, protected credential store | `Tracking`, `Hearthstone.ClientState` | raw logs, WPF, tracking authority, plaintext tokens, per-event HTTP |
+| `IceCrow.ProfileSync` | personal profile records with typed certainty, permanent bounded local history, durable idempotent upload outbox, batched authenticated upload, device linking, protected credential store | `Tracking`, `Hearthstone.ClientState` | raw logs, WPF, tracking authority, plaintext tokens, per-event HTTP |
 
 ## Dependency decision test
 

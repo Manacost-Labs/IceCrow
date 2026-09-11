@@ -8,9 +8,9 @@ using IceCrow.ProfileSync.Records;
 namespace IceCrow.App.Tests;
 
 /// <summary>
-/// The Release product is headless: tracking and profile sync must compose
-/// and work while the overlay is absent, and the overlay assembly must not
-/// be loaded just by constructing the runtime.
+/// The tracking runtime can still be composed without the optional in-game
+/// overlay. Product-window ownership stays in App.OnStartup and does not enter
+/// this non-visual runtime boundary.
 /// </summary>
 public sealed class HeadlessCompositionTests : IDisposable
 {
@@ -35,6 +35,7 @@ public sealed class HeadlessCompositionTests : IDisposable
         Assert.False(runtime.OverlayComposed);
         Assert.Null(runtime.OverlayDiagnostics);
         Assert.True(runtime.ProfileSyncComposed);
+        Assert.True(runtime.HistoryComposed);
         Assert.Equal(overlayLoadedBefore, IsOverlayAssemblyLoaded());
     }
 
@@ -45,7 +46,7 @@ public sealed class HeadlessCompositionTests : IDisposable
         var profileSync = Assert.IsType<ProfileSyncRuntime>(runtime.ProfileSync);
         runtime.Start();
 
-        var queued = profileSync.TryQueue(ProfileEvent.Create(
+        var profileEvent = ProfileEvent.Create(
             ProfileEventType.BattlegroundsMatch,
             Timestamp,
             new BattlegroundsMatchRecord(
@@ -62,12 +63,15 @@ public sealed class HeadlessCompositionTests : IDisposable
                 900,
                 12,
                 null,
-                224857)));
+                224857));
+        var queued = profileSync.TryQueue(profileEvent);
 
         Assert.True(queued);
         var outboxPath = Path.Combine(_directory, "profile", "outbox.json");
         var pending = await WaitForOutboxAsync(outboxPath);
-        Assert.Equal(1, pending);
+        Assert.True(pending >= 1);
+        using var outbox = new ProfileOutbox(outboxPath);
+        Assert.Contains(await outbox.PeekBatchAsync(ProfileOutbox.MaximumBatchSize), item => item.EventId == profileEvent.EventId);
         Assert.Equal(ProfileSyncPhase.NotLinked, profileSync.Status.Phase);
     }
 
@@ -134,6 +138,51 @@ public sealed class HeadlessCompositionTests : IDisposable
         Assert.False(runtime.ProfileSyncComposed);
         Assert.Null(runtime.ProfileSync);
         Assert.False(runtime.OverlayComposed);
+        Assert.True(runtime.HistoryComposed);
+        Assert.NotNull(runtime.ProfileRecords);
+    }
+
+    [Fact]
+    public async Task LocalHistoryPersistsWhenProfileSyncIsDisabled()
+    {
+        await using var runtime = CreateRuntime(IceCrowRuntimeOptions.Headless with { ProfileSyncEnabled = false });
+        runtime.Start();
+        var profileEvent = ProfileEvent.Create(
+            ProfileEventType.ConstructedMatch,
+            Timestamp,
+            new ConstructedMatchRecord(
+                Guid.CreateVersion7(),
+                "ranked",
+                "standard",
+                MatchResult.Won,
+                Certainty.Exact,
+                Timestamp,
+                Timestamp.AddMinutes(6),
+                360,
+                8,
+                "HERO_01",
+                "HERO_02",
+                DeckEvidence.Unknown,
+                MulliganRecord.Unknown,
+                null,
+                OpponentDeckEvidence.Unknown,
+                null,
+                224857,
+                2));
+
+        Assert.Equal(ProfileHandoffResult.Accepted, runtime.History.TryQueue(profileEvent));
+
+        var path = Path.Combine(_directory, "history", "matches.jsonl");
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        while (!File.Exists(path) && !cancellation.IsCancellationRequested)
+        {
+            await Task.Delay(25, cancellation.Token);
+        }
+
+        using var history = new IceCrow.ProfileSync.History.ProfileHistoryStore(path);
+        var match = Assert.Single((await history.ReadAsync(cancellation.Token)).Matches);
+        Assert.Equal(profileEvent.EventId, match.EventId);
+        Assert.Null(runtime.ProfileSync);
     }
 
     private IceCrowRuntime CreateRuntime(IceCrowRuntimeOptions options) => new(
@@ -143,6 +192,7 @@ public sealed class HeadlessCompositionTests : IDisposable
         static _ => { },
         static _ => { },
         static (_, _, _) => { },
+        static _ => { },
         static _ => { },
         static _ => { },
         static _ => { },
