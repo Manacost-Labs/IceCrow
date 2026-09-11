@@ -6,6 +6,7 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/IceCrow.Overlay;component/Design/IceCrowTheme.xaml" />
+                <ResourceDictionary Source="Design/HeartPulseAppTheme.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

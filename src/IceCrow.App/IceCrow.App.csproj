@@ -35,4 +35,10 @@
     <InternalsVisibleTo Include="IceCrow.App.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Resource Include="Assets\HeartPulse\*.jpg" />
+    <Resource Include="Assets\HeartPulse\*.png" />
+    <Resource Include="Assets\HeartPulse\*.otf" />
+  </ItemGroup>
+
 </Project>

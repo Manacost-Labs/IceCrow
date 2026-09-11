@@ -19,6 +19,7 @@ public partial class App : Application, IAsyncDisposable
     private IceCrowRuntime? _runtime;
     private Task? _stopTask;
     private HistoryWindow? _historyWindow;
+    private CancellationTokenSource? _profileLinkCancellation;
 #if DEBUG
     private MainWindow? _developerWindow;
     private DeveloperDiagnosticsPresenter? _developerDiagnosticsPresenter;
@@ -30,6 +31,10 @@ public partial class App : Application, IAsyncDisposable
 
         _historyWindow = new HistoryWindow();
         _historyWindow.Closed += OnHistoryWindowClosed;
+        _historyWindow.LinkRequested += OnProfileLinkRequested;
+        _historyWindow.UnlinkRequested += OnProfileUnlinkRequested;
+        _historyWindow.CancelLinkRequested += OnProfileLinkCancelled;
+        _historyWindow.VerificationPageRequested += OnVerificationPageRequested;
         _historyWindow.Show();
 
 #if DEBUG
@@ -239,6 +244,10 @@ public partial class App : Application, IAsyncDisposable
 #endif
         if (_historyWindow is not null)
         {
+            _historyWindow.LinkRequested -= OnProfileLinkRequested;
+            _historyWindow.UnlinkRequested -= OnProfileUnlinkRequested;
+            _historyWindow.CancelLinkRequested -= OnProfileLinkCancelled;
+            _historyWindow.VerificationPageRequested -= OnVerificationPageRequested;
             _historyWindow.Closed -= OnHistoryWindowClosed;
             _historyWindow = null;
         }
@@ -263,7 +272,74 @@ public partial class App : Application, IAsyncDisposable
     {
         _ = sender;
         _ = eventArgs;
+        _profileLinkCancellation?.Cancel();
         await StopRuntimeAsync();
         Shutdown();
     }
+
+    private async void OnProfileLinkRequested()
+    {
+        if (_runtime?.ProfileSync is not { } profileSync || _historyWindow is null)
+        {
+            _historyWindow?.SetLinkUpdate(new ProfileLinkUpdate(ProfileLinkStage.Unavailable));
+            return;
+        }
+
+        _profileLinkCancellation?.Cancel();
+        _profileLinkCancellation?.Dispose();
+        _profileLinkCancellation = new CancellationTokenSource();
+        var cancellation = _profileLinkCancellation;
+        var workflow = new ProfileLinkWorkflow(new ProfileSyncLinkGateway(profileSync));
+        try
+        {
+            await workflow.RunAsync(update =>
+            {
+                _ = Dispatcher.BeginInvoke(() => _historyWindow?.SetLinkUpdate(update));
+                if (update.Stage == ProfileLinkStage.WaitingForApproval && update.VerificationUri is not null)
+                {
+                    ProfileLinkCommand.OpenVerificationPage(update.VerificationUri);
+                }
+            }, cancellation.Token);
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            _historyWindow?.SetLinkUpdate(new ProfileLinkUpdate(ProfileLinkStage.Cancelled));
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            Debug.WriteLine($"Profile linking failed: {exception.GetType().Name}");
+            _historyWindow?.SetLinkUpdate(new ProfileLinkUpdate(ProfileLinkStage.Unavailable));
+        }
+        finally
+        {
+            if (ReferenceEquals(_profileLinkCancellation, cancellation))
+            {
+                _profileLinkCancellation.Dispose();
+                _profileLinkCancellation = null;
+            }
+        }
+    }
+
+    private async void OnProfileUnlinkRequested()
+    {
+        if (_runtime?.ProfileSync is not { } profileSync || _historyWindow is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await profileSync.UnlinkAsync(CancellationToken.None);
+            _historyWindow.SetLinkUpdate(new ProfileLinkUpdate(ProfileLinkStage.Cancelled));
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            Debug.WriteLine($"Profile unlink failed: {exception.GetType().Name}");
+            _historyWindow.SetLinkUpdate(new ProfileLinkUpdate(ProfileLinkStage.Unavailable));
+        }
+    }
+
+    private void OnProfileLinkCancelled() => _profileLinkCancellation?.Cancel();
+
+    private static void OnVerificationPageRequested(Uri uri) => ProfileLinkCommand.OpenVerificationPage(uri);
 }

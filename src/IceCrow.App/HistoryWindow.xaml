@@ -1,260 +1,242 @@
 <Window x:Class="IceCrow.App.HistoryWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:controls="clr-namespace:IceCrow.Overlay.Controls;assembly=IceCrow.Overlay"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="IceCrow"
         Width="1180"
         Height="760"
-        MinWidth="900"
-        MinHeight="600"
-        Background="{StaticResource IceCrow.Brush.Surface}"
-        Foreground="{StaticResource IceCrow.Brush.TextPrimary}"
+        MinWidth="940"
+        MinHeight="620"
+        Background="{StaticResource HeartPulse.Brush.Wood}"
+        Foreground="{StaticResource HeartPulse.Brush.Ink}"
+        FontFamily="Segoe UI"
         UseLayoutRounding="True"
+        WindowStyle="None"
+        ResizeMode="CanResize"
+        StateChanged="OnWindowStateChanged"
         WindowStartupLocation="CenterScreen">
-    <Window.Resources>
-        <Style TargetType="TabControl">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-        </Style>
-        <Style TargetType="TabItem">
-            <Setter Property="Foreground" Value="{StaticResource IceCrow.Brush.TextSecondary}" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="16,10" />
-            <Setter Property="FontWeight" Value="Medium" />
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Foreground" Value="{StaticResource IceCrow.Brush.AccentStrong}" />
-                    <Setter Property="Background" Value="{StaticResource IceCrow.Brush.SurfaceSelected}" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-        <Style x:Key="HistoryListItem" TargetType="ListBoxItem">
-            <Setter Property="Padding" Value="12" />
-            <Setter Property="Margin" Value="0,0,0,6" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="Background" Value="{StaticResource IceCrow.Brush.SurfaceRaised}" />
-            <Setter Property="BorderBrush" Value="{StaticResource IceCrow.Brush.Border}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{StaticResource IceCrow.Brush.SurfaceHover}" />
-                </Trigger>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="{StaticResource IceCrow.Brush.SurfaceSelected}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource IceCrow.Brush.Accent}" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-    </Window.Resources>
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="38"
+                            ResizeBorderThickness="7"
+                            GlassFrameThickness="0"
+                            CornerRadius="0"
+                            UseAeroCaptionButtons="False" />
+    </shell:WindowChrome.WindowChrome>
 
-    <Grid Margin="24">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="16" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <Border BorderBrush="{StaticResource HeartPulse.Brush.WoodLight}" BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="38" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <StackPanel>
-                <TextBlock Style="{StaticResource IceCrow.Text.HeroTitle}" Text="ICECROW" />
-                <TextBlock Margin="0,4,0,0"
-                           Style="{StaticResource IceCrow.Text.Label}"
-                           Text="Личная история Hearthstone — локально и без обязательного сервера" />
-            </StackPanel>
-            <StackPanel Grid.Column="1" HorizontalAlignment="Right">
-                <TextBlock x:Name="TrackingStatus"
-                           HorizontalAlignment="Right"
-                           Style="{StaticResource IceCrow.Text.SectionTitle}"
-                           Text="Отслеживание запущено" />
-                <TextBlock x:Name="SyncStatus"
-                           Margin="0,4,0,0"
-                           HorizontalAlignment="Right"
-                           Style="{StaticResource IceCrow.Text.Caption}"
-                           Text="HearthPulse: проверка подключения…" />
-            </StackPanel>
-        </Grid>
+            <Border x:Name="TitleBar"
+                    Background="{StaticResource HeartPulse.Brush.RailTexture}"
+                    BorderBrush="{StaticResource HeartPulse.Brush.Gold}"
+                    BorderThickness="0,0,0,1"
+                    MouseLeftButtonDown="OnTitleBarMouseLeftButtonDown">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Margin="14,0,0,0" VerticalAlignment="Center" Orientation="Horizontal">
+                        <TextBlock FontFamily="{StaticResource HeartPulse.Font.Display}"
+                                   FontSize="17"
+                                   Foreground="{StaticResource HeartPulse.Brush.GoldLight}"
+                                   Text="ICECROW" />
+                        <TextBlock Margin="10,2,0,0"
+                                   Foreground="{StaticResource HeartPulse.Brush.ParchmentLight}"
+                                   FontSize="11"
+                                   Text="ИСТОРИЯ ИГР" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                        <Button Style="{StaticResource HeartPulse.WindowButton}" Content="Свернуть" Click="OnMinimize" />
+                        <Button x:Name="MaximizeButton" Style="{StaticResource HeartPulse.WindowButton}" Content="Развернуть" Click="OnToggleMaximize" />
+                        <Button Style="{StaticResource HeartPulse.WindowCloseButton}" Content="Закрыть" Click="OnClose" />
+                    </StackPanel>
+                </Grid>
+            </Border>
 
-        <TabControl Grid.Row="2">
-            <TabItem Header="ОБЗОР">
-                <Grid Margin="0,18,0,0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="18" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
+            <Grid Grid.Row="1">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="244" />
+            <ColumnDefinition Width="10" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0" Background="{StaticResource HeartPulse.Brush.RailTexture}">
+            <Grid Margin="16,20,16,18">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="32" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <StackPanel>
+                    <TextBlock FontFamily="{StaticResource HeartPulse.Font.Display}" FontSize="31" Foreground="{StaticResource HeartPulse.Brush.GoldLight}" Text="ICECROW" />
+                    <TextBlock Margin="1,4,0,0" Foreground="{StaticResource HeartPulse.Brush.ParchmentLight}" FontSize="11" Text="ТРЕКЕР HEARTHSTONE" />
+                </StackPanel>
+                <StackPanel Grid.Row="2">
+                    <Button x:Name="NavOverview" Style="{StaticResource HeartPulse.NavButton}" Tag="selected" CommandParameter="overview" Content="Обзор" Click="OnNavigate" />
+                    <TextBlock Margin="18,22,0,7" Foreground="{StaticResource HeartPulse.Brush.GoldLight}" FontSize="10" FontWeight="SemiBold" Text="МАТЧИ ПО РЕЖИМАМ" />
+                    <Button x:Name="NavAllMatches" Style="{StaticResource HeartPulse.NavButton}" CommandParameter="matches:all" Content="Все матчи" Click="OnNavigate" />
+                    <Button x:Name="NavStandard" Style="{StaticResource HeartPulse.NavButton}" CommandParameter="matches:standard" Content="Стандарт" Click="OnNavigate" />
+                    <Button x:Name="NavWild" Style="{StaticResource HeartPulse.NavButton}" CommandParameter="matches:wild" Content="Вольный режим" Click="OnNavigate" />
+                    <Button x:Name="NavArena" Style="{StaticResource HeartPulse.NavButton}" CommandParameter="matches:arena" Content="Арена" Click="OnNavigate" />
+                    <Button x:Name="NavBattlegrounds" Style="{StaticResource HeartPulse.NavButton}" CommandParameter="matches:battlegrounds" Content="Поля сражений" Click="OnNavigate" />
+                    <TextBlock Margin="18,22,0,7" Foreground="{StaticResource HeartPulse.Brush.GoldLight}" FontSize="10" FontWeight="SemiBold" Text="КОЛЛЕКЦИЯ И ПРОФИЛЬ" />
+                    <Button x:Name="NavDecks" Style="{StaticResource HeartPulse.NavButton}" CommandParameter="decks" Content="Колоды" Click="OnNavigate" />
+                    <Button x:Name="NavProfile" Style="{StaticResource HeartPulse.NavButton}" CommandParameter="profile" Content="HearthPulse" Click="OnNavigate" />
+                </StackPanel>
+                <Border Grid.Row="4" BorderBrush="{StaticResource HeartPulse.Brush.Gold}" BorderThickness="1,1,1,0" Padding="12,12,12,0">
+                    <StackPanel>
+                        <TextBlock x:Name="TrackingStatus" Foreground="{StaticResource HeartPulse.Brush.ParchmentLight}" FontWeight="SemiBold" Text="Отслеживание запущено" />
+                        <TextBlock x:Name="SyncStatus" Margin="0,5,0,0" Foreground="{StaticResource HeartPulse.Brush.GoldLight}" FontSize="11" TextWrapping="Wrap" Text="HearthPulse: проверка подключения…" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <Border Grid.Column="1" Background="{StaticResource HeartPulse.Brush.RailBorderTexture}" />
+
+        <Grid Grid.Column="2" Background="{StaticResource HeartPulse.Brush.ParchmentTexture}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Border Background="{StaticResource HeartPulse.Brush.ParchmentLight}" BorderBrush="{StaticResource HeartPulse.Brush.WoodLight}" BorderThickness="0,0,0,1" Padding="30,22">
+                <StackPanel>
+                    <TextBlock x:Name="PageTitle" Style="{StaticResource HeartPulse.Text.Display}" Text="Обзор" />
+                    <TextBlock x:Name="PageSubtitle" Margin="1,3,0,0" Style="{StaticResource HeartPulse.Text.Caption}" Text="Локальная история работает даже без сервера" />
+                </StackPanel>
+            </Border>
+
+            <Grid Grid.Row="1" Margin="30,24">
+                <Grid x:Name="OverviewPage">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="18" /><RowDefinition Height="*" /></Grid.RowDefinitions>
                     <UniformGrid Rows="1" Columns="4">
-                        <controls:IcePanel Margin="0,0,8,0" Header="Всего матчей" IsSignature="True">
-                            <TextBlock x:Name="TotalMatches" Style="{StaticResource IceCrow.Text.HeroTitle}" Text="0" />
-                        </controls:IcePanel>
-                        <controls:IcePanel Margin="8,0" Header="Победы">
-                            <TextBlock x:Name="TotalWins" Style="{StaticResource IceCrow.Text.HeroTitle}" Text="0" />
-                        </controls:IcePanel>
-                        <controls:IcePanel Margin="8,0" Header="Поражения">
-                            <TextBlock x:Name="TotalLosses" Style="{StaticResource IceCrow.Text.HeroTitle}" Text="0" />
-                        </controls:IcePanel>
-                        <controls:IcePanel Margin="8,0,0,0" Header="Поля сражений">
-                            <TextBlock x:Name="TotalBattlegrounds" Style="{StaticResource IceCrow.Text.HeroTitle}" Text="0" />
-                        </controls:IcePanel>
+                        <Border Margin="0,0,8,0" Style="{StaticResource HeartPulse.Panel}"><StackPanel><TextBlock Style="{StaticResource HeartPulse.Text.Caption}" Text="ВСЕГО МАТЧЕЙ" /><TextBlock x:Name="TotalMatches" Margin="0,8,0,0" Style="{StaticResource HeartPulse.Text.Display}" Text="0" /></StackPanel></Border>
+                        <Border Margin="8,0" Style="{StaticResource HeartPulse.Panel}"><StackPanel><TextBlock Style="{StaticResource HeartPulse.Text.Caption}" Text="ПОБЕДЫ" /><TextBlock x:Name="TotalWins" Margin="0,8,0,0" Style="{StaticResource HeartPulse.Text.Display}" Foreground="{StaticResource HeartPulse.Brush.Positive}" Text="0" /></StackPanel></Border>
+                        <Border Margin="8,0" Style="{StaticResource HeartPulse.Panel}"><StackPanel><TextBlock Style="{StaticResource HeartPulse.Text.Caption}" Text="ПОРАЖЕНИЯ" /><TextBlock x:Name="TotalLosses" Margin="0,8,0,0" Style="{StaticResource HeartPulse.Text.Display}" Foreground="{StaticResource HeartPulse.Brush.Negative}" Text="0" /></StackPanel></Border>
+                        <Border Margin="8,0,0,0" Style="{StaticResource HeartPulse.Panel}"><StackPanel><TextBlock Style="{StaticResource HeartPulse.Text.Caption}" Text="ПОЛЯ СРАЖЕНИЙ" /><TextBlock x:Name="TotalBattlegrounds" Margin="0,8,0,0" Style="{StaticResource HeartPulse.Text.Display}" Foreground="{StaticResource HeartPulse.Brush.Battlegrounds}" Text="0" /></StackPanel></Border>
                     </UniformGrid>
-                    <controls:IcePanel Grid.Row="2" Header="Последние игры">
-                        <ListBox x:Name="RecentMatches"
-                                 Background="Transparent"
-                                 BorderThickness="0"
-                                 IsHitTestVisible="False"
-                                 ItemContainerStyle="{StaticResource HistoryListItem}">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="150" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Style="{StaticResource IceCrow.Text.SectionTitle}" Text="{Binding Mode}" />
-                                        <TextBlock Grid.Column="1" Style="{StaticResource IceCrow.Text.Body}" Text="{Binding Summary}" />
-                                        <TextBlock Grid.Column="2" Style="{StaticResource IceCrow.Text.Caption}" Text="{Binding PlayedAt}" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </controls:IcePanel>
+                    <Border Grid.Row="2" Style="{StaticResource HeartPulse.Panel}">
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Top" Margin="0,0,0,12" Style="{StaticResource HeartPulse.Text.Heading}" Text="Последние игры" />
+                            <ListBox x:Name="RecentMatches" Background="Transparent" BorderThickness="0" IsHitTestVisible="False" ItemContainerStyle="{StaticResource HeartPulse.ListItem}" ScrollViewer.VerticalScrollBarVisibility="Hidden">
+                                <ListBox.ItemTemplate><DataTemplate><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="140" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Style="{StaticResource HeartPulse.Text.Body}" FontWeight="SemiBold" Text="{Binding Mode}" /><TextBlock Grid.Column="1" Style="{StaticResource HeartPulse.Text.Body}" Text="{Binding Summary}" /><TextBlock Grid.Column="2" Style="{StaticResource HeartPulse.Text.Caption}" Text="{Binding PlayedAt}" /></Grid></DataTemplate></ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </Border>
                 </Grid>
-            </TabItem>
 
-            <TabItem Header="МАТЧИ">
-                <Grid Margin="0,18,0,0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="12" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="220" />
-                            <ColumnDefinition Width="12" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <ComboBox x:Name="ModeFilter" SelectionChanged="OnFilterChanged" SelectedIndex="0">
-                            <ComboBoxItem Tag="all" Content="Все режимы" />
-                            <ComboBoxItem Tag="standard" Content="Стандарт" />
-                            <ComboBoxItem Tag="wild" Content="Вольный" />
-                            <ComboBoxItem Tag="arena" Content="Арена" />
-                            <ComboBoxItem Tag="battlegrounds" Content="Поля сражений" />
-                        </ComboBox>
-                        <TextBox x:Name="SearchBox"
-                                 Grid.Column="2"
-                                 Padding="10,6"
-                                 TextChanged="OnFilterChanged"
-                                 ToolTip="Поиск по режиму, результату или идентификатору героя" />
-                    </Grid>
-                    <Grid Grid.Row="2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="1.15*" />
-                            <ColumnDefinition Width="16" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <controls:IcePanel Header="История матчей">
+                <Grid x:Name="MatchesPage" Visibility="Collapsed">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="12" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                    <Grid Width="480" MaxWidth="560" HorizontalAlignment="Left">
+                        <StackPanel>
+                            <TextBlock Margin="0,0,0,5" Style="{StaticResource HeartPulse.Text.Caption}" Text="Поиск" />
                             <Grid>
-                                <ListBox x:Name="MatchList"
-                                         Background="Transparent"
-                                         BorderThickness="0"
-                                         ItemContainerStyle="{StaticResource HistoryListItem}"
-                                         SelectionChanged="OnMatchSelected">
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="120" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Style="{StaticResource IceCrow.Text.SectionTitle}" Text="{Binding Mode}" />
-                                                <StackPanel Grid.Column="1">
-                                                    <TextBlock Style="{StaticResource IceCrow.Text.Body}" Text="{Binding Outcome}" />
-                                                    <TextBlock Margin="0,3,0,0" Style="{StaticResource IceCrow.Text.Caption}" Text="{Binding Confidence}" />
-                                                </StackPanel>
-                                                <TextBlock Grid.Column="2" Style="{StaticResource IceCrow.Text.Caption}" Text="{Binding PlayedAt}" />
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
-                                <TextBlock x:Name="NoMatches"
-                                           HorizontalAlignment="Center"
+                                <TextBox x:Name="SearchBox" Style="{StaticResource HeartPulse.TextBox}" TextChanged="OnFilterChanged" />
+                                <TextBlock Margin="13,0,0,0"
                                            VerticalAlignment="Center"
-                                           Style="{StaticResource IceCrow.Text.Label}"
-                                           Text="Подходящих матчей пока нет" />
+                                           IsHitTestVisible="False"
+                                           Text="Режим, результат или герой">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource HeartPulse.Text.Caption}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                             </Grid>
-                        </controls:IcePanel>
-                        <controls:IcePanel Grid.Column="2" Header="Детали игры" IsSignature="True">
-                            <StackPanel>
-                                <TextBlock x:Name="DetailOutcome" Style="{StaticResource IceCrow.Text.HeroTitle}" Text="Выберите матч" />
-                                <TextBlock x:Name="DetailMode" Margin="0,6,0,18" Style="{StaticResource IceCrow.Text.Label}" Text="—" />
-                                <TextBlock Style="{StaticResource IceCrow.Text.Caption}" Text="Время" />
-                                <TextBlock x:Name="DetailTime" Margin="0,3,0,12" Style="{StaticResource IceCrow.Text.Body}" Text="—" />
-                                <TextBlock Style="{StaticResource IceCrow.Text.Caption}" Text="Продолжительность / ходы" />
-                                <TextBlock x:Name="DetailDuration" Margin="0,3,0,12" Style="{StaticResource IceCrow.Text.Body}" Text="—" />
-                                <TextBlock Style="{StaticResource IceCrow.Text.Caption}" Text="Ваш герой" />
-                                <TextBlock x:Name="DetailPlayerHero" Margin="0,3,0,12" Style="{StaticResource IceCrow.Text.Body}" Text="—" />
-                                <TextBlock Style="{StaticResource IceCrow.Text.Caption}" Text="Герой соперника" />
-                                <TextBlock x:Name="DetailOpponentHero" Margin="0,3,0,12" Style="{StaticResource IceCrow.Text.Body}" Text="—" />
-                                <TextBlock Style="{StaticResource IceCrow.Text.Caption}" Text="Источник результата" />
-                                <TextBlock x:Name="DetailConfidence" Margin="0,3,0,0" Style="{StaticResource IceCrow.Text.Body}" Text="—" />
-                            </StackPanel>
-                        </controls:IcePanel>
-                    </Grid>
-                </Grid>
-            </TabItem>
-
-            <TabItem Header="КОЛОДЫ">
-                <controls:IcePanel Margin="0,18,0,0" Header="Колоды из сыгранных матчей">
-                    <Grid>
-                        <ListBox x:Name="DeckList"
-                                 Background="Transparent"
-                                 BorderThickness="0"
-                                 ItemContainerStyle="{StaticResource HistoryListItem}">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="150" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel>
-                                            <TextBlock Style="{StaticResource IceCrow.Text.SectionTitle}" Text="{Binding Identity}" />
-                                            <TextBlock Margin="0,3,0,0" Style="{StaticResource IceCrow.Text.Caption}" Text="{Binding Mode}" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="1">
-                                            <TextBlock Style="{StaticResource IceCrow.Text.Body}" Text="{Binding Record}" />
-                                            <TextBlock Margin="0,3,0,0" Style="{StaticResource IceCrow.Text.Caption}" Text="{Binding Confidence}" />
-                                        </StackPanel>
-                                        <TextBlock Grid.Column="2" Style="{StaticResource IceCrow.Text.Caption}" Text="{Binding LastPlayed}" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                        <StackPanel x:Name="NoDecks" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <TextBlock HorizontalAlignment="Center" Style="{StaticResource IceCrow.Text.SectionTitle}" Text="Точные колоды пока не определены" />
-                            <TextBlock Margin="0,6,0,0"
-                                       HorizontalAlignment="Center"
-                                       Style="{StaticResource IceCrow.Text.Label}"
-                                       Text="IceCrow не будет угадывать колоду: здесь появятся только подтверждённые данные клиента." />
                         </StackPanel>
                     </Grid>
-                </controls:IcePanel>
-            </TabItem>
-        </TabControl>
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="1.15*" /><ColumnDefinition Width="16" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Border Style="{StaticResource HeartPulse.Panel}">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Top" Margin="0,0,0,12" Style="{StaticResource HeartPulse.Text.Heading}" Text="История матчей" />
+                                <Grid>
+                                    <ListBox x:Name="MatchList" Background="Transparent" BorderThickness="0" ItemContainerStyle="{StaticResource HeartPulse.ListItem}" ScrollViewer.VerticalScrollBarVisibility="Hidden" SelectionChanged="OnMatchSelected">
+                                        <ListBox.ItemTemplate><DataTemplate><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="110" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Style="{StaticResource HeartPulse.Text.Body}" FontWeight="SemiBold" Text="{Binding Mode}" /><StackPanel Grid.Column="1"><TextBlock Style="{StaticResource HeartPulse.Text.Body}" Text="{Binding Outcome}" /><TextBlock Margin="0,3,0,0" Style="{StaticResource HeartPulse.Text.Caption}" Text="{Binding Confidence}" /></StackPanel><TextBlock Grid.Column="2" Style="{StaticResource HeartPulse.Text.Caption}" Text="{Binding PlayedAt}" /></Grid></DataTemplate></ListBox.ItemTemplate>
+                                    </ListBox>
+                                    <TextBlock x:Name="NoMatches" HorizontalAlignment="Center" VerticalAlignment="Center" Style="{StaticResource HeartPulse.Text.Body}" Text="Подходящих матчей пока нет" />
+                                </Grid>
+                            </DockPanel>
+                        </Border>
+                        <Border Grid.Column="2" Style="{StaticResource HeartPulse.Panel}" BorderBrush="{StaticResource HeartPulse.Brush.ArenaRed}">
+                            <StackPanel>
+                                <TextBlock Margin="0,0,0,12" Style="{StaticResource HeartPulse.Text.Heading}" Text="Детали игры" />
+                                <TextBlock x:Name="DetailOutcome" Style="{StaticResource HeartPulse.Text.Display}" FontSize="25" Text="Выберите матч" />
+                                <TextBlock x:Name="DetailMode" Margin="0,4,0,16" Style="{StaticResource HeartPulse.Text.Caption}" Text="—" />
+                                <TextBlock Style="{StaticResource HeartPulse.Text.Caption}" Text="Время" /><TextBlock x:Name="DetailTime" Margin="0,3,0,10" Style="{StaticResource HeartPulse.Text.Body}" Text="—" />
+                                <TextBlock Style="{StaticResource HeartPulse.Text.Caption}" Text="Продолжительность / ходы" /><TextBlock x:Name="DetailDuration" Margin="0,3,0,10" Style="{StaticResource HeartPulse.Text.Body}" Text="—" />
+                                <TextBlock Style="{StaticResource HeartPulse.Text.Caption}" Text="Ваш герой" /><TextBlock x:Name="DetailPlayerHero" Margin="0,3,0,10" Style="{StaticResource HeartPulse.Text.Body}" Text="—" />
+                                <TextBlock Style="{StaticResource HeartPulse.Text.Caption}" Text="Герой соперника" /><TextBlock x:Name="DetailOpponentHero" Margin="0,3,0,10" Style="{StaticResource HeartPulse.Text.Body}" Text="—" />
+                                <TextBlock Style="{StaticResource HeartPulse.Text.Caption}" Text="Источник результата" /><TextBlock x:Name="DetailConfidence" Margin="0,3,0,0" Style="{StaticResource HeartPulse.Text.Body}" Text="—" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Grid>
 
-        <TextBlock x:Name="ArchiveStatus"
-                   Grid.Row="3"
-                   Margin="0,12,0,0"
-                   Style="{StaticResource IceCrow.Text.Caption}"
-                   Text="Локальная история загружается…" />
-    </Grid>
+                <Border x:Name="DecksPage" Style="{StaticResource HeartPulse.Panel}" Visibility="Collapsed">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Margin="0,0,0,12" Style="{StaticResource HeartPulse.Text.Heading}" Text="Колоды из сыгранных матчей" />
+                        <Grid>
+                            <ListBox x:Name="DeckList" Background="Transparent" BorderThickness="0" ItemContainerStyle="{StaticResource HeartPulse.ListItem}" ScrollViewer.VerticalScrollBarVisibility="Hidden">
+                                <ListBox.ItemTemplate><DataTemplate><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="150" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Style="{StaticResource HeartPulse.Text.Body}" FontWeight="SemiBold" Text="{Binding Identity}" /><TextBlock Margin="0,3,0,0" Style="{StaticResource HeartPulse.Text.Caption}" Text="{Binding Mode}" /></StackPanel><StackPanel Grid.Column="1"><TextBlock Style="{StaticResource HeartPulse.Text.Body}" Text="{Binding Record}" /><TextBlock Margin="0,3,0,0" Style="{StaticResource HeartPulse.Text.Caption}" Text="{Binding Confidence}" /></StackPanel><TextBlock Grid.Column="2" Style="{StaticResource HeartPulse.Text.Caption}" Text="{Binding LastPlayed}" /></Grid></DataTemplate></ListBox.ItemTemplate>
+                            </ListBox>
+                            <StackPanel x:Name="NoDecks" HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock HorizontalAlignment="Center" Style="{StaticResource HeartPulse.Text.Heading}" Text="Точные колоды пока не определены" /><TextBlock Margin="0,6,0,0" HorizontalAlignment="Center" Style="{StaticResource HeartPulse.Text.Caption}" Text="IceCrow показывает только подтверждённые данные клиента." /></StackPanel>
+                        </Grid>
+                    </DockPanel>
+                </Border>
+
+                <Grid x:Name="ProfilePage" Visibility="Collapsed">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="1.2*" /><ColumnDefinition Width="18" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Border Style="{StaticResource HeartPulse.Panel}" BorderBrush="{StaticResource HeartPulse.Brush.ArenaRed}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource HeartPulse.Text.Heading}" Text="Аккаунт HearthPulse" />
+                            <TextBlock x:Name="AccountTitle" Margin="0,18,0,0" Style="{StaticResource HeartPulse.Text.Display}" FontSize="25" Text="Проверяем подключение" />
+                            <TextBlock x:Name="AccountDescription" Margin="0,8,0,18" Style="{StaticResource HeartPulse.Text.Body}" Text="Локальная история доступна независимо от авторизации." />
+                            <Border x:Name="AccountCodePanel" Margin="0,0,0,16" Padding="16" Background="{StaticResource HeartPulse.Brush.Parchment}" BorderBrush="{StaticResource HeartPulse.Brush.Gold}" BorderThickness="1" Visibility="Collapsed">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource HeartPulse.Text.Caption}" Text="КОД ПОДКЛЮЧЕНИЯ" />
+                                    <TextBlock x:Name="AccountCode" Margin="0,5,0,0" Style="{StaticResource HeartPulse.Text.Display}" FontSize="28" Text="—" />
+                                    <TextBlock x:Name="AccountExpires" Margin="0,5,0,0" Style="{StaticResource HeartPulse.Text.Caption}" Text="—" />
+                                    <Button x:Name="OpenVerificationButton" Margin="0,12,0,0" HorizontalAlignment="Left" Style="{StaticResource HeartPulse.SecondaryButton}" Content="Открыть страницу ещё раз" Click="OnOpenVerification" />
+                                </StackPanel>
+                            </Border>
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="AccountActionButton" Style="{StaticResource HeartPulse.PrimaryButton}" Content="Подключить HearthPulse" Click="OnAccountAction" />
+                                <Button x:Name="AccountCancelButton" Margin="10,0,0,0" Style="{StaticResource HeartPulse.SecondaryButton}" Content="Отменить" Visibility="Collapsed" Click="OnCancelLink" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Column="2" Style="{StaticResource HeartPulse.Panel}" BorderBrush="{StaticResource HeartPulse.Brush.Battlegrounds}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource HeartPulse.Text.Heading}" Text="Что синхронизируется" />
+                            <TextBlock Margin="0,16,0,0" Style="{StaticResource HeartPulse.Text.Body}" Text="• результаты Стандарта и Вольного режима" />
+                            <TextBlock Margin="0,8,0,0" Style="{StaticResource HeartPulse.Text.Body}" Text="• матчи и забеги Арены" />
+                            <TextBlock Margin="0,8,0,0" Style="{StaticResource HeartPulse.Text.Body}" Text="• результаты Полей сражений" />
+                            <TextBlock Margin="0,8,0,0" Style="{StaticResource HeartPulse.Text.Body}" Text="• подтверждённый снимок коллекции" />
+                            <TextBlock Margin="0,18,0,0" Style="{StaticResource HeartPulse.Text.Caption}" Text="Токены хранятся в защищённом хранилище Windows. Локальное отслеживание не зависит от сети." />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Grid>
+
+            <Border Grid.Row="2" Background="{StaticResource HeartPulse.Brush.ParchmentLight}" BorderBrush="{StaticResource HeartPulse.Brush.WoodLight}" BorderThickness="0,1,0,0" Padding="30,10">
+                <TextBlock x:Name="ArchiveStatus" Style="{StaticResource HeartPulse.Text.Caption}" Text="Локальная история загружается…" />
+            </Border>
+        </Grid>
+            </Grid>
+        </Grid>
+    </Border>
 </Window>

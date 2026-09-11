@@ -47,4 +47,21 @@
     <!--  Shadow tint for the single allowed drop shadow.  -->
     <Color x:Key="IceCrow.Color.Shadow">#FF05080B</Color>
 
+    <!-- HeartPulse desktop shell; kept separate from the in-game overlay palette. -->
+    <Color x:Key="HeartPulse.Color.Parchment">#FFEAD6A7</Color>
+    <Color x:Key="HeartPulse.Color.ParchmentLight">#FFF7E8BF</Color>
+    <Color x:Key="HeartPulse.Color.ParchmentShade">#FFD5BC83</Color>
+    <Color x:Key="HeartPulse.Color.Ink">#FF30251C</Color>
+    <Color x:Key="HeartPulse.Color.InkMuted">#FF735E49</Color>
+    <Color x:Key="HeartPulse.Color.Wood">#FF2E160B</Color>
+    <Color x:Key="HeartPulse.Color.WoodLight">#FF5F371D</Color>
+    <Color x:Key="HeartPulse.Color.ArenaRed">#FF8D171D</Color>
+    <Color x:Key="HeartPulse.Color.ArenaRedDark">#FF5D0D13</Color>
+    <Color x:Key="HeartPulse.Color.Battlegrounds">#FF8F536D</Color>
+    <Color x:Key="HeartPulse.Color.BattlegroundsDark">#FF3D2335</Color>
+    <Color x:Key="HeartPulse.Color.Gold">#FFD9AB49</Color>
+    <Color x:Key="HeartPulse.Color.GoldLight">#FFEFC96F</Color>
+    <Color x:Key="HeartPulse.Color.Positive">#FF2F7A3E</Color>
+    <Color x:Key="HeartPulse.Color.Negative">#FFA33A3A</Color>
+
 </ResourceDictionary>

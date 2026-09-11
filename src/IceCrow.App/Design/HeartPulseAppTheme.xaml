@@ -1,0 +1,181 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:po="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options">
+
+    <FontFamily x:Key="HeartPulse.Font.Display">pack://application:,,,/IceCrow.App;component/Assets/HeartPulse/#Belwe Bd BT [Rus by me]</FontFamily>
+
+    <ImageBrush x:Key="HeartPulse.Brush.ParchmentTexture"
+                po:Freeze="True"
+                ImageSource="pack://application:,,,/IceCrow.App;component/Assets/HeartPulse/arena-parchment.jpg"
+                Stretch="UniformToFill" />
+    <ImageBrush x:Key="HeartPulse.Brush.RailTexture"
+                po:Freeze="True"
+                ImageSource="pack://application:,,,/IceCrow.App;component/Assets/HeartPulse/arena-rail-red.jpg"
+                Stretch="UniformToFill" />
+    <ImageBrush x:Key="HeartPulse.Brush.RailBorderTexture"
+                po:Freeze="True"
+                ImageSource="pack://application:,,,/IceCrow.App;component/Assets/HeartPulse/main-page-rail-border.png"
+                Stretch="Fill" />
+
+    <Style x:Key="HeartPulse.Text.Display" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource HeartPulse.Font.Display}" />
+        <Setter Property="Foreground" Value="{StaticResource HeartPulse.Brush.Ink}" />
+        <Setter Property="FontSize" Value="30" />
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+    </Style>
+    <Style x:Key="HeartPulse.Text.Heading" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource HeartPulse.Font.Display}" />
+        <Setter Property="Foreground" Value="{StaticResource HeartPulse.Brush.Ink}" />
+        <Setter Property="FontSize" Value="20" />
+    </Style>
+    <Style x:Key="HeartPulse.Text.Body" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource HeartPulse.Brush.Ink}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style x:Key="HeartPulse.Text.Caption" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource HeartPulse.Brush.InkMuted}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="HeartPulse.Panel" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource HeartPulse.Brush.ParchmentLight}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HeartPulse.Brush.WoodLight}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="4" />
+        <Setter Property="Padding" Value="18" />
+    </Style>
+
+    <Style x:Key="HeartPulse.NavButton" TargetType="Button">
+        <Setter Property="Foreground" Value="{StaticResource HeartPulse.Brush.ParchmentLight}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="Padding" Value="18,12" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Surface"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{StaticResource HeartPulse.Brush.Gold}"
+                            BorderThickness="0,0,0,1"
+                            CornerRadius="3"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Surface" Property="Background" Value="{StaticResource HeartPulse.Brush.ArenaRed}" />
+                        </Trigger>
+                        <Trigger Property="Tag" Value="selected">
+                            <Setter TargetName="Surface" Property="Background" Value="{StaticResource HeartPulse.Brush.ArenaRedDark}" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="HeartPulse.PrimaryButton" TargetType="Button">
+        <Setter Property="Foreground" Value="{StaticResource HeartPulse.Brush.ParchmentLight}" />
+        <Setter Property="Background" Value="{StaticResource HeartPulse.Brush.ArenaRed}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HeartPulse.Brush.ArenaRedDark}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="16,9" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style x:Key="HeartPulse.SecondaryButton" TargetType="Button" BasedOn="{StaticResource HeartPulse.PrimaryButton}">
+        <Setter Property="Foreground" Value="{StaticResource HeartPulse.Brush.Ink}" />
+        <Setter Property="Background" Value="{StaticResource HeartPulse.Brush.ParchmentShade}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HeartPulse.Brush.WoodLight}" />
+    </Style>
+    <Style x:Key="HeartPulse.WindowButton" TargetType="Button">
+        <Setter Property="Foreground" Value="{StaticResource HeartPulse.Brush.ParchmentLight}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{StaticResource HeartPulse.Brush.Gold}" />
+        <Setter Property="BorderThickness" Value="1,0,0,0" />
+        <Setter Property="Padding" Value="15,0" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Surface"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Surface" Property="Background" Value="{StaticResource HeartPulse.Brush.ArenaRed}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Surface" Property="Background" Value="{StaticResource HeartPulse.Brush.ArenaRedDark}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="HeartPulse.WindowCloseButton" TargetType="Button" BasedOn="{StaticResource HeartPulse.WindowButton}">
+        <Setter Property="Background" Value="{StaticResource HeartPulse.Brush.ArenaRedDark}" />
+    </Style>
+
+    <Style x:Key="HeartPulse.TextBox" TargetType="TextBox">
+        <Setter Property="Foreground" Value="{StaticResource HeartPulse.Brush.Ink}" />
+        <Setter Property="Background" Value="{StaticResource HeartPulse.Brush.ParchmentLight}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HeartPulse.Brush.WoodLight}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="12,9" />
+        <Setter Property="CaretBrush" Value="{StaticResource HeartPulse.Brush.ArenaRedDark}" />
+        <Setter Property="SelectionBrush" Value="{StaticResource HeartPulse.Brush.Gold}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="Surface"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="3">
+                        <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Surface" Property="BorderBrush" Value="{StaticResource HeartPulse.Brush.ArenaRed}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.6" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="HeartPulse.ListItem" TargetType="ListBoxItem">
+        <Setter Property="Padding" Value="12" />
+        <Setter Property="Margin" Value="0,0,0,6" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Foreground" Value="{StaticResource HeartPulse.Brush.Ink}" />
+        <Setter Property="Background" Value="{StaticResource HeartPulse.Brush.ParchmentLight}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HeartPulse.Brush.ParchmentShade}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource HeartPulse.Brush.Parchment}" />
+                <Setter Property="BorderBrush" Value="{StaticResource HeartPulse.Brush.Gold}" />
+            </Trigger>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="{StaticResource HeartPulse.Brush.ParchmentShade}" />
+                <Setter Property="BorderBrush" Value="{StaticResource HeartPulse.Brush.ArenaRed}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+</ResourceDictionary>

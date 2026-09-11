@@ -77,4 +77,20 @@
                      po:Freeze="True"
                      Color="{StaticResource IceCrow.Color.DangerSoft}" />
 
+    <SolidColorBrush x:Key="HeartPulse.Brush.Parchment" po:Freeze="True" Color="{StaticResource HeartPulse.Color.Parchment}" />
+    <SolidColorBrush x:Key="HeartPulse.Brush.ParchmentLight" po:Freeze="True" Color="{StaticResource HeartPulse.Color.ParchmentLight}" />
+    <SolidColorBrush x:Key="HeartPulse.Brush.ParchmentShade" po:Freeze="True" Color="{StaticResource HeartPulse.Color.ParchmentShade}" />
+    <SolidColorBrush x:Key="HeartPulse.Brush.Ink" po:Freeze="True" Color="{StaticResource HeartPulse.Color.Ink}" />
+    <SolidColorBrush x:Key="HeartPulse.Brush.InkMuted" po:Freeze="True" Color="{StaticResource HeartPulse.Color.InkMuted}" />
+    <SolidColorBrush x:Key="HeartPulse.Brush.Wood" po:Freeze="True" Color="{StaticResource HeartPulse.Color.Wood}" />
+    <SolidColorBrush x:Key="HeartPulse.Brush.WoodLight" po:Freeze="True" Color="{StaticResource HeartPulse.Color.WoodLight}" />
+    <SolidColorBrush x:Key="HeartPulse.Brush.ArenaRed" po:Freeze="True" Color="{StaticResource HeartPulse.Color.ArenaRed}" />
+    <SolidColorBrush x:Key="HeartPulse.Brush.ArenaRedDark" po:Freeze="True" Color="{StaticResource HeartPulse.Color.ArenaRedDark}" />
+    <SolidColorBrush x:Key="HeartPulse.Brush.Battlegrounds" po:Freeze="True" Color="{StaticResource HeartPulse.Color.Battlegrounds}" />
+    <SolidColorBrush x:Key="HeartPulse.Brush.BattlegroundsDark" po:Freeze="True" Color="{StaticResource HeartPulse.Color.BattlegroundsDark}" />
+    <SolidColorBrush x:Key="HeartPulse.Brush.Gold" po:Freeze="True" Color="{StaticResource HeartPulse.Color.Gold}" />
+    <SolidColorBrush x:Key="HeartPulse.Brush.GoldLight" po:Freeze="True" Color="{StaticResource HeartPulse.Color.GoldLight}" />
+    <SolidColorBrush x:Key="HeartPulse.Brush.Positive" po:Freeze="True" Color="{StaticResource HeartPulse.Color.Positive}" />
+    <SolidColorBrush x:Key="HeartPulse.Brush.Negative" po:Freeze="True" Color="{StaticResource HeartPulse.Color.Negative}" />
+
 </ResourceDictionary>

@@ -1,8 +1,6 @@
 using System.Diagnostics;
-using System.Globalization;
 using System.Windows;
 using IceCrow.App.Runtime;
-using IceCrow.ProfileSync.Transport;
 
 namespace IceCrow.App;
 
@@ -27,48 +25,48 @@ internal static class ProfileLinkCommand
     public static async Task<bool> LinkAsync(ProfileSyncRuntime profileSync, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(profileSync);
-        var start = await profileSync.Authorization.StartAsync(cancellationToken).ConfigureAwait(true);
-        if (start is null)
+        var workflow = new ProfileLinkWorkflow(new ProfileSyncLinkGateway(profileSync));
+        var dispatcher = Application.Current?.Dispatcher;
+        var stage = await workflow.RunAsync(update =>
         {
-            MessageBox.Show(
-                "HearthPulse is not reachable right now. Try again later.",
-                "IceCrow",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-            return false;
-        }
-
-        OpenVerificationPage(start);
-        var message = string.Create(
-            CultureInfo.InvariantCulture,
-            $"Open {start.VerificationUri} in your browser and enter the code:\n\n{start.UserCode}\n\nThe code expires at {start.ExpiresAt.ToLocalTime():t}. Keep this window open until the link completes.");
-        MessageBox.Show(message, "Link IceCrow to HearthPulse", MessageBoxButton.OK, MessageBoxImage.Information);
-
-        var interval = start.Interval;
-        while (DateTimeOffset.UtcNow < start.ExpiresAt)
-        {
-            await Task.Delay(interval, cancellationToken).ConfigureAwait(true);
-            var poll = await profileSync.Authorization.PollAsync(start, cancellationToken).ConfigureAwait(true);
-            interval = poll.NextInterval;
-            switch (poll.Outcome)
+            if (update.Stage != ProfileLinkStage.WaitingForApproval || update.VerificationUri is null)
             {
-                case DeviceLinkOutcome.Linked when poll.Credential is not null:
-                    await profileSync.SaveCredentialAsync(poll.Credential, cancellationToken).ConfigureAwait(true);
-                    MessageBox.Show("IceCrow is linked. Your matches will appear on your HearthPulse profile.", "IceCrow");
-                    return true;
-                case DeviceLinkOutcome.Expired:
-                case DeviceLinkOutcome.Denied:
-                    MessageBox.Show("The link request was not approved.", "IceCrow", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return false;
-                case DeviceLinkOutcome.Pending:
-                case DeviceLinkOutcome.Unavailable:
-                    break;
-                default:
-                    throw new InvalidOperationException($"Unsupported link outcome '{poll.Outcome}'.");
+                return;
             }
+
+            void ShowApprovalInstructions()
+            {
+                OpenVerificationPage(update.VerificationUri);
+                MessageBox.Show(
+                    $"Введите код {update.UserCode} на странице HearthPulse. IceCrow продолжит ждать подтверждения.",
+                    "Подключение HearthPulse",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+
+            if (dispatcher is null || dispatcher.CheckAccess())
+            {
+                ShowApprovalInstructions();
+            }
+            else
+            {
+                dispatcher.Invoke(ShowApprovalInstructions);
+            }
+        }, cancellationToken).ConfigureAwait(true);
+
+        if (stage == ProfileLinkStage.Linked)
+        {
+            MessageBox.Show("IceCrow подключён к HearthPulse.", "IceCrow");
+            return true;
         }
 
-        MessageBox.Show("The link code expired before it was approved.", "IceCrow", MessageBoxButton.OK, MessageBoxImage.Warning);
+        MessageBox.Show(
+            stage == ProfileLinkStage.Unavailable
+                ? "HearthPulse сейчас недоступен. Попробуйте позже."
+                : "Запрос не был подтверждён или срок кода истёк.",
+            "IceCrow",
+            MessageBoxButton.OK,
+            MessageBoxImage.Warning);
         return false;
     }
 
@@ -79,22 +77,23 @@ internal static class ProfileLinkCommand
         MessageBox.Show("IceCrow was unlinked from HearthPulse.", "IceCrow");
     }
 
-    private static void OpenVerificationPage(DeviceLinkStart start)
+    internal static bool OpenVerificationPage(Uri uri)
     {
-        // The complete URI carries the code; the browser is the user's own.
-        var target = start.VerificationUriComplete ?? start.VerificationUri;
-        if (!Uri.TryCreate(target, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
+        ArgumentNullException.ThrowIfNull(uri);
+        if (!uri.IsAbsoluteUri || uri.Scheme != Uri.UriSchemeHttps)
         {
-            return;
+            return false;
         }
 
         try
         {
             using var _ = Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+            return true;
         }
         catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or InvalidOperationException)
         {
             Debug.WriteLine($"Could not open the browser: {exception.Message}");
+            return false;
         }
     }
 }

@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using IceCrow.App.History;
 using IceCrow.ProfileSync;
 using IceCrow.ProfileSync.History;
@@ -14,6 +15,18 @@ public partial class HistoryWindow : Window
     private readonly ObservableCollection<MatchHistoryRow> _recent = [];
     private readonly ObservableCollection<DeckHistoryRow> _decks = [];
     private IReadOnlyList<MatchHistoryRow> _allMatches = [];
+    private ProfileSyncStatus _syncStatus = ProfileSyncStatus.Initial;
+    private ProfileLinkUpdate? _linkUpdate;
+    private Uri? _verificationUri;
+    private HistoryNavigationRoute _navigation = HistoryNavigation.Resolve("overview");
+
+    public event Action? LinkRequested;
+
+    public event Action? UnlinkRequested;
+
+    public event Action? CancelLinkRequested;
+
+    public event Action<Uri>? VerificationPageRequested;
 
     public HistoryWindow()
     {
@@ -22,6 +35,7 @@ public partial class HistoryWindow : Window
         RecentMatches.ItemsSource = _recent;
         DeckList.ItemsSource = _decks;
         UpdateEmptyStates();
+        RenderAccountState();
     }
 
     public void ApplySnapshot(ProfileHistorySnapshot snapshot)
@@ -56,6 +70,7 @@ public partial class HistoryWindow : Window
     {
         ArgumentNullException.ThrowIfNull(status);
         Dispatcher.VerifyAccess();
+        _syncStatus = status;
         SyncStatus.Text = status.Phase switch
         {
             ProfileSyncPhase.NotLinked => "HearthPulse: аккаунт не подключён",
@@ -65,6 +80,20 @@ public partial class HistoryWindow : Window
             ProfileSyncPhase.AuthorizationRequired => "HearthPulse: требуется повторное подключение",
             _ => $"HearthPulse: {status.Phase}",
         };
+        RenderAccountState();
+    }
+
+    internal void SetLinkUpdate(ProfileLinkUpdate update)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        Dispatcher.VerifyAccess();
+        _linkUpdate = update;
+        if (update.VerificationUri is not null)
+        {
+            _verificationUri = update.VerificationUri;
+        }
+
+        RenderAccountState();
     }
 
     public void SetRuntimeStatus(string status)
@@ -76,10 +105,9 @@ public partial class HistoryWindow : Window
 
     private void ApplyFilter()
     {
-        var requestedMode = (ModeFilter.SelectedItem as ComboBoxItem)?.Tag as string ?? "all";
         var query = SearchBox.Text.Trim();
         var filtered = _allMatches.Where(row =>
-            ModeMatches(row.Match.Mode, requestedMode) &&
+            HistoryNavigation.Includes(_navigation.Mode, row.Match.Mode) &&
             (query.Length == 0 || row.SearchText.Contains(query, StringComparison.CurrentCultureIgnoreCase)));
 
         var selectedId = (MatchList.SelectedItem as MatchHistoryRow)?.Match.EventId;
@@ -100,15 +128,6 @@ public partial class HistoryWindow : Window
         NoMatches.Visibility = _matches.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         NoDecks.Visibility = _decks.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
-
-    private static bool ModeMatches(HistoryGameMode mode, string requested) => requested switch
-    {
-        "standard" => mode == HistoryGameMode.Standard,
-        "wild" => mode == HistoryGameMode.Wild,
-        "arena" => mode == HistoryGameMode.Arena,
-        "battlegrounds" => mode == HistoryGameMode.Battlegrounds,
-        _ => true,
-    };
 
     private void OnFilterChanged(object sender, EventArgs eventArgs)
     {
@@ -143,5 +162,136 @@ public partial class HistoryWindow : Window
         DetailPlayerHero.Text = row.PlayerHero;
         DetailOpponentHero.Text = row.OpponentHero;
         DetailConfidence.Text = row.Confidence;
+    }
+
+    private void OnNavigate(object sender, RoutedEventArgs eventArgs)
+    {
+        if (sender is not Button selected)
+        {
+            return;
+        }
+
+        _navigation = HistoryNavigation.Resolve(selected.CommandParameter as string);
+        var page = (int)_navigation.Page;
+        var pages = new FrameworkElement[] { OverviewPage, MatchesPage, DecksPage, ProfilePage };
+        var buttons = new[]
+        {
+            NavOverview,
+            NavAllMatches,
+            NavStandard,
+            NavWild,
+            NavArena,
+            NavBattlegrounds,
+            NavDecks,
+            NavProfile,
+        };
+        for (var index = 0; index < pages.Length; index++)
+        {
+            pages[index].Visibility = index == page ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        foreach (var button in buttons)
+        {
+            button.Tag = ReferenceEquals(button, selected) ? "selected" : null;
+        }
+
+        PageTitle.Text = _navigation.Title;
+        PageSubtitle.Text = _navigation.Subtitle;
+        if (_navigation.Page == HistoryPage.Matches)
+        {
+            ApplyFilter();
+        }
+
+        eventArgs.Handled = true;
+    }
+
+    private void OnTitleBarMouseLeftButtonDown(object sender, MouseButtonEventArgs eventArgs)
+    {
+        _ = sender;
+        if (eventArgs.ClickCount == 2)
+        {
+            ToggleMaximize();
+            return;
+        }
+
+        DragMove();
+    }
+
+    private void OnMinimize(object sender, RoutedEventArgs eventArgs)
+    {
+        _ = sender;
+        eventArgs.Handled = true;
+        WindowState = WindowState.Minimized;
+    }
+
+    private void OnToggleMaximize(object sender, RoutedEventArgs eventArgs)
+    {
+        _ = sender;
+        eventArgs.Handled = true;
+        ToggleMaximize();
+    }
+
+    private void OnClose(object sender, RoutedEventArgs eventArgs)
+    {
+        _ = sender;
+        eventArgs.Handled = true;
+        Close();
+    }
+
+    private void OnWindowStateChanged(object? sender, EventArgs eventArgs)
+    {
+        _ = sender;
+        _ = eventArgs;
+        if (MaximizeButton is not null)
+        {
+            MaximizeButton.Content = WindowState == WindowState.Maximized ? "Восстановить" : "Развернуть";
+        }
+    }
+
+    private void ToggleMaximize() =>
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+
+    private void OnAccountAction(object sender, RoutedEventArgs eventArgs)
+    {
+        _ = sender;
+        eventArgs.Handled = true;
+        if (HearthPulseAccountViewState.Create(_syncStatus, _linkUpdate).IsDisconnectAction)
+        {
+            UnlinkRequested?.Invoke();
+        }
+        else
+        {
+            LinkRequested?.Invoke();
+        }
+    }
+
+    private void OnCancelLink(object sender, RoutedEventArgs eventArgs)
+    {
+        _ = sender;
+        eventArgs.Handled = true;
+        CancelLinkRequested?.Invoke();
+    }
+
+    private void OnOpenVerification(object sender, RoutedEventArgs eventArgs)
+    {
+        _ = sender;
+        eventArgs.Handled = true;
+        if (_verificationUri is not null)
+        {
+            VerificationPageRequested?.Invoke(_verificationUri);
+        }
+    }
+
+    private void RenderAccountState()
+    {
+        var viewState = HearthPulseAccountViewState.Create(_syncStatus, _linkUpdate);
+        AccountCodePanel.Visibility = viewState.ShowCode ? Visibility.Visible : Visibility.Collapsed;
+        AccountCancelButton.Visibility = viewState.ShowCancel ? Visibility.Visible : Visibility.Collapsed;
+        AccountActionButton.IsEnabled = viewState.IsActionEnabled;
+        AccountActionButton.Content = viewState.ActionText;
+        AccountCode.Text = viewState.UserCode;
+        AccountExpires.Text = viewState.ExpiresText;
+        AccountTitle.Text = viewState.Title;
+        AccountDescription.Text = viewState.Description;
     }
 }
