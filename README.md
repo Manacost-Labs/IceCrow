@@ -31,6 +31,9 @@ and diagnostic performance baselines are documented in the
   encode/decode/validation, sideboards, and clipboard exports.
 - Consent-off-by-default derived match summaries and a bounded local telemetry
   outbox; no raw logs and no upload transport are enabled.
+- Real owned-card collection import from complete schema-v3 snapshots produced
+  by the Manacost HDT Collection Exporter, with bounded validation, canonical
+  hash deduplication, and latest-only authenticated profile sync.
 
 IceCrow does **not** automate gameplay, click Hearthstone controls, install global keyboard hooks, call an AI service, contain a shared Manacost token, or require a backend.
 
@@ -50,6 +53,7 @@ flowchart TD
     App --> Api["IceCrow.Infrastructure.ManacostApi<br/>optional public sync/cache"]
     App --> Decks["IceCrow.Hearthstone.Decks<br/>canonical package adapter"]
     App --> Telemetry["IceCrow.Telemetry<br/>opt-in summary outbox"]
+    App --> ProfileSync["IceCrow.ProfileSync<br/>personal authenticated sync"]
     ClientState["IceCrow.Hearthstone.ClientState<br/>optional current UI contracts"]
 
     Overlay --> Presentation
@@ -59,6 +63,8 @@ flowchart TD
     Api --> Data
     Decks --> Data
     Telemetry --> Tracking
+    ProfileSync --> Tracking
+    ProfileSync --> ClientState
 
     Recording --> Tracking["IceCrow.Tracking<br/>authoritative match engine"]
     Recording --> Protocol["IceCrow.Hearthstone.Protocol<br/>normalized events"]
@@ -95,6 +101,7 @@ flowchart TD
 | `IceCrow.Recording` | Versioned capture, replay navigation, and replay-specific resource budgets | `Tracking` and its typed domain contracts; no WPF, HWND, or log input |
 | `IceCrow.Infrastructure.ManacostApi` | Optional public HTTPS synchronization, atomic data cache, and bounded image cache | `Hearthstone.Data` |
 | `IceCrow.Telemetry` | Consent-aware match summaries and bounded persistent outbox | `Tracking` |
+| `IceCrow.ProfileSync` | Bounded personal result/collection records, protected device linking, durable outbox, and authenticated upload | `Tracking`, `Hearthstone.ClientState` |
 
 Architecture tests enforce this graph, reject cycles, prevent WPF/Win32 APIs from entering portable projects, keep developer tools out of runtime dependencies, require bounded channels, and limit every ordinary test project to one direct production-project dependency. The maintained design is in [architecture.md](docs/architecture.md); new work starts with the [feature development guide](docs/feature-development.md), [module boundaries](docs/module-boundaries.md), and [error model](docs/error-model.md).
 
@@ -105,6 +112,13 @@ visible choice UI. The current tree does not bundle HearthMirror because its
 independent licensing and redistribution terms are not published. See
 [`docs/hearthmirror-research.md`](docs/hearthmirror-research.md) and
 [`docs/client-state-authority.md`](docs/client-state-authority.md).
+
+The owned collection has a separate, working file bridge. IceCrow reads a full
+schema-v3 JSON snapshot created by the
+[Manacost HDT Collection Exporter](https://github.com/Zulut30/HdtCollectionExporter),
+not Hearthstone process memory. Only card ids and owned finish counts enter the
+profile queue; BattleTag, account ids, dust, and statistics are ignored. See
+[collection-source-research.md](docs/collection-source-research.md).
 
 `tools/IceCrow.FixtureTool` is deliberately outside the runtime graph. It
 depends on `Recording` and `Live` only to validate/anonymize candidate fixtures
@@ -181,6 +195,22 @@ To start the current development application:
 ```powershell
 dotnet run --project src/IceCrow.App/IceCrow.App.csproj
 ```
+
+After exporting the complete collection JSON in HDT, IceCrow imports the newest
+snapshot from the exporter's standard directories on startup. To select a file
+or retry discovery explicitly:
+
+```powershell
+dotnet run --project src/IceCrow.App/IceCrow.App.csproj -- `
+  --import-collection "C:\path\to\hearthstone-collection-20260911-120000.json"
+
+dotnet run --project src/IceCrow.App/IceCrow.App.csproj -- --refresh-collection
+```
+
+The snapshot is exact at its `exportedAt` time; export again after opening packs,
+crafting, or disenchanting. Upload requires linking with
+`--link-hearthpulse`; before linking, the latest snapshot remains in the local
+durable outbox.
 
 To validate the committed Battlegrounds corpus or import a private captured
 recording, use the dev-only fixture tool. It writes a new candidate directory,

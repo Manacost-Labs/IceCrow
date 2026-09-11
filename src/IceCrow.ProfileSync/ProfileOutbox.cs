@@ -1,25 +1,57 @@
-using System.Text.Json;
+using IceCrow.ProfileSync.Outbox;
 
 namespace IceCrow.ProfileSync;
 
 /// <summary>
-/// Durable, bounded, idempotent local queue of profile events. One JSON array
-/// file written atomically (temp file + move) behind a single gate.
+/// Durable, bounded, idempotent local queue of profile events. History
+/// events live in an append-only journal (one flushed line per event, no
+/// rewrite per gameplay event); the latest-only collection snapshot lives in
+/// its own small file. The state is loaded once and kept in memory behind a
+/// single gate.
 /// </summary>
 public sealed class ProfileOutbox : IDisposable
 {
-    public const int MaximumHistoryItems = 256;
+    public const int MaximumHistoryItems = 4096;
     public const int MaximumBatchSize = 50;
-    public const int MaximumFileBytes = 16 * 1024 * 1024;
+    public const int MaximumFileBytes = ProfileJournalFile.MaximumBytes;
+    public const int CompactionTombstones = 256;
+    private const string JournalFileName = "outbox.jsonl";
+    private const string CollectionFileName = "collection-pending.json";
 
     private readonly SemaphoreSlim _gate = new(1, 1);
-    private readonly string _path;
+    private readonly int _maximumHistoryItems;
+    private readonly string _directory;
+    private readonly string _legacyPath;
+    private readonly ProfileJournalFile _journal;
+    private readonly ProfileCollectionFile _collectionFile;
+    private List<ProfileEvent>? _history;
+    private HashSet<Guid>? _ids;
+    private ProfileEvent? _collection;
+    private int _tombstones;
 
-    public ProfileOutbox(string path)
+    /// <param name="path">
+    /// The legacy single-file outbox path; the journal and the collection file
+    /// live in the same directory and a legacy file is imported once.
+    /// </param>
+    /// <param name="maximumHistoryItems">Bound for history events; tests lower it, production keeps the default.</param>
+    public ProfileOutbox(string path, int maximumHistoryItems = MaximumHistoryItems)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        _path = Path.GetFullPath(path);
+        if (maximumHistoryItems is < 1 or > MaximumHistoryItems)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximumHistoryItems));
+        }
+
+        _maximumHistoryItems = maximumHistoryItems;
+        _legacyPath = Path.GetFullPath(path);
+        _directory = Path.GetDirectoryName(_legacyPath)
+            ?? throw new ArgumentException("The outbox path has no parent directory.", nameof(path));
+        _journal = new ProfileJournalFile(Path.Combine(_directory, JournalFileName));
+        _collectionFile = new ProfileCollectionFile(Path.Combine(_directory, CollectionFileName));
     }
+
+    /// <summary>Set when a crash left an incomplete journal line that was dropped on load.</summary>
+    public bool TruncatedTailRecovered { get; private set; }
 
     public void Dispose()
     {
@@ -32,7 +64,8 @@ public sealed class ProfileOutbox : IDisposable
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            return (await LoadUnsafeAsync(cancellationToken).ConfigureAwait(false)).Count;
+            var history = await LoadUnsafeAsync(cancellationToken).ConfigureAwait(false);
+            return history.Count + (_collection is null ? 0 : 1);
         }
         finally
         {
@@ -48,27 +81,43 @@ public sealed class ProfileOutbox : IDisposable
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var items = await LoadUnsafeAsync(cancellationToken).ConfigureAwait(false);
-            if (items.Any(item => item.EventId == profileEvent.EventId))
+            var history = await LoadUnsafeAsync(cancellationToken).ConfigureAwait(false);
+            if (_ids!.Contains(profileEvent.EventId) || _collection?.EventId == profileEvent.EventId)
             {
                 return ProfileOutboxResult.Duplicate;
             }
 
-            var result = ProfileOutboxResult.Enqueued;
             if (ProfileEventType.IsLatestOnly(profileEvent.Type))
             {
-                var replaced = items.RemoveAll(item =>
-                    string.Equals(item.Type, profileEvent.Type, StringComparison.Ordinal));
-                result = replaced > 0 ? ProfileOutboxResult.Replaced : result;
+                var replaced = _collection is not null;
+                await _collectionFile.WriteAsync(profileEvent, cancellationToken).ConfigureAwait(false);
+                _collection = profileEvent;
+                return replaced ? ProfileOutboxResult.Replaced : ProfileOutboxResult.Enqueued;
             }
-            else if (items.Count(item => !ProfileEventType.IsLatestOnly(item.Type)) >= MaximumHistoryItems)
+
+            if (history.Count >= _maximumHistoryItems)
             {
                 return ProfileOutboxResult.Full;
             }
 
-            items.Add(profileEvent);
-            await SaveUnsafeAsync(items, cancellationToken).ConfigureAwait(false);
-            return result;
+            if (_journal.Length > MaximumFileBytes / 2 && _tombstones > 0)
+            {
+                await CompactUnsafeAsync(history, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (_journal.Length >= MaximumFileBytes)
+            {
+                return ProfileOutboxResult.Full;
+            }
+
+            if (!await _journal.TryAppendEventAsync(profileEvent, cancellationToken).ConfigureAwait(false))
+            {
+                return ProfileOutboxResult.Full;
+            }
+
+            history.Add(profileEvent);
+            _ids.Add(profileEvent.EventId);
+            return ProfileOutboxResult.Enqueued;
         }
         finally
         {
@@ -88,9 +137,14 @@ public sealed class ProfileOutbox : IDisposable
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            return (await LoadUnsafeAsync(cancellationToken).ConfigureAwait(false))
-                .Take(maximumItems)
-                .ToArray();
+            var history = await LoadUnsafeAsync(cancellationToken).ConfigureAwait(false);
+            var batch = history.Take(maximumItems).ToList();
+            if (_collection is { } collection && batch.Count < maximumItems)
+            {
+                batch.Add(collection);
+            }
+
+            return batch;
         }
         finally
         {
@@ -113,11 +167,38 @@ public sealed class ProfileOutbox : IDisposable
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var items = await LoadUnsafeAsync(cancellationToken).ConfigureAwait(false);
-            var removed = items.RemoveAll(item => removable.Contains(item.EventId));
-            if (removed > 0)
+            var history = await LoadUnsafeAsync(cancellationToken).ConfigureAwait(false);
+            var removed = 0;
+            if (_collection is { } collection && removable.Remove(collection.EventId))
             {
-                await SaveUnsafeAsync(items, cancellationToken).ConfigureAwait(false);
+                _collectionFile.Delete();
+                _collection = null;
+                removed++;
+            }
+
+            var acknowledged = history.Where(item => removable.Contains(item.EventId)).Select(static item => item.EventId).ToArray();
+            if (acknowledged.Length == 0)
+            {
+                return removed;
+            }
+
+            if (!await _journal.TryAppendAcksAsync(acknowledged, cancellationToken).ConfigureAwait(false))
+            {
+                var remaining = history.Where(item => !removable.Contains(item.EventId)).ToList();
+                await CompactUnsafeAsync(remaining, cancellationToken).ConfigureAwait(false);
+                history.Clear();
+                history.AddRange(remaining);
+                _ids!.ExceptWith(acknowledged);
+                return removed + acknowledged.Length;
+            }
+
+            history.RemoveAll(item => removable.Contains(item.EventId));
+            _ids!.ExceptWith(acknowledged);
+            _tombstones += acknowledged.Length;
+            removed += acknowledged.Length;
+            if (_tombstones >= CompactionTombstones)
+            {
+                await CompactUnsafeAsync(history, cancellationToken).ConfigureAwait(false);
             }
 
             return removed;
@@ -130,87 +211,76 @@ public sealed class ProfileOutbox : IDisposable
 
     private async Task<List<ProfileEvent>> LoadUnsafeAsync(CancellationToken cancellationToken)
     {
-        if (!File.Exists(_path))
+        if (_history is not null)
         {
-            return [];
+            return _history;
         }
 
-        var info = new FileInfo(_path);
-        if (info.Length is <= 0 or > MaximumFileBytes)
+        var replay = await _journal.ReplayAsync(
+            _maximumHistoryItems,
+            checked(_maximumHistoryItems + CompactionTombstones),
+            cancellationToken).ConfigureAwait(false);
+        TruncatedTailRecovered = replay.TruncatedTailRecovered;
+        _history = replay.Events;
+        _ids = replay.Events.Select(static item => item.EventId).ToHashSet();
+        _tombstones = replay.Tombstones;
+        _collection = await _collectionFile.ReadAsync(cancellationToken).ConfigureAwait(false);
+        await ImportLegacyUnsafeAsync(_history, cancellationToken).ConfigureAwait(false);
+        if (_tombstones >= CompactionTombstones || replay.TruncatedTailRecovered)
         {
-            throw new InvalidDataException("The profile outbox has an invalid size.");
+            await CompactUnsafeAsync(_history, cancellationToken).ConfigureAwait(false);
         }
 
-        try
-        {
-            await using var stream = new FileStream(
-                _path,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.Read,
-                16 * 1024,
-                FileOptions.Asynchronous | FileOptions.SequentialScan);
-            var items = new List<ProfileEvent>();
-            await foreach (var item in JsonSerializer.DeserializeAsyncEnumerable<ProfileEvent>(
-                               stream,
-                               ProfileJson.Options,
-                               cancellationToken).ConfigureAwait(false))
-            {
-                if (item is null)
-                {
-                    throw new InvalidDataException("The profile outbox contains a null item.");
-                }
-
-                ProfileEvent.Validate(item);
-                if (items.Count > MaximumHistoryItems)
-                {
-                    throw new InvalidDataException("The profile outbox item limit was exceeded.");
-                }
-
-                items.Add(item);
-            }
-
-            return items;
-        }
-        catch (JsonException exception)
-        {
-            throw new InvalidDataException("The profile outbox contains invalid JSON.", exception);
-        }
+        return _history;
     }
 
-    private async Task SaveUnsafeAsync(List<ProfileEvent> items, CancellationToken cancellationToken)
+    private async Task CompactUnsafeAsync(List<ProfileEvent> history, CancellationToken cancellationToken)
     {
-        var directory = Path.GetDirectoryName(_path)
-            ?? throw new InvalidOperationException("The outbox path has no parent directory.");
-        Directory.CreateDirectory(directory);
-        var temporaryPath = Path.Combine(directory, $".{Path.GetFileName(_path)}.{Guid.NewGuid():N}.tmp");
-        try
+        await _journal.CompactAsync(history, cancellationToken).ConfigureAwait(false);
+        _tombstones = 0;
+    }
+
+    /// <summary>
+    /// A pre-journal single-file outbox is imported once so no pending
+    /// history is lost across the upgrade; the legacy file is then renamed.
+    /// </summary>
+    private async Task ImportLegacyUnsafeAsync(
+        List<ProfileEvent> history,
+        CancellationToken cancellationToken)
+    {
+        var legacy = await LegacyProfileOutboxFile.ReadAsync(
+            _legacyPath,
+            _maximumHistoryItems,
+            cancellationToken).ConfigureAwait(false);
+        if (legacy is null)
         {
-            await using (var stream = new FileStream(
-                temporaryPath,
-                FileMode.CreateNew,
-                FileAccess.Write,
-                FileShare.None,
-                16 * 1024,
-                FileOptions.Asynchronous | FileOptions.WriteThrough))
+            return;
+        }
+
+        foreach (var item in legacy.History)
+        {
+            if (_ids!.Contains(item.EventId))
             {
-                await JsonSerializer.SerializeAsync(stream, items, ProfileJson.Options, cancellationToken)
-                    .ConfigureAwait(false);
-                await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
-                if (stream.Length > MaximumFileBytes)
-                {
-                    throw new InvalidDataException("The profile outbox exceeded its storage limit.");
-                }
+                continue;
             }
 
-            File.Move(temporaryPath, _path, overwrite: true);
-        }
-        finally
-        {
-            if (File.Exists(temporaryPath))
+            if (history.Count >= _maximumHistoryItems ||
+                !await _journal.TryAppendEventAsync(item, cancellationToken).ConfigureAwait(false))
             {
-                File.Delete(temporaryPath);
+                throw new InvalidDataException("The legacy profile outbox exceeds the journal size limit.");
             }
+
+            history.Add(item);
+            _ids.Add(item.EventId);
         }
+
+        if (legacy.Collection is { } collection && _collection?.EventId != collection.EventId)
+        {
+            await _collectionFile.WriteAsync(collection, cancellationToken).ConfigureAwait(false);
+            _collection = collection;
+        }
+
+        LegacyProfileOutboxFile.MarkMigrated(_legacyPath);
     }
+
 }

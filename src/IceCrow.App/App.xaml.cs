@@ -61,7 +61,7 @@ public partial class App : Application, IAsyncDisposable
 #endif
 
         _runtime.Start();
-        _ = RunLinkCommandAsync(e.Args);
+        _ = RunStartupCommandsAsync(e.Args);
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -107,7 +107,7 @@ public partial class App : Application, IAsyncDisposable
     /// Device linking is an explicit user action started from the command
     /// line; the headless runtime keeps tracking while the user approves it.
     /// </summary>
-    private async Task RunLinkCommandAsync(string[] arguments)
+    private async Task RunStartupCommandsAsync(string[] arguments)
     {
         if (_runtime?.ProfileSync is not { } profileSync)
         {
@@ -124,10 +124,14 @@ public partial class App : Application, IAsyncDisposable
             {
                 _ = await ProfileLinkCommand.LinkAsync(profileSync, CancellationToken.None);
             }
+            else if (CollectionImportCommand.IsRequest(arguments))
+            {
+                _ = await CollectionImportCommand.ExecuteAsync(profileSync, arguments, CancellationToken.None);
+            }
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException)
         {
-            ReportLogStatus($"HearthPulse link failed: {exception.GetType().Name}");
+            ReportLogStatus($"IceCrow command failed: {exception.GetType().Name}");
         }
     }
 

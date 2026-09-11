@@ -26,6 +26,7 @@ tailing, tracking, recording, or replay.
 | Currently hovered BG leaderboard entity | Client state | Selects an opponent detail panel | Clear on disconnect/unavailable; never create an opponent/entity. |
 | Current choice UI visibility and ordering | Client state | Current presentation only | Clear on disconnect/unavailable; never create historical choice events. |
 | Current client scene | Client state if added later | Scopes polling and presentation | Absence never resets `TrackingSession`; a proven Power.log match lifecycle remains authoritative. |
+| Owned collection | Complete Manacost HDT Collection Exporter schema-v3 JSON | Personal profile snapshot, exact at the export timestamp | Never claim post-export changes; missing or invalid export is unavailable. |
 | Current normal tavern shop | No source accepted in v1 | Not implemented | Do not infer or synthesize. |
 
 ## Reconciliation rules
@@ -56,5 +57,8 @@ If the optional provider fails:
   HearthMirror.
 
 The current milestone intentionally ships no HearthMirror adapter because its
-licensing and redistribution terms are unclear. The contracts can be exercised
-with a deterministic fake without pretending that live integration exists.
+licensing and redistribution terms are unclear. Collection import is the one
+implemented client-state source: it consumes an explicit complete file from the
+Manacost HDT Collection Exporter and remains timestamped rather than pretending
+to be a live memory snapshot. Other contracts can be exercised with a
+deterministic fake without pretending that live integration exists.

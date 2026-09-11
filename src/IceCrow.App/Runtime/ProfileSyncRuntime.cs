@@ -1,35 +1,39 @@
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
-using System.Threading.Channels;
 using IceCrow.ProfileSync;
+using IceCrow.ProfileSync.Collection;
 using IceCrow.ProfileSync.Transport;
 
 namespace IceCrow.App.Runtime;
 
 /// <summary>
 /// Composes the personal HearthPulse sync boundary: protected device
-/// credential, durable outbox, HTTPS batch transport, and the single
-/// background uploader. Producers hand over finished records through a
-/// bounded channel; nothing here runs on the live tracking hot path.
+/// credential, durable journal outbox, the single persistence worker that
+/// owns every accepted record until it is committed, the HTTPS batch
+/// transport, and the single background uploader. Nothing here runs on the
+/// live tracking hot path beyond a non-blocking handoff.
 /// </summary>
 internal sealed class ProfileSyncRuntime : IAsyncDisposable
 {
-    private const int QueueCapacity = 64;
     private readonly ProfileOutbox _outbox;
     private readonly ProtectedProfileCredentialStore _credentials;
     private readonly HttpClient _httpClient;
     private readonly DeviceAuthorizationClient _authorization;
     private readonly ProfileSyncCoordinator _coordinator;
-    private readonly Channel<ProfileEvent> _queue;
+    private readonly ProfilePersistenceWorker _persistence;
+    private readonly HdtCollectionExportSource _collectionSource;
+    private readonly CollectionSyncCoordinator _collection;
+    private readonly SemaphoreSlim _collectionCommandGate = new(1, 1);
     private readonly Action<ProfileSyncStatus> _onStatusChanged;
-    private long _queueOverflows;
+    private Task _persistenceTask = Task.CompletedTask;
 
     public ProfileSyncRuntime(
         string localDataDirectory,
         Uri hearthPulseOrigin,
         Action<ProfileSyncStatus> onStatusChanged,
-        string clientVersion)
+        string clientVersion,
+        HdtCollectionExportLocator? collectionLocator = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(localDataDirectory);
         ArgumentNullException.ThrowIfNull(hearthPulseOrigin);
@@ -55,54 +59,98 @@ internal sealed class ProfileSyncRuntime : IAsyncDisposable
         var transport = new HttpProfileSyncTransport(_httpClient, _credentials, _authorization);
         _coordinator = new ProfileSyncCoordinator(_outbox, transport, IsLinkedAsync);
         _coordinator.StatusChanged += _onStatusChanged;
-        _queue = Channel.CreateBounded<ProfileEvent>(new BoundedChannelOptions(QueueCapacity)
-        {
-            SingleReader = true,
-            SingleWriter = false,
-            FullMode = BoundedChannelFullMode.DropWrite,
-            AllowSynchronousContinuations = false,
-        });
+        _persistence = new ProfilePersistenceWorker(_outbox);
+        _persistence.Persisted += OnPersisted;
+        _persistence.StatusChanged += OnHandoffStatusChanged;
+        _collectionSource = new HdtCollectionExportSource(
+            collectionLocator ?? HdtCollectionExportLocator.CreateDefault());
+        _collection = new CollectionSyncCoordinator(
+            _collectionSource,
+            _outbox,
+            Path.Combine(directory, "collection-sync.json"));
     }
 
     public ProfileSyncStatus Status => _coordinator.Status;
+
+    public ProfileHandoffStatus HandoffStatus => _persistence.Status;
+
+    public CollectionSyncStatus CollectionStatus => _collection.Status;
 
     public DeviceAuthorizationClient Authorization => _authorization;
 
     public IProfileCredentialStore Credentials => _credentials;
 
-    /// <summary>Queues a finished record for the outbox; never blocks the caller.</summary>
+    /// <summary>
+    /// Hands a finished record to the persistence worker without blocking.
+    /// False means the bounded handoff refused it explicitly; nothing is ever
+    /// dropped silently.
+    /// </summary>
     public bool TryQueue(ProfileEvent profileEvent)
     {
         ArgumentNullException.ThrowIfNull(profileEvent);
-        if (_queue.Writer.TryWrite(profileEvent))
-        {
-            return true;
-        }
-
-        Interlocked.Increment(ref _queueOverflows);
-        _coordinator.ReportOutboxOverflow();
-        return false;
+        return _persistence.Accept(profileEvent) == ProfileHandoffResult.Accepted;
     }
 
     public void SetGameplayActive(bool active) => _coordinator.SetGameplayActive(active);
 
-    public void Complete() => _queue.Writer.TryComplete();
+    /// <summary>Stops accepting records; accepted ones still drain to the outbox.</summary>
+    public void Complete() => _persistence.Complete();
 
     public async Task RunAsync(CancellationToken cancellationToken)
     {
-        var uploader = _coordinator.RunAsync(cancellationToken);
+        // The persistence worker only stops accepting on cancellation; it
+        // keeps draining accepted records within its grace period so the
+        // uploader is stopped after, never before, the durable commit.
+        _persistenceTask = _persistence.RunAsync(cancellationToken);
         try
         {
-            await foreach (var profileEvent in _queue.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+            try
             {
-                await PersistAsync(profileEvent, cancellationToken).ConfigureAwait(false);
+                _ = await RefreshCollectionAsync(CollectionRefreshTrigger.Startup, null, cancellationToken)
+                    .ConfigureAwait(false);
             }
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+            {
+                Debug.WriteLine($"Collection startup import unavailable: {exception.GetType().Name}");
+            }
 
-        await uploader.ConfigureAwait(false);
+            await _coordinator.RunAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            await _persistenceTask.ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Imports one explicitly selected complete HDT exporter snapshot, or
+    /// refreshes from the newest auto-discovered snapshot when path is null.
+    /// </summary>
+    public async Task<CollectionSyncOutcome> RefreshCollectionAsync(
+        CollectionRefreshTrigger trigger,
+        string? path = null,
+        CancellationToken cancellationToken = default)
+    {
+        await _collectionCommandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (path is not null)
+            {
+                _collectionSource.UseExportFile(path);
+            }
+
+            var outcome = await _collection.RefreshAsync(trigger, cancellationToken).ConfigureAwait(false);
+            if (outcome is CollectionSyncOutcome.Enqueued or CollectionSyncOutcome.Replaced)
+            {
+                _coordinator.Notify();
+            }
+
+            return outcome;
+        }
+        finally
+        {
+            _collectionCommandGate.Release();
+        }
     }
 
     /// <summary>Stores a freshly linked credential and resumes uploads.</summary>
@@ -124,14 +172,27 @@ internal sealed class ProfileSyncRuntime : IAsyncDisposable
         _coordinator.Notify();
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
+        _persistence.Complete();
+        try
+        {
+            await _persistenceTask.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        _persistence.Persisted -= OnPersisted;
+        _persistence.StatusChanged -= OnHandoffStatusChanged;
         _coordinator.StatusChanged -= _onStatusChanged;
+        _collection.Dispose();
+        _collectionCommandGate.Dispose();
+        _persistence.Dispose();
         _coordinator.Dispose();
         _outbox.Dispose();
         _credentials.Dispose();
         _httpClient.Dispose();
-        return ValueTask.CompletedTask;
     }
 
     private async ValueTask<bool> IsLinkedAsync(CancellationToken cancellationToken) =>
@@ -150,22 +211,13 @@ internal sealed class ProfileSyncRuntime : IAsyncDisposable
         }
     }
 
-    private async Task PersistAsync(ProfileEvent profileEvent, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var result = await _outbox.EnqueueAsync(profileEvent, cancellationToken).ConfigureAwait(false);
-            if (result == ProfileOutboxResult.Full)
-            {
-                _coordinator.ReportOutboxOverflow();
-                return;
-            }
+    private void OnPersisted(ProfileEvent profileEvent) => _coordinator.Notify();
 
-            _coordinator.Notify();
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+    private void OnHandoffStatusChanged(ProfileHandoffStatus status)
+    {
+        if (status.Phase == ProfileHandoffPhase.Full)
         {
-            Debug.WriteLine($"Profile outbox unavailable: {exception.GetType().Name}");
+            _coordinator.ReportOutboxOverflow();
         }
     }
 }

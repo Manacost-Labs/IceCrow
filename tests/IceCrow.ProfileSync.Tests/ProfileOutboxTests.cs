@@ -53,8 +53,9 @@ public sealed class ProfileOutboxTests : IDisposable
     [Fact]
     public async Task FullHistoryIsAnExplicitRejectionNotASilentDrop()
     {
-        using var outbox = Create();
-        for (var index = 0; index < ProfileOutbox.MaximumHistoryItems; index++)
+        const int capacity = 4;
+        using var outbox = new ProfileOutbox(Path.Combine(_directory, "outbox.json"), maximumHistoryItems: capacity);
+        for (var index = 0; index < capacity; index++)
         {
             Assert.Equal(ProfileOutboxResult.Enqueued, await outbox.EnqueueAsync(Match(Guid.CreateVersion7())));
         }
@@ -62,7 +63,8 @@ public sealed class ProfileOutboxTests : IDisposable
         Assert.Equal(ProfileOutboxResult.Full, await outbox.EnqueueAsync(Match(Guid.CreateVersion7())));
         Assert.Equal(ProfileOutboxResult.Enqueued, await outbox.EnqueueAsync(
             ProfileEvent.Create(ProfileEventType.CollectionSnapshot, Timestamp, Collection("still-fits"))));
-        Assert.Equal(ProfileOutbox.MaximumHistoryItems + 1, await outbox.CountAsync());
+        Assert.Equal(capacity + 1, await outbox.CountAsync());
+        Assert.Equal(4096, ProfileOutbox.MaximumHistoryItems);
     }
 
     [Fact]
@@ -85,7 +87,13 @@ public sealed class ProfileOutboxTests : IDisposable
     public async Task CorruptOrForeignFileIsInvalidData()
     {
         Directory.CreateDirectory(_directory);
-        await File.WriteAllTextAsync(Path.Combine(_directory, "outbox.json"), "[{\"eventId\":\"not-a-guid\"}]");
+        await File.WriteAllTextAsync(
+            Path.Combine(_directory, "outbox.jsonl"),
+            """
+            {"event":{"eventId":"not-a-guid"}}
+            {"ack":"x"}
+
+            """);
         using var outbox = Create();
 
         await Assert.ThrowsAsync<InvalidDataException>(() => outbox.CountAsync());

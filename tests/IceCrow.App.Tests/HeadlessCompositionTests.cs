@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows.Threading;
 using IceCrow.App.Runtime;
 using IceCrow.ProfileSync;
+using IceCrow.ProfileSync.Collection;
 using IceCrow.ProfileSync.Records;
 
 namespace IceCrow.App.Tests;
@@ -64,10 +65,47 @@ public sealed class HeadlessCompositionTests : IDisposable
                 224857)));
 
         Assert.True(queued);
-        using var outbox = new ProfileOutbox(Path.Combine(_directory, "profile", "outbox.json"));
-        var pending = await WaitForOutboxAsync(outbox);
+        var outboxPath = Path.Combine(_directory, "profile", "outbox.json");
+        var pending = await WaitForOutboxAsync(outboxPath);
         Assert.Equal(1, pending);
         Assert.Equal(ProfileSyncPhase.NotLinked, profileSync.Status.Phase);
+    }
+
+    [Fact]
+    public async Task HeadlessProfileSyncAutoImportsAnExistingCollectionExportAtStartup()
+    {
+        var hdtData = Path.Combine(_directory, "hdt");
+        var baseline = Path.Combine(
+            hdtData,
+            "HdtCollectionExporter",
+            HdtCollectionExportLocator.SharedBaselineFileName);
+        Directory.CreateDirectory(Path.GetDirectoryName(baseline)!);
+        await File.WriteAllTextAsync(
+            baseline,
+            """
+            {"exportedAt":"2026-09-11T12:00:00Z","version":3,"cards":[{"cardId":"COLLECTION_CARD","normal":2,"golden":0,"signature":0,"diamond":0}]}
+            """);
+        var locator = new HdtCollectionExportLocator(hdtData, Path.Combine(_directory, "documents"));
+        await using var profileSync = new ProfileSyncRuntime(
+            _directory,
+            IceCrowRuntimeOptions.DefaultHearthPulseOrigin,
+            static _ => { },
+            "0.0.0-test",
+            locator);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var run = profileSync.RunAsync(cancellation.Token);
+        var outboxPath = Path.Combine(_directory, "profile", "outbox.json");
+
+        Assert.Equal(1, await WaitForOutboxAsync(outboxPath));
+        using var outbox = new ProfileOutbox(outboxPath);
+        var pending = Assert.Single(await outbox.PeekBatchAsync(10));
+        Assert.Equal(ProfileEventType.CollectionSnapshot, pending.Type);
+        Assert.Equal("COLLECTION_CARD", pending.Payload.GetProperty("cards")[0].GetProperty("cardId").GetString());
+        Assert.Equal(CollectionSyncOutcome.Enqueued, profileSync.CollectionStatus.LastOutcome);
+
+        profileSync.Complete();
+        cancellation.Cancel();
+        await run;
     }
 
     [Fact]
@@ -111,10 +149,11 @@ public sealed class HeadlessCompositionTests : IDisposable
         static _ => { },
         "0.0.0-test");
 
-    private static async Task<int> WaitForOutboxAsync(ProfileOutbox outbox)
+    private static async Task<int> WaitForOutboxAsync(string outboxPath)
     {
         for (var attempt = 0; attempt < 400; attempt++)
         {
+            using var outbox = new ProfileOutbox(outboxPath);
             var count = await outbox.CountAsync();
             if (count > 0)
             {
@@ -124,7 +163,8 @@ public sealed class HeadlessCompositionTests : IDisposable
             await Task.Delay(50);
         }
 
-        return await outbox.CountAsync();
+        using var finalOutbox = new ProfileOutbox(outboxPath);
+        return await finalOutbox.CountAsync();
     }
 
     private static bool IsOverlayAssemblyLoaded() =>

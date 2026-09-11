@@ -174,8 +174,15 @@ public sealed class ProfileSyncCoordinatorTests : IDisposable
     [Fact]
     public async Task CorruptOutboxBacksOffInsteadOfKillingTheUploader()
     {
-        await EnqueueMatchAsync();
-        await File.WriteAllTextAsync(Path.Combine(_directory, "outbox.json"), "{ definitely not an array");
+        Directory.CreateDirectory(_directory);
+        var journalPath = Path.Combine(_directory, "outbox.jsonl");
+        using (var seed = new ProfileOutbox(Path.Combine(_directory, "outbox.json")))
+        {
+            await seed.EnqueueAsync(CreateMatch());
+        }
+
+        var validLine = await File.ReadAllTextAsync(journalPath);
+        await File.WriteAllTextAsync(journalPath, "{ definitely not a journal line\n" + validLine);
         var transport = new ScriptedTransport(
             batch => new ProfileUploadResult(ProfileUploadStatus.Accepted, batch.Select(static item => item.EventId).ToArray(), []));
         using var coordinator = Create(transport, linked: true);
@@ -219,7 +226,12 @@ public sealed class ProfileSyncCoordinatorTests : IDisposable
 
     private async Task<Guid> EnqueueMatchAsync()
     {
-        var profileEvent = ProfileEvent.Create(
+        var profileEvent = CreateMatch();
+        Assert.Equal(ProfileOutboxResult.Enqueued, await _outbox.EnqueueAsync(profileEvent));
+        return profileEvent.EventId;
+    }
+
+    private static ProfileEvent CreateMatch() => ProfileEvent.Create(
             ProfileEventType.ConstructedMatch,
             Timestamp,
             new ConstructedMatchRecord(
@@ -241,9 +253,6 @@ public sealed class ProfileSyncCoordinatorTests : IDisposable
                 null,
                 224857,
                 2));
-        Assert.Equal(ProfileOutboxResult.Enqueued, await _outbox.EnqueueAsync(profileEvent));
-        return profileEvent.EventId;
-    }
 
     private sealed class ScriptedTransport(params Func<IReadOnlyList<ProfileEvent>, ProfileUploadResult>[] responses)
         : IProfileSyncTransport

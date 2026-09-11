@@ -37,7 +37,8 @@ it; mapping into records may only keep or lower it.
 | Opponent deck | observed card ids only (`Partial`), never a code | Unknown |
 | Battlegrounds placement | `PLAYER_LEADERBOARD_PLACE` on the local player | Unknown |
 | Battlegrounds final board | own warband at the first attack of each combat, frozen at completion (`Exact` only from the final turn, else `Partial`) | null |
-| Own selected deck, collection, Arena draft/run/rating, Battlegrounds MMR | current client state through `IceCrow.Hearthstone.ClientState` sources; **no HearthMirror adapter ships** (`docs/hearthmirror-research.md`) | Unknown / null |
+| Own selected deck, Arena draft/run/rating, Battlegrounds MMR | current client state through `IceCrow.Hearthstone.ClientState` sources; **no HearthMirror adapter ships** (`docs/hearthmirror-research.md`) | Unknown / null |
+| Owned collection | complete Manacost HDT Collection Exporter schema-v3 JSON snapshot | Exact at `exportedAt`; unavailable before the first export and stale after later client changes |
 
 Player names, account ids, raw `Power.log`, and server game handles are never
 stored. `gameJoinEvidence` stays null until an authoritative handle source
@@ -57,7 +58,7 @@ Power.log
        completed ranked game     -> ConstructedRecordFactory.CreateRanked -> constructed_match
        completed Arena game      -> ConstructedRecordFactory.CreateArena + ArenaRunCollector.Associate -> arena_match
        ended Battlegrounds match -> BattlegroundsRecordFactory.Create -> battlegrounds_match
-  -> ProfileSyncRuntime (bounded channel) -> ProfileOutbox (durable) -> ProfileSyncCoordinator -> HearthPulse
+  -> ProfilePersistenceWorker (bounded handoff, owns the event until committed) -> ProfileOutbox journal -> ProfileSyncCoordinator -> HearthPulse
 ```
 
 Constructed and Arena games never construct the Battlegrounds
@@ -76,17 +77,18 @@ becomes one `ProfileEvent` (`eventId` UUIDv7, `type`, `schemaVersion` 1,
 
 ## Local outbox
 
-`ProfileOutbox` is one JSON array file at `%LOCALAPPDATA%\IceCrow\profile\outbox.json`,
-written atomically (temp file + move) behind a single gate.
+`ProfileOutbox` keeps history in `%LOCALAPPDATA%\IceCrow\profile\outbox.jsonl`
+and the newest pending collection in `collection-pending.json`, behind a single
+gate. A legacy `outbox.json` is imported once.
 
 | Budget | Value |
 | --- | --- |
-| History events (matches, Arena) | 256; a full outbox returns an explicit `Full` result that the runtime counts and reports, never a silent drop |
+| History events (matches, Arena) | 4096 in an append-only JSON Lines journal (`outbox.jsonl`, one flushed line per event, acknowledgements as tombstones, compaction after 256 tombstones); a full outbox returns an explicit `Full` result that the persistence worker holds and reports, never a silent drop |
 | Collection snapshots | latest-only; a newer pending snapshot replaces the older one |
 | Payload per event | 512 KiB (collection snapshot 4 MiB); null optional fields are omitted on the wire |
-| File | 16 MiB; a larger or malformed file is `InvalidDataException`, never partially trusted |
+| File | 64 MiB journal; a crash-truncated final line is dropped and counted, any other corruption is `InvalidDataException`, never partially trusted; a pre-journal `outbox.json` is imported once |
 | Upload batch | 25 events (hard cap 50) |
-| Producer channel in the App | 64 events, `DropWrite` with a counted overflow |
+| Producer handoff | 64 events owned by a single persistence worker until the durable commit succeeds; transient IO failures are retried with backoff; a full handoff is refused explicitly (`Full`), the oldest accepted events are preserved; shutdown completes the producer side and drains accepted events within a 10 s grace before the uploader stops |
 
 ## Upload pacing
 
@@ -113,12 +115,18 @@ credential and the coordinator waits for the user to link again.
 
 ## Client-state watchers
 
-Collection reads happen only on triggers (startup, Collection Manager exit,
-Pack Opening exit, manual refresh) and are hash-deduplicated; there is no
-continuous collection polling. The Arena watcher is asleep unless a draft is
+The working collection source reads a complete schema-v3 file from the Manacost
+HDT Collection Exporter. It auto-discovers the newest documented export at
+startup and supports `--import-collection <path>` and
+`--refresh-collection`. Reads are hash-deduplicated and never polled. Personal
+metadata in the exporter document is ignored. Collection Manager / Pack Opening
+exit triggers remain reserved for a future licensed live adapter. See
+`docs/collection-source-research.md`.
+
+The Arena watcher is asleep unless a draft is
 active and then polls at a bounded 500–1000 ms interval (`ArenaWatchPolicy`).
-Battlegrounds rating is read only at match boundaries. All of this stays inert
-until a licensed client-state adapter exists.
+Battlegrounds rating is read only at match boundaries. Those client-memory
+features stay inert until a licensed client-state adapter exists.
 
 ## Performance evidence
 
