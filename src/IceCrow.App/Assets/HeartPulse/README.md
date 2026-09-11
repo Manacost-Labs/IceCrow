@@ -3,7 +3,7 @@
 This directory contains a small, local subset of the public HeartPulse asset
 catalog documented in `Manacost-Labs/HeartPulse/assets.md`.
 
-Source: `https://arena.hs-manacost.ru/`  
+Source: `https://arena.hs-manacost.ru/`
 Catalog: `https://github.com/Manacost-Labs/HeartPulse/blob/main/assets.md`
 
 IceCrow packages the files into its own assembly and never hotlinks them at
