@@ -13,6 +13,7 @@ public sealed class ProfileSyncCoordinatorTests : IDisposable
 
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "icecrow-profile-sync-" + Guid.NewGuid().ToString("N"));
     private readonly ProfileOutbox _outbox;
+    private int _nextMatch;
 
     public ProfileSyncCoordinatorTests()
     {
@@ -178,7 +179,7 @@ public sealed class ProfileSyncCoordinatorTests : IDisposable
         var journalPath = Path.Combine(_directory, "outbox.jsonl");
         using (var seed = new ProfileOutbox(Path.Combine(_directory, "outbox.json")))
         {
-            await seed.EnqueueAsync(CreateMatch());
+            await seed.EnqueueAsync(CreateMatch(0));
         }
 
         var validLine = await File.ReadAllTextAsync(journalPath);
@@ -226,22 +227,25 @@ public sealed class ProfileSyncCoordinatorTests : IDisposable
 
     private async Task<Guid> EnqueueMatchAsync()
     {
-        var profileEvent = CreateMatch();
+        var profileEvent = CreateMatch(_nextMatch++);
         Assert.Equal(ProfileOutboxResult.Enqueued, await _outbox.EnqueueAsync(profileEvent));
         return profileEvent.EventId;
     }
 
-    private static ProfileEvent CreateMatch() => ProfileEvent.Create(
+    private static ProfileEvent CreateMatch(int startOffsetMinutes)
+    {
+        var startedAt = Timestamp.AddMinutes(startOffsetMinutes);
+        return ProfileEvent.Create(
             ProfileEventType.ConstructedMatch,
-            Timestamp,
+            startedAt,
             new ConstructedMatchRecord(
                 Guid.CreateVersion7(),
                 "ranked",
                 "standard",
                 MatchResult.Won,
                 Certainty.Exact,
-                Timestamp,
-                Timestamp.AddMinutes(8),
+                startedAt,
+                startedAt.AddMinutes(8),
                 480,
                 12,
                 "HERO_01",
@@ -253,6 +257,7 @@ public sealed class ProfileSyncCoordinatorTests : IDisposable
                 null,
                 224857,
                 2));
+    }
 
     private sealed class ScriptedTransport(params Func<IReadOnlyList<ProfileEvent>, ProfileUploadResult>[] responses)
         : IProfileSyncTransport

@@ -48,7 +48,7 @@ public sealed class CrossRestartDurabilityTests : IDisposable
     public async Task SeveralOfflineMatchesAllSurviveRestartWithoutDuplicates()
     {
         var offline = new ScriptedTransport(_ => ProfileUploadResult.Unavailable());
-        var matches = Enumerable.Range(0, 5).Select(_ => Match()).ToArray();
+        var matches = Enumerable.Range(0, 5).Select(Match).ToArray();
         await RunProcessAsync(offline, worker =>
         {
             foreach (var match in matches)
@@ -97,13 +97,17 @@ public sealed class CrossRestartDurabilityTests : IDisposable
         await uploader;
     }
 
-    private static ProfileEvent Match() => ProfileEvent.Create(
+    private static ProfileEvent Match(int startOffsetMinutes = 0)
+    {
+        var startedAt = Timestamp.AddMinutes(startOffsetMinutes);
+        return ProfileEvent.Create(
         ProfileEventType.ConstructedMatch,
-        Timestamp,
+        startedAt,
         new ConstructedMatchRecord(
             Guid.CreateVersion7(), "ranked", "standard", MatchResult.Won, Certainty.Exact,
-            Timestamp, Timestamp.AddMinutes(9), 540, 11, "HERO_01", "HERO_02",
+            startedAt, startedAt.AddMinutes(9), 540, 11, "HERO_01", "HERO_02",
             DeckEvidence.Unknown, MulliganRecord.Unknown, null, OpponentDeckEvidence.Unknown, null, 224857, 2));
+    }
 
     private sealed class ScriptedTransport(Func<IReadOnlyList<ProfileEvent>, ProfileUploadResult> respond) : IProfileSyncTransport
     {

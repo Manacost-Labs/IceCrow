@@ -25,13 +25,13 @@ public sealed class ProfilePersistenceWorkerTests : IDisposable
     {
         Directory.CreateDirectory(_directory);
         using var outbox = Outbox();
-        await outbox.EnqueueAsync(Match());
+        await outbox.EnqueueAsync(Match(0));
         using var worker = Worker(outbox);
         var persisted = new List<Guid>();
         worker.Persisted += item => persisted.Add(item.EventId);
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         var run = worker.RunAsync(cancellation.Token);
-        var pending = Match();
+        var pending = Match(1);
 
         using (new FileStream(JournalPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
         {
@@ -57,9 +57,9 @@ public sealed class ProfilePersistenceWorkerTests : IDisposable
     {
         using var outbox = Outbox();
         using var worker = Worker(outbox, capacity: 2);
-        var first = Match();
-        var second = Match();
-        var third = Match();
+        var first = Match(0);
+        var second = Match(1);
+        var third = Match(2);
 
         Assert.Equal(ProfileHandoffResult.Accepted, worker.Accept(first));
         Assert.Equal(ProfileHandoffResult.Accepted, worker.Accept(second));
@@ -82,7 +82,7 @@ public sealed class ProfilePersistenceWorkerTests : IDisposable
     {
         using var outbox = Outbox();
         using var worker = Worker(outbox, capacity: 16);
-        var accepted = Enumerable.Range(0, 10).Select(_ => Match()).ToArray();
+        var accepted = Enumerable.Range(0, 10).Select(Match).ToArray();
         foreach (var item in accepted)
         {
             Assert.Equal(ProfileHandoffResult.Accepted, worker.Accept(item));
@@ -122,10 +122,10 @@ public sealed class ProfilePersistenceWorkerTests : IDisposable
     public async Task OutboxFullIsHeldAndRetriedUntilSpaceReturns()
     {
         using var outbox = new ProfileOutbox(Path.Combine(_directory, "outbox.json"), maximumHistoryItems: 1);
-        var blocker = Match();
+        var blocker = Match(0);
         await outbox.EnqueueAsync(blocker);
         using var worker = Worker(outbox);
-        var held = Match();
+        var held = Match(1);
         Assert.Equal(ProfileHandoffResult.Accepted, worker.Accept(held));
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         var run = worker.RunAsync(cancellation.Token);
@@ -159,11 +159,15 @@ public sealed class ProfilePersistenceWorkerTests : IDisposable
         }
     }
 
-    private static ProfileEvent Match() => ProfileEvent.Create(
+    private static ProfileEvent Match(int startOffsetMinutes = 0)
+    {
+        var startedAt = Timestamp.AddMinutes(startOffsetMinutes);
+        return ProfileEvent.Create(
         ProfileEventType.ConstructedMatch,
-        Timestamp,
+        startedAt,
         new ConstructedMatchRecord(
             Guid.CreateVersion7(), "ranked", "wild", MatchResult.Lost, Certainty.Exact,
-            Timestamp, Timestamp.AddMinutes(5), 300, 8, "HERO_01", "HERO_02",
+            startedAt, startedAt.AddMinutes(5), 300, 8, "HERO_01", "HERO_02",
             DeckEvidence.Unknown, MulliganRecord.Unknown, null, OpponentDeckEvidence.Unknown, null, 224857, 2));
+    }
 }

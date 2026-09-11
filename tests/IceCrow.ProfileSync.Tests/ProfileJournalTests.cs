@@ -24,10 +24,10 @@ public sealed class ProfileJournalTests : IDisposable
     public async Task EnqueueAppendsOneLineWithoutRewritingTheJournal()
     {
         using var outbox = Create();
-        await outbox.EnqueueAsync(Match());
+        await outbox.EnqueueAsync(Match(0));
         var afterFirst = new FileInfo(JournalPath).Length;
 
-        await outbox.EnqueueAsync(Match());
+        await outbox.EnqueueAsync(Match(1));
         var afterSecond = new FileInfo(JournalPath).Length;
 
         Assert.Equal(2, File.ReadAllLines(JournalPath).Length);
@@ -62,7 +62,7 @@ public sealed class ProfileJournalTests : IDisposable
         var ids = new List<Guid>();
         for (var index = 0; index < 4; index++)
         {
-            var match = Match();
+            var match = Match(index);
             ids.Add(match.EventId);
             await outbox.EnqueueAsync(match);
         }
@@ -85,7 +85,7 @@ public sealed class ProfileJournalTests : IDisposable
         var ids = new List<Guid>();
         for (var index = 0; index < ProfileOutbox.CompactionTombstones + 1; index++)
         {
-            var match = Match();
+            var match = Match(index);
             ids.Add(match.EventId);
             await outbox.EnqueueAsync(match);
         }
@@ -129,8 +129,8 @@ public sealed class ProfileJournalTests : IDisposable
     {
         using (var outbox = Create())
         {
-            await outbox.EnqueueAsync(Match());
-            await outbox.EnqueueAsync(Match());
+            await outbox.EnqueueAsync(Match(0));
+            await outbox.EnqueueAsync(Match(1));
         }
 
         var lines = File.ReadAllLines(JournalPath);
@@ -196,15 +196,15 @@ public sealed class ProfileJournalTests : IDisposable
         {
             for (var index = 0; index < 3; index++)
             {
-                Assert.Equal(ProfileOutboxResult.Enqueued, await outbox.EnqueueAsync(Match()));
+                Assert.Equal(ProfileOutboxResult.Enqueued, await outbox.EnqueueAsync(Match(index)));
             }
 
-            Assert.Equal(ProfileOutboxResult.Full, await outbox.EnqueueAsync(Match()));
+            Assert.Equal(ProfileOutboxResult.Full, await outbox.EnqueueAsync(Match(3)));
         }
 
         using var reopened = new ProfileOutbox(Path.Combine(_directory, "outbox.json"), maximumHistoryItems: 3);
         Assert.Equal(3, await reopened.CountAsync());
-        Assert.Equal(ProfileOutboxResult.Full, await reopened.EnqueueAsync(Match()));
+        Assert.Equal(ProfileOutboxResult.Full, await reopened.EnqueueAsync(Match(4)));
     }
 
     [Fact]
@@ -214,7 +214,7 @@ public sealed class ProfileJournalTests : IDisposable
         {
             for (var index = 0; index < 4; index++)
             {
-                Assert.Equal(ProfileOutboxResult.Enqueued, await writer.EnqueueAsync(Match()));
+                Assert.Equal(ProfileOutboxResult.Enqueued, await writer.EnqueueAsync(Match(index)));
             }
         }
 
@@ -229,13 +229,17 @@ public sealed class ProfileJournalTests : IDisposable
 
     private ProfileOutbox Create() => new(Path.Combine(_directory, "outbox.json"));
 
-    private static ProfileEvent Match() => ProfileEvent.Create(
+    private static ProfileEvent Match(int startOffsetMinutes = 0)
+    {
+        var startedAt = Timestamp.AddMinutes(startOffsetMinutes);
+        return ProfileEvent.Create(
         ProfileEventType.ConstructedMatch,
-        Timestamp,
+        startedAt,
         new ConstructedMatchRecord(
             Guid.CreateVersion7(), "ranked", "standard", MatchResult.Won, Certainty.Exact,
-            Timestamp, Timestamp.AddMinutes(7), 420, 10, "HERO_01", "HERO_02",
+            startedAt, startedAt.AddMinutes(7), 420, 10, "HERO_01", "HERO_02",
             DeckEvidence.Unknown, MulliganRecord.Unknown, null, OpponentDeckEvidence.Unknown, null, 224857, 2));
+    }
 
     private static CollectionSnapshotRecord Collection(string hash) =>
         new(Timestamp, hash, [new CollectionCardRecord("CS2_029", 2, 0, null, null)]);
