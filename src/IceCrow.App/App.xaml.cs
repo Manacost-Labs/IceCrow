@@ -35,6 +35,8 @@ public partial class App : Application, IAsyncDisposable
         _historyWindow.UnlinkRequested += OnProfileUnlinkRequested;
         _historyWindow.CancelLinkRequested += OnProfileLinkCancelled;
         _historyWindow.VerificationPageRequested += OnVerificationPageRequested;
+        _historyWindow.DeckActivationRequested += OnDeckActivationRequested;
+        _historyWindow.DeckClearRequested += OnDeckClearRequested;
         _historyWindow.Show();
 
 #if DEBUG
@@ -56,10 +58,12 @@ public partial class App : Application, IAsyncDisposable
             OnTelemetryStatusChanged,
             OnProfileSyncStatusChanged,
             OnHistoryChanged,
+            OnActiveDeckChanged,
             OnCaptureStatusChanged,
             ReportRecoverableLogError,
             ReportLogStatus,
             typeof(App).Assembly.GetName().Version?.ToString() ?? "0.0.0");
+        _historyWindow.SetCardNameResolver(cardId => _runtime.CardDatabase.GetByCardId(cardId)?.Name);
 
 #if DEBUG
         var runtime = _runtime;
@@ -161,6 +165,8 @@ public partial class App : Application, IAsyncDisposable
 
     private void OnManacostDataStatusChanged(ManacostDataStatus status)
     {
+        _ = Dispatcher.BeginInvoke(() =>
+            _historyWindow?.SetCardNameResolver(cardId => _runtime?.CardDatabase.GetByCardId(cardId)?.Name));
 #if DEBUG
         _developerDiagnosticsPresenter?.PublishManacostDataStatus(status);
 #else
@@ -206,6 +212,9 @@ public partial class App : Application, IAsyncDisposable
     private void OnHistoryChanged(ProfileHistorySnapshot snapshot) =>
         _ = Dispatcher.BeginInvoke(() => _historyWindow?.ApplySnapshot(snapshot));
 
+    private void OnActiveDeckChanged(ActiveDeckState state) =>
+        _ = Dispatcher.BeginInvoke(() => _historyWindow?.SetActiveDeckState(state));
+
     private void ReportRecoverableLogError(Exception exception)
     {
         Debug.WriteLine(exception);
@@ -248,6 +257,8 @@ public partial class App : Application, IAsyncDisposable
             _historyWindow.UnlinkRequested -= OnProfileUnlinkRequested;
             _historyWindow.CancelLinkRequested -= OnProfileLinkCancelled;
             _historyWindow.VerificationPageRequested -= OnVerificationPageRequested;
+            _historyWindow.DeckActivationRequested -= OnDeckActivationRequested;
+            _historyWindow.DeckClearRequested -= OnDeckClearRequested;
             _historyWindow.Closed -= OnHistoryWindowClosed;
             _historyWindow = null;
         }
@@ -342,4 +353,20 @@ public partial class App : Application, IAsyncDisposable
     private void OnProfileLinkCancelled() => _profileLinkCancellation?.Cancel();
 
     private static void OnVerificationPageRequested(Uri uri) => ProfileLinkCommand.OpenVerificationPage(uri);
+
+    private async void OnDeckActivationRequested(string? name, string importText)
+    {
+        if (_runtime is { } runtime)
+        {
+            await runtime.ActivateDeckAsync(name, importText, CancellationToken.None);
+        }
+    }
+
+    private async void OnDeckClearRequested()
+    {
+        if (_runtime is { } runtime)
+        {
+            await runtime.ClearActiveDeckAsync(CancellationToken.None);
+        }
+    }
 }

@@ -1,47 +1,43 @@
-# IceCrow history window design QA
+# IceCrow deck tracking design QA
 
-- Source visual truth: `C:\Users\zulut\AppData\Local\Temp\codex-clipboard-f033657a-8fcf-4ff6-b4c8-94cadc4e78ea.png`
-- Implementation screenshot: `C:\Users\zulut\AppData\Local\Temp\icecrow-history-standard-final.png`
-- Combined comparison: `C:\Users\zulut\AppData\Local\Temp\icecrow-design-qa-comparison.png`
-- Viewport: 1180 × 760 logical pixels at the current Windows desktop scale.
-- Source pixels: 1172 × 1179. Implementation pixels: 1180 × 760. The source is a cropped defect annotation and was compared at native density; no size-based fidelity judgement was made outside the shared match-history region.
-- State: Standard match-history route, local account not linked.
+- Source visual truth: `C:\Users\zulut\AppData\Local\Temp\codex-clipboard-0b44e086-e931-4648-8859-9f29ac18d911.png`
+- Match implementation: `C:\Users\zulut\Documents\IceCrow\.git\testagent\history-preview\history-matches.png`
+- Deck implementation: `C:\Users\zulut\Documents\IceCrow\.git\testagent\history-preview\history-decks.png`
+- Source pixels: 990 × 940. Implementation viewport: 1180 × 760 logical pixels at 96 DPI.
+- State: Standard history plus the active-deck and deck-statistics route.
 
 ## Full-view comparison evidence
 
-The implementation preserves the HearthPulse parchment, red rail, gold divider, display type and compact card treatment. The annotated native mode selector has been removed and replaced by persistent mode navigation in the left rail. Native list scrollbars are hidden while mouse-wheel scrolling remains available. The standard Windows title bar and frame are replaced with an application-owned title bar using the same rail texture and colour tokens.
+The source is a cropped current-state screenshot, so it is evidence of the raw-data problem rather than a desired full-window reference. The implementation was inspected at the application's normal 1180 × 760 viewport. It preserves the HearthPulse parchment, red rail, gold dividers, compact cards and application-owned title bar.
 
-## Focused region comparison evidence
+The match list now presents user-facing outcomes (`Победа`, `Поражение`, `Неполная запись`), a readable deck label and compact date/time. Raw card identifiers are replaced with a loading-safe hero description until the card database resolves a localized name. The detail panel explains whether the result was confirmed or the log ended without one.
 
-The comparison focused on the source's two annotated defects: the filter row and the match-list scrollbar. Both are absent in the implementation. The selected mode is visible in the left rail and repeated as the page title, so the current filter remains discoverable without the removed ComboBox. The custom title bar was additionally inspected in normal and maximized states.
+## Deck statistics evidence
+
+The deck route visibly contains:
+
+- the active deck name and mode;
+- a labelled name field and Hearthstone deck-code/export field;
+- an explicit action to use or clear the deck;
+- grouped statistics for the same canonical deck code;
+- win rate calculated only from known wins and losses;
+- total games, win-loss record and a separate count of games without a result.
+
+The captured example shows `Контроль воин`, `Винрейт 50,0 %`, `3 матча · 1–1 · без итога: 1`, and the evidence label `Выбрана вручную перед матчем`.
 
 ## Required fidelity surfaces
 
-- Fonts and typography: HearthPulse display font remains limited to titles and headings; Segoe UI remains legible for dense history and account content. No unexpected wrapping was observed at 1180 × 760.
-- Spacing and layout rhythm: the 244 px rail, 38 px title bar, 30 px content inset and 16–18 px panel gaps remain consistent. Search now uses a stable 480 px width.
-- Colours and tokens: every new surface uses existing HearthPulse brushes; no colour literal was added outside the design-token dictionaries.
-- Image quality and assets: existing parchment, red rail and divider textures remain sharp and correctly cropped. No replacement placeholder or synthetic decorative asset was introduced.
-- Copy and content: navigation names match the four supported modes; account copy explicitly preserves local history when disconnected.
-
-## Interaction checks
-
-- Standard, Arena and Battlegrounds routes opened from the left rail.
-- Mode route selection updated the page title and filtered match rows.
-- Custom maximize button expanded the window; a title-bar double click restored it to 1180 × 760.
-- HearthPulse account page opened without starting or approving an OAuth flow.
+- Typography: display type remains limited to headings; dense content uses the existing readable UI font.
+- Spacing: the 244 px rail, 30 px content inset and panel gaps remain aligned at 1180 × 760.
+- Colours and assets: the change reuses existing HearthPulse brushes and textures; no colour literal or placeholder artwork was added.
+- Overflow: no horizontal or native list scrollbar is visible; mouse-wheel scrolling remains available.
+- Copy: raw enum names, confidence values, card IDs and deck hashes are not exposed in the inspected states.
 
 ## Findings
 
-No actionable P0, P1 or P2 visual mismatch remains for the requested changes.
+No actionable P0, P1 or P2 visual mismatch remains for the requested states.
 
-## Comparison history
-
-- First pass: the overview list exposed a native Windows scrollbar once additional history rows appeared, and the search field collapsed to its minimum content width.
-- Fixes: hid scrollbars on all history/deck lists, kept wheel scrolling, set search width to 480 px, and shortened the rail subtitle to prevent clipping.
-- Post-fix evidence: the final 1180 × 760 capture shows no native selector or scrollbar, a stable search field, complete rail labels and application-owned chrome.
-
-## Follow-up polish
-
-- P3: replace the textual window controls with a licensed icon set if one is added to the product asset system later.
+- P3: localized hero names depend on the existing card-data load; a neutral human message is shown until it completes.
+- P3: automatic current-deck discovery still requires a licensed client-state adapter. The shipped workflow is an explicit one-time Hearthstone deck import and says so in the UI.
 
 final result: passed

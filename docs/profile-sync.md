@@ -37,12 +37,19 @@ it; mapping into records may only keep or lower it.
 | Opponent deck | observed card ids only (`Partial`), never a code | Unknown |
 | Battlegrounds placement | `PLAYER_LEADERBOARD_PLACE` on the local player | Unknown |
 | Battlegrounds final board | own warband at the first attack of each combat, frozen at completion (`Exact` only from the final turn, else `Partial`) | null |
-| Own selected deck, Arena draft/run/rating, Battlegrounds MMR | current client state through `IceCrow.Hearthstone.ClientState` sources; **no HearthMirror adapter ships** (`docs/hearthmirror-research.md`) | Unknown / null |
+| Own deck used for Standard/Wild statistics | Explicit active deck code selected locally before `CREATE_GAME`; the association is `Inferred` because IceCrow cannot prove the in-client selection | Unknown |
+| Live own selected deck, Arena draft/run/rating, Battlegrounds MMR | current client state through `IceCrow.Hearthstone.ClientState` sources; **no HearthMirror adapter ships** (`docs/hearthmirror-research.md`) | Unknown / null |
 | Owned collection | complete Manacost HDT Collection Exporter schema-v3 JSON snapshot | Exact at `exportedAt`; unavailable before the first export and stale after later client changes |
 
 Player names, account ids, raw `Power.log`, and server game handles are never
 stored. `gameJoinEvidence` stays null until an authoritative handle source
 exists; IceCrow never fabricates a join key from timestamps.
+
+The active deck is stored as a bounded validated deckstring in
+`%LOCALAPPDATA%\IceCrow\decks\active.json`. `ProfileRecordPipeline` snapshots
+the immutable selection at `CREATE_GAME`; changing the UI while a match is in
+progress affects only the next match. Format mismatches and selections made
+after match start are rejected instead of being attached retroactively.
 
 ## Data flow
 

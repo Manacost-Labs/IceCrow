@@ -14,7 +14,7 @@ namespace IceCrow.Tracking.Constructed;
 /// <c>STATE=COMPLETE</c>, carrying whatever terminal <c>PLAYSTATE</c> preceded
 /// it (a terminal playstate after COMPLETE is ignored). A game still open at
 /// the next <c>CREATE_GAME</c> is closed by that boundary and emitted only
-/// when a result or at least one turn was observed in a supported mode.
+/// when a result or progress beyond the initial turn was observed in a supported mode.
 /// Game-scoped tags (<c>TURN</c>, <c>STATE</c>) are read from the declared
 /// game entity, or from any entity while none was declared. Metadata that
 /// arrives after a completed game and before the next boundary is kept for
@@ -244,7 +244,10 @@ public sealed class ConstructedMatchTracker
             return null;
         }
 
-        if (closedByBoundary && !_observation.HasResult && _turns < 1)
+        // TURN=1 belongs to the initial game shell and also appears in client
+        // transitions that never became a playable match. Without a result,
+        // require evidence that play advanced beyond that shell.
+        if (closedByBoundary && !_observation.HasResult && _turns <= 1)
         {
             return null;
         }

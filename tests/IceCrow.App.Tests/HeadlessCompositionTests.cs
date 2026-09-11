@@ -105,7 +105,7 @@ public sealed class HeadlessCompositionTests : IDisposable
         var pending = Assert.Single(await outbox.PeekBatchAsync(10));
         Assert.Equal(ProfileEventType.CollectionSnapshot, pending.Type);
         Assert.Equal("COLLECTION_CARD", pending.Payload.GetProperty("cards")[0].GetProperty("cardId").GetString());
-        Assert.Equal(CollectionSyncOutcome.Enqueued, profileSync.CollectionStatus.LastOutcome);
+        Assert.Equal(CollectionSyncOutcome.Enqueued, await WaitForCollectionOutcomeAsync(profileSync));
 
         profileSync.Complete();
         cancellation.Cancel();
@@ -198,6 +198,7 @@ public sealed class HeadlessCompositionTests : IDisposable
         static _ => { },
         static _ => { },
         static _ => { },
+        static _ => { },
         "0.0.0-test");
 
     private static async Task<int> WaitForOutboxAsync(string outboxPath)
@@ -216,6 +217,21 @@ public sealed class HeadlessCompositionTests : IDisposable
 
         using var finalOutbox = new ProfileOutbox(outboxPath);
         return await finalOutbox.CountAsync();
+    }
+
+    private static async Task<CollectionSyncOutcome?> WaitForCollectionOutcomeAsync(ProfileSyncRuntime runtime)
+    {
+        for (var attempt = 0; attempt < 100; attempt++)
+        {
+            if (runtime.CollectionStatus.LastOutcome is { } outcome)
+            {
+                return outcome;
+            }
+
+            await Task.Delay(20);
+        }
+
+        return runtime.CollectionStatus.LastOutcome;
     }
 
     private static bool IsOverlayAssemblyLoaded() =>

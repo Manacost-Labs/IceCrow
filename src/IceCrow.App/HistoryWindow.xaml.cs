@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using IceCrow.App.History;
+using IceCrow.App.Runtime;
 using IceCrow.ProfileSync;
 using IceCrow.ProfileSync.History;
 
@@ -15,6 +16,9 @@ public partial class HistoryWindow : Window
     private readonly ObservableCollection<MatchHistoryRow> _recent = [];
     private readonly ObservableCollection<DeckHistoryRow> _decks = [];
     private IReadOnlyList<MatchHistoryRow> _allMatches = [];
+    private ProfileHistorySnapshot _snapshot = ProfileHistorySnapshot.Empty;
+    private ActiveDeckState _activeDeckState = ActiveDeckState.Empty;
+    private Func<string, string?>? _resolveCardName;
     private ProfileSyncStatus _syncStatus = ProfileSyncStatus.Initial;
     private ProfileLinkUpdate? _linkUpdate;
     private Uri? _verificationUri;
@@ -27,6 +31,10 @@ public partial class HistoryWindow : Window
     public event Action? CancelLinkRequested;
 
     public event Action<Uri>? VerificationPageRequested;
+
+    public event Action<string?, string>? DeckActivationRequested;
+
+    public event Action? DeckClearRequested;
 
     public HistoryWindow()
     {
@@ -42,7 +50,47 @@ public partial class HistoryWindow : Window
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         Dispatcher.VerifyAccess();
-        _allMatches = snapshot.Matches.Select(MatchHistoryRow.From).ToArray();
+        _snapshot = snapshot;
+        RefreshHistory();
+    }
+
+    internal void SetActiveDeckState(ActiveDeckState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        Dispatcher.VerifyAccess();
+        _activeDeckState = state;
+        ActiveDeckName.Text = state.Selection?.Name ?? "Колода не выбрана";
+        ActiveDeckMode.Text = state.Selection is { } selection
+            ? $"{ModeText(selection.Format)} · будет применена к следующему матчу"
+            : "Вставьте код один раз — выбор сохранится после перезапуска.";
+        DeckSelectionMessage.Text = state.Message;
+        DeckSelectionMessage.Foreground = state.IsError
+            ? FindBrush("HeartPulse.Brush.Negative")
+            : FindBrush("HeartPulse.Brush.InkMuted");
+        ClearDeckButton.IsEnabled = state.Selection is not null;
+        if (!state.IsError && state.Selection is not null)
+        {
+            DeckNameBox.Clear();
+            DeckImportBox.Clear();
+        }
+
+        RefreshHistory();
+    }
+
+    internal void SetCardNameResolver(Func<string, string?> resolveCardName)
+    {
+        ArgumentNullException.ThrowIfNull(resolveCardName);
+        Dispatcher.VerifyAccess();
+        _resolveCardName = resolveCardName;
+        RefreshHistory();
+    }
+
+    private void RefreshHistory()
+    {
+        var activeDeck = _activeDeckState.Selection;
+        _allMatches = _snapshot.Matches
+            .Select(match => MatchHistoryRow.From(match, activeDeck, _resolveCardName))
+            .ToArray();
 
         _recent.Clear();
         foreach (var row in _allMatches.Take(8))
@@ -51,18 +99,20 @@ public partial class HistoryWindow : Window
         }
 
         _decks.Clear();
-        foreach (var deck in snapshot.Decks.Select(DeckHistoryRow.From))
+        for (var index = 0; index < _snapshot.Decks.Length; index++)
         {
-            _decks.Add(deck);
+            _decks.Add(DeckHistoryRow.From(_snapshot.Decks[index], index, activeDeck));
         }
 
-        TotalMatches.Text = snapshot.Matches.Length.ToString(CultureInfo.CurrentCulture);
-        TotalWins.Text = snapshot.Wins.ToString(CultureInfo.CurrentCulture);
-        TotalLosses.Text = snapshot.Losses.ToString(CultureInfo.CurrentCulture);
-        TotalBattlegrounds.Text = snapshot.BattlegroundsGames.ToString(CultureInfo.CurrentCulture);
-        ArchiveStatus.Text = snapshot.RecoveredTruncatedTail
-            ? $"Сохранено матчей: {snapshot.Matches.Length} · восстановлен незавершённый хвост файла"
-            : $"Сохранено матчей: {snapshot.Matches.Length}";
+        TotalMatches.Text = _snapshot.MatchesWithResult.ToString(CultureInfo.CurrentCulture);
+        TotalWins.Text = _snapshot.Wins.ToString(CultureInfo.CurrentCulture);
+        TotalLosses.Text = _snapshot.Losses.ToString(CultureInfo.CurrentCulture);
+        TotalBattlegrounds.Text = _snapshot.BattlegroundsGames.ToString(CultureInfo.CurrentCulture);
+        var incomplete = _snapshot.Matches.Length - _snapshot.MatchesWithResult;
+        var incompleteText = incomplete > 0 ? $" · неполных записей: {incomplete}" : string.Empty;
+        ArchiveStatus.Text = _snapshot.RecoveredTruncatedTail
+            ? $"Сохранено матчей: {_snapshot.Matches.Length}{incompleteText} · восстановлен незавершённый хвост файла"
+            : $"Сохранено матчей: {_snapshot.Matches.Length}{incompleteText}";
         ApplyFilter();
     }
 
@@ -151,6 +201,7 @@ public partial class HistoryWindow : Window
             DetailDuration.Text = "—";
             DetailPlayerHero.Text = "—";
             DetailOpponentHero.Text = "—";
+            DetailDeck.Text = "—";
             DetailConfidence.Text = "—";
             return;
         }
@@ -161,6 +212,7 @@ public partial class HistoryWindow : Window
         DetailDuration.Text = $"{row.Duration} · {row.Match.Turns} ходов";
         DetailPlayerHero.Text = row.PlayerHero;
         DetailOpponentHero.Text = row.OpponentHero;
+        DetailDeck.Text = row.Deck;
         DetailConfidence.Text = row.Confidence;
     }
 
@@ -282,6 +334,20 @@ public partial class HistoryWindow : Window
         }
     }
 
+    private void OnActivateDeck(object sender, RoutedEventArgs eventArgs)
+    {
+        _ = sender;
+        eventArgs.Handled = true;
+        DeckActivationRequested?.Invoke(DeckNameBox.Text, DeckImportBox.Text);
+    }
+
+    private void OnClearDeck(object sender, RoutedEventArgs eventArgs)
+    {
+        _ = sender;
+        eventArgs.Handled = true;
+        DeckClearRequested?.Invoke();
+    }
+
     private void RenderAccountState()
     {
         var viewState = HearthPulseAccountViewState.Create(_syncStatus, _linkUpdate);
@@ -294,4 +360,11 @@ public partial class HistoryWindow : Window
         AccountTitle.Text = viewState.Title;
         AccountDescription.Text = viewState.Description;
     }
+
+    private static string ModeText(string format) => format == "standard"
+        ? "Стандарт"
+        : "Вольный режим";
+
+    private System.Windows.Media.Brush FindBrush(string key) =>
+        (System.Windows.Media.Brush)FindResource(key);
 }

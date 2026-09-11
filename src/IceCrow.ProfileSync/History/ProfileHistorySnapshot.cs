@@ -11,7 +11,7 @@ public enum HistoryGameMode
     Battlegrounds,
 }
 
-/// <summary>Immutable user-facing evidence for one completed game.</summary>
+/// <summary>Immutable user-facing evidence for one retained game record.</summary>
 public sealed record HistoryMatch(
     Guid EventId,
     Guid MatchId,
@@ -40,6 +40,7 @@ public sealed record HistoryDeck(
     int Wins,
     int Losses,
     int Ties,
+    int UnknownResults,
     DateTimeOffset LastPlayedAt);
 
 /// <summary>Bounded immutable read model. No WPF or mutable entity enters history.</summary>
@@ -57,4 +58,9 @@ public sealed record ProfileHistorySnapshot(
     public int Losses => Matches.Count(static match => match.Result == MatchResult.Lost);
 
     public int BattlegroundsGames => Matches.Count(static match => match.Mode == HistoryGameMode.Battlegrounds);
+
+    public int MatchesWithResult => Matches.Count(static match =>
+        match.Mode == HistoryGameMode.Battlegrounds
+            ? match.Placement is not null
+            : match.Result != MatchResult.Unknown);
 }

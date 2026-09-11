@@ -54,7 +54,58 @@ public sealed class ProfileHistoryProjectionTests
         Assert.Equal(2, deck.Games);
         Assert.Equal(1, deck.Wins);
         Assert.Equal(1, deck.Losses);
+        Assert.Equal(0, deck.UnknownResults);
         Assert.Equal(Timestamp.AddMinutes(2), deck.LastPlayedAt);
+    }
+
+    [Fact]
+    public void UnknownResultIsExcludedFromWinRateInputsAndEmptyBoundaryRecordIsHidden()
+    {
+        var deck = new DeckEvidence("DECK_CODE", null, Certainty.Inferred);
+        var won = Constructed("standard", MatchResult.Won, Timestamp.AddMinutes(3), deck);
+        var unknown = Constructed("standard", MatchResult.Unknown, Timestamp.AddMinutes(4), deck);
+        var emptyBoundary = Constructed("standard", MatchResult.Unknown, Timestamp, deck);
+        emptyBoundary = emptyBoundary with
+        {
+            Payload = ProfileEvent.Create(
+                ProfileEventType.ConstructedMatch,
+                Timestamp,
+                new ConstructedMatchRecord(
+                    Guid.CreateVersion7(), "ranked", "standard", MatchResult.Unknown, Certainty.Unknown,
+                    Timestamp, Timestamp, 0, 1, null, null, deck, MulliganRecord.Unknown,
+                    null, OpponentDeckEvidence.Unknown, null, 224857, 2)).Payload,
+        };
+
+        var snapshot = ProfileHistoryProjection.Create([won, unknown, emptyBoundary]);
+        var aggregate = Assert.Single(snapshot.Decks);
+
+        Assert.Equal(2, snapshot.Matches.Length);
+        Assert.Equal(1, snapshot.SkippedEvents);
+        Assert.Equal(1, snapshot.MatchesWithResult);
+        Assert.Equal(2, aggregate.Games);
+        Assert.Equal(1, aggregate.Wins);
+        Assert.Equal(0, aggregate.Losses);
+        Assert.Equal(1, aggregate.UnknownResults);
+    }
+
+    [Fact]
+    public void SameCanonicalDeckCodeStaysOneDeckWhenOneRecordAlsoHasAHash()
+    {
+        var first = Constructed(
+            "standard",
+            MatchResult.Won,
+            Timestamp.AddMinutes(1),
+            new DeckEvidence("DECK_CODE", null, Certainty.Inferred));
+        var second = Constructed(
+            "standard",
+            MatchResult.Lost,
+            Timestamp.AddMinutes(2),
+            new DeckEvidence("DECK_CODE", "abcdef0123456789", Certainty.Exact));
+
+        var deck = Assert.Single(ProfileHistoryProjection.Create([first, second]).Decks);
+
+        Assert.Equal(2, deck.Games);
+        Assert.Equal("DECK_CODE", deck.DeckCode);
     }
 
     [Fact]

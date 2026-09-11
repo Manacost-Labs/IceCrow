@@ -34,10 +34,13 @@ and diagnostic performance baselines are documented in the
 - Real owned-card collection import from complete schema-v3 snapshots produced
   by the Manacost HDT Collection Exporter, with bounded validation, canonical
   hash deduplication, and latest-only authenticated profile sync.
-- A normal Release UI with overview, searchable mode filters, match details,
-  and exact-known deck aggregates backed by a permanent local archive. The
-  archive remains available when HearthPulse sync is disabled and is not
-  cleared when the server acknowledges an upload.
+- A normal Release UI with overview, searchable mode filters, readable match
+  details, and per-deck games/wins/losses/win-rate backed by a permanent local
+  archive. Until a licensed live selected-deck adapter exists, the user selects
+  an active Standard/Wild deck once by pasting its Hearthstone code; IceCrow
+  snapshots that choice at game start and never counts unknown results in the
+  win rate. The archive remains available when HearthPulse sync is disabled and
+  is not cleared when the server acknowledges an upload.
 
 IceCrow does **not** automate gameplay, click Hearthstone controls, install global keyboard hooks, call an AI service, contain a shared Manacost token, or require a backend.
 

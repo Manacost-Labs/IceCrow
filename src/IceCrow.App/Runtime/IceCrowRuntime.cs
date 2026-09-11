@@ -1,5 +1,7 @@
 using System.Windows.Threading;
 using IceCrow.Hearthstone.Logs;
+using IceCrow.Hearthstone.Data;
+using IceCrow.Hearthstone.Decks;
 using IceCrow.Infrastructure.ManacostApi;
 using IceCrow.Live;
 using IceCrow.ProfileSync;
@@ -15,6 +17,7 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
     private readonly IOverlayPresentation? _presentation;
     private readonly ProfileSyncRuntime? _profileSync;
     private readonly ProfileHistoryRuntime _history;
+    private readonly ActiveDeckRuntime _activeDeck;
     private readonly RecordingRuntime? _recording;
     private readonly LiveRuntime _live;
     private readonly ProfileRecordPipeline _profileRecords;
@@ -33,6 +36,7 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
         Action<bool, int, DateTimeOffset?> onTelemetryStatusChanged,
         Action<ProfileSyncStatus> onProfileSyncStatusChanged,
         Action<ProfileHistorySnapshot> onHistoryChanged,
+        Action<ActiveDeckState> onActiveDeckChanged,
         Action<RecordingCaptureStatus> onCaptureStatusChanged,
         Action<Exception> onRecoverableLogError,
         Action<string> onLogStatus,
@@ -58,9 +62,15 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
             localDataDirectory,
             onHistoryChanged,
             failure => onLogStatus($"Match history unavailable: {failure}"));
+        _activeDeck = new ActiveDeckRuntime(
+            localDataDirectory,
+            new ManacostDeckCodec(_data.Database),
+            _data.Database,
+            onActiveDeckChanged);
         _profileRecords = new ProfileRecordPipeline(
             PublishProfileRecord,
-            _profileSync is { } profileSync ? profileSync.SetGameplayActive : static _ => { });
+            _profileSync is { } profileSync ? profileSync.SetGameplayActive : static _ => { },
+            getSelectedDeck: () => _activeDeck.Current?.Snapshot);
         // Developer match capture is a Debug-only feature. Release composes a
         // null observer so the live hot path pays exactly one null check per
         // notification point and no capture lock or interface call per event.
@@ -93,6 +103,10 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
 
     public ProfileHistoryRuntime History => _history;
 
+    public ICardDatabase CardDatabase => _data.Database;
+
+    public ActiveDeckSelection? ActiveDeck => _activeDeck.Current;
+
     /// <summary>Profile records produced from finished matches for local history and optional sync.</summary>
     public ProfileRecordPipeline ProfileRecords => _profileRecords;
 
@@ -116,7 +130,7 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
             _telemetry.RunAsync(_shutdown.Token),
             _profileSync?.RunAsync(_shutdown.Token) ?? Task.CompletedTask,
             _history.RunAsync(_shutdown.Token),
-            _live.RunAsync(_shutdown.Token),
+            RunLiveAfterDeckInitializationAsync(_shutdown.Token),
         ];
     }
 
@@ -150,6 +164,7 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
             }
 
             _history.Dispose();
+            _activeDeck.Dispose();
 
             await _data.DisposeAsync().ConfigureAwait(false);
             if (_presentation is not null)
@@ -185,11 +200,26 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
         _shutdown.Cancel();
     }
 
+    public Task<ActiveDeckState> ActivateDeckAsync(
+        string? name,
+        string importText,
+        CancellationToken cancellationToken = default) =>
+        _activeDeck.ActivateAsync(name, importText, cancellationToken);
+
+    public Task<ActiveDeckState> ClearActiveDeckAsync(CancellationToken cancellationToken = default) =>
+        _activeDeck.ClearAsync(cancellationToken);
+
     private bool PublishProfileRecord(ProfileEvent profileEvent)
     {
         var archived = _history.TryQueue(profileEvent) == ProfileHandoffResult.Accepted;
         _ = _profileSync?.TryQueue(profileEvent);
         return archived;
+    }
+
+    private async Task RunLiveAfterDeckInitializationAsync(CancellationToken cancellationToken)
+    {
+        await _activeDeck.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        await _live.RunAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private void OnSessionProcessed(GameSessionUpdate update)

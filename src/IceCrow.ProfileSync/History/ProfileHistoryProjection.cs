@@ -62,7 +62,9 @@ public static class ProfileHistoryProjection
     private static HistoryMatch? FromConstructed(ProfileEvent profileEvent)
     {
         var record = profileEvent.Payload.Deserialize<ConstructedMatchRecord>(ProfileJson.Options);
-        if (record is null || !ValidMatch(record.MatchId, record.StartedAt, record.EndedAt))
+        if (record is null ||
+            !ValidMatch(record.MatchId, record.StartedAt, record.EndedAt) ||
+            IsEmptyBoundaryRecord(record))
         {
             return null;
         }
@@ -156,22 +158,33 @@ public static class ProfileHistoryProjection
             .Where(static match =>
                 match.DeckConfidence != Certainty.Unknown &&
                 (match.DeckCode is not null || match.DeckHash is not null))
-            .GroupBy(static match => new DeckKey(match.Mode, match.DeckCode, match.DeckHash))
+            .GroupBy(static match => new DeckKey(
+                match.Mode,
+                match.DeckCode,
+                match.DeckCode is null ? match.DeckHash : null))
             .Select(static group => new HistoryDeck(
                 group.Key.Mode,
                 group.Key.DeckCode,
-                group.Key.DeckHash,
+                group.Key.DeckHash ?? group
+                    .Select(static match => match.DeckHash)
+                    .FirstOrDefault(static hash => hash is not null),
                 group.Min(static match => match.DeckConfidence),
                 group.Count(),
                 group.Count(static match => match.Result == MatchResult.Won),
                 group.Count(static match => match.Result == MatchResult.Lost),
                 group.Count(static match => match.Result == MatchResult.Tied),
+                group.Count(static match => match.Result == MatchResult.Unknown),
                 group.Max(static match => match.EndedAt)))
             .OrderByDescending(static deck => deck.LastPlayedAt)
             .ToImmutableArray();
 
     private static bool ValidMatch(Guid matchId, DateTimeOffset startedAt, DateTimeOffset endedAt) =>
         matchId != Guid.Empty && endedAt >= startedAt;
+
+    private static bool IsEmptyBoundaryRecord(ConstructedMatchRecord record) =>
+        record.Result == MatchResult.Unknown &&
+        record.DurationSeconds == 0 &&
+        record.Turns <= 1;
 
     private static string? BoundedCardId(string? value) =>
         value is { Length: > 0 and <= ProfileRecordLimits.MaximumCardIdLength } ? value : null;

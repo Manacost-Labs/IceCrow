@@ -1,5 +1,6 @@
 using IceCrow.ProfileSync.Factories;
 using IceCrow.ProfileSync.Records;
+using IceCrow.Hearthstone.ClientState;
 using IceCrow.Tracking;
 using IceCrow.Tracking.Constructed;
 
@@ -49,6 +50,66 @@ public sealed class ConstructedRecordFactoryTests
         var record = ConstructedRecordFactory.CreateRanked(Summary(format: ConstructedFormat.Wild), MatchId);
 
         Assert.Equal("wild", record?.Format);
+    }
+
+    [Fact]
+    public void SelectedDeckObservedBeforeStartIsAttachedWithExplicitAssociationCertainty()
+    {
+        var selected = new SelectedDeckSnapshot(
+            Timestamp.AddMinutes(-1),
+            "AAEBAQcBBAMBAgMAAA==",
+            "HERO_01",
+            "standard",
+            ["CARD_B", "CARD_A", "CARD_A"]);
+
+        var record = ConstructedRecordFactory.CreateRanked(
+            Summary(),
+            MatchId,
+            selected,
+            Certainty.Inferred);
+
+        Assert.NotNull(record);
+        Assert.Equal("AAEBAQcBBAMBAgMAAA==", record.PlayerDeck.DeckCode);
+        Assert.Equal(DeckHash.Compute(["CARD_A", "CARD_A", "CARD_B"]), record.PlayerDeck.DeckHash);
+        Assert.Equal(Certainty.Inferred, record.PlayerDeck.Confidence);
+    }
+
+    [Theory]
+    [InlineData("wild", -1)]
+    [InlineData("standard", 1)]
+    public void MismatchedOrLateSelectedDeckIsNotAttached(string format, int observedMinute)
+    {
+        var selected = new SelectedDeckSnapshot(
+            Timestamp.AddMinutes(observedMinute),
+            "AAEBAQcBBAMBAgMAAA==",
+            null,
+            format,
+            []);
+
+        var record = ConstructedRecordFactory.CreateRanked(
+            Summary(),
+            MatchId,
+            selected,
+            Certainty.Inferred);
+
+        Assert.Same(DeckEvidence.Unknown, record?.PlayerDeck);
+    }
+
+    [Theory]
+    [InlineData(Certainty.Unknown)]
+    [InlineData((Certainty)99)]
+    public void SelectedDeckWithoutSupportedAssociationCertaintyIsNotAttached(Certainty certainty)
+    {
+        var selected = new SelectedDeckSnapshot(
+            Timestamp.AddMinutes(-1),
+            "AAEBAQcBBAMBAgMAAA==",
+            null,
+            "standard",
+            []);
+
+        var record = ConstructedRecordFactory.CreateRanked(Summary(), MatchId, selected, certainty);
+
+        Assert.Same(DeckEvidence.Unknown, record?.PlayerDeck);
     }
 
     [Fact]

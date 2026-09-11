@@ -25,7 +25,7 @@ internal static class HistoryNavigation
         "matches:wild" => Matches("wild", "Вольный режим"),
         "matches:arena" => Matches("arena", "Арена"),
         "matches:battlegrounds" => Matches("battlegrounds", "Поля сражений"),
-        "decks" => new(HistoryPage.Decks, "all", "Колоды", "Только подтверждённые составы и результаты"),
+        "decks" => new(HistoryPage.Decks, "all", "Колоды", "Активная колода и её подтверждённые результаты"),
         "profile" => new(HistoryPage.Profile, "all", "HearthPulse", "Безопасное подключение профиля через браузер"),
         _ => new(HistoryPage.Overview, "all", "Обзор", "Локальная история работает даже без сервера"),
     };

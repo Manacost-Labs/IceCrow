@@ -1,5 +1,6 @@
 using IceCrow.App.Runtime;
 using IceCrow.Hearthstone.Logs;
+using IceCrow.Hearthstone.ClientState;
 using IceCrow.Live;
 using IceCrow.ProfileSync;
 
@@ -129,6 +130,94 @@ public sealed class ProfileRecordPipelineTests
             second.Select(static item => item.Payload.GetProperty("matchId").GetGuid()));
         Assert.Equal(2, first.Count);
         Assert.Equal(2, first.Select(static item => item.EventId).Distinct().Count());
+    }
+
+    [Fact]
+    public void DeckSelectionIsSnapshottedAtGameStart()
+    {
+        var events = new List<ProfileEvent>();
+        var selection = new SelectedDeckSnapshot(
+            Timestamp.AddMinutes(-1),
+            "FIRST_DECK",
+            null,
+            "standard",
+            []);
+        var coordinator = new GameSessionCoordinator();
+        var pipeline = new ProfileRecordPipeline(
+            profileEvent =>
+            {
+                events.Add(profileEvent);
+                return true;
+            },
+            static _ => { },
+            getSelectedDeck: () => selection);
+        var line = 0;
+        foreach (var payload in RankedGame("FT_STANDARD", "WON"))
+        {
+            var content = payload.StartsWith("GameState.DebugPrintGame()", StringComparison.Ordinal)
+                ? payload
+                : "PowerTaskList.DebugPrintPower() - " + payload;
+            var update = coordinator.Process(
+                new RawLogLine(Timestamp.AddSeconds(line++), "Power", content, content));
+            pipeline.Observe(update, GameplayActive(coordinator));
+            selection = new SelectedDeckSnapshot(
+                Timestamp.AddSeconds(line),
+                "CHANGED_DURING_GAME",
+                null,
+                "standard",
+                []);
+        }
+
+        var record = Assert.Single(events).Payload;
+        Assert.Equal("FIRST_DECK", record.GetProperty("playerDeck").GetProperty("deckCode").GetString());
+        Assert.Equal("inferred", record.GetProperty("playerDeck").GetProperty("confidence").GetString());
+    }
+
+    [Fact]
+    public void BoundaryCompletionKeepsPreviousGamesDeckSelection()
+    {
+        var events = new List<ProfileEvent>();
+        var selection = new SelectedDeckSnapshot(
+            Timestamp.AddMinutes(-1),
+            "FIRST_DECK",
+            null,
+            "standard",
+            []);
+        var coordinator = new GameSessionCoordinator();
+        var pipeline = new ProfileRecordPipeline(
+            profileEvent =>
+            {
+                events.Add(profileEvent);
+                return true;
+            },
+            static _ => { },
+            getSelectedDeck: () => selection);
+        var line = 0;
+        foreach (var payload in RankedGame("FT_STANDARD", "WON").SkipLast(1))
+        {
+            Process(payload);
+        }
+
+        selection = new SelectedDeckSnapshot(
+            Timestamp.AddSeconds(line),
+            "SECOND_DECK",
+            null,
+            "standard",
+            []);
+        Process("CREATE_GAME");
+
+        var record = Assert.Single(events).Payload;
+        Assert.Equal("FIRST_DECK", record.GetProperty("playerDeck").GetProperty("deckCode").GetString());
+
+        void Process(string payload)
+        {
+            var content = payload.StartsWith("GameState.DebugPrintGame()", StringComparison.Ordinal)
+                ? payload
+                : "PowerTaskList.DebugPrintPower() - " + payload;
+            var update = coordinator.Process(
+                new RawLogLine(Timestamp.AddSeconds(line++), "Power", content, content));
+            pipeline.Observe(update, GameplayActive(coordinator));
+        }
     }
 
     private static List<ProfileEvent> ReplayFinishedMatches()

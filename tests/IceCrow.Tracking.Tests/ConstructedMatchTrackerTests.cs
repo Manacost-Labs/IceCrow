@@ -515,7 +515,7 @@ public sealed class ConstructedMatchTrackerTests
     }
 
     [Fact]
-    public void BoundaryClosedGameWithoutResultIsEmittedOnlyWhenATurnWasSeen()
+    public void BoundaryClosedGameWithoutResultRequiresProgressBeyondInitialTurn()
     {
         var withoutTurn = new ConstructedGameScript();
         withoutTurn.Feed(Concat(Header(withTurn: false), Metadata(), Heroes(), LocalHand("A")));
@@ -524,14 +524,19 @@ public sealed class ConstructedMatchTrackerTests
         Assert.Empty(withoutTurn.Completed);
         Assert.Equal(0, withoutTurn.Tracker.IgnoredModeGames);
 
-        var withTurn = new ConstructedGameScript();
-        withTurn.Feed(Concat(Header(), Metadata(), Heroes(), LocalHand("A")));
-        var boundary = withTurn.Feed("CREATE_GAME");
+        var initialTurnOnly = new ConstructedGameScript();
+        initialTurnOnly.Feed(Concat(Header(), Metadata(), Heroes(), LocalHand("A")));
+        initialTurnOnly.Feed("CREATE_GAME");
+        Assert.Empty(initialTurnOnly.Completed);
 
+        var withGameplayTurn = new ConstructedGameScript();
+        withGameplayTurn.Feed(Concat(Header(), Metadata(), Heroes(), LocalHand("A"), Turns(2)));
+        var boundary = withGameplayTurn.Feed("CREATE_GAME");
         var summary = Assert.IsType<ConstructedMatchSummary>(boundary.CompletedMatch);
         Assert.Equal(ConstructedMatchResult.Unknown, summary.Result);
         Assert.Equal(EvidenceCertainty.Unknown, summary.ResultCertainty);
-        Assert.Equal(withTurn.LastTimestamp, summary.EndedAt);
+        Assert.Equal(2, summary.Turns);
+        Assert.Equal(withGameplayTurn.LastTimestamp, summary.EndedAt);
     }
 
     [Fact]

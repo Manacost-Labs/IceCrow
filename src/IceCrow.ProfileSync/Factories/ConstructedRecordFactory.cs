@@ -1,4 +1,5 @@
 using IceCrow.ProfileSync.Records;
+using IceCrow.Hearthstone.ClientState;
 using IceCrow.Tracking;
 using IceCrow.Tracking.Constructed;
 
@@ -7,13 +8,17 @@ namespace IceCrow.ProfileSync.Factories;
 /// <summary>
 /// Maps a completed <see cref="ConstructedMatchSummary"/> onto the profile
 /// record contracts. Certainty goes one way through
-/// <see cref="EvidenceCertaintyMapping"/>, the own deck stays Unknown because
-/// this slice has no client-state source, a game handle is never approximated,
-/// and every list and number is clamped to <see cref="ProfileRecordLimits"/>.
+/// <see cref="EvidenceCertaintyMapping"/>. Optional own-deck evidence is
+/// accepted only when it was observed no later than match start and its format
+/// agrees with the game; a game handle is never approximated.
 /// </summary>
 public static class ConstructedRecordFactory
 {
-    public static ConstructedMatchRecord? CreateRanked(ConstructedMatchSummary summary, Guid matchId)
+    public static ConstructedMatchRecord? CreateRanked(
+        ConstructedMatchSummary summary,
+        Guid matchId,
+        SelectedDeckSnapshot? selectedDeck = null,
+        Certainty deckAssociationConfidence = Certainty.Unknown)
     {
         ArgumentNullException.ThrowIfNull(summary);
         RequireMatchId(matchId);
@@ -43,7 +48,7 @@ public static class ConstructedRecordFactory
             Turns(summary.Turns),
             CardId(summary.PlayerHeroCardId),
             CardId(summary.OpponentHeroCardId),
-            DeckEvidence.Unknown,
+            PlayerDeck(summary, selectedDeck, deckAssociationConfidence),
             Mulligan(summary.Mulligan),
             ReplacedCount(summary.OpponentMulliganReplacedCount),
             new OpponentDeckEvidence(
@@ -54,6 +59,35 @@ public static class ConstructedRecordFactory
             GameJoinEvidence: null,
             summary.HearthstoneBuild,
             summary.ScenarioId);
+    }
+
+    private static DeckEvidence PlayerDeck(
+        ConstructedMatchSummary summary,
+        SelectedDeckSnapshot? selectedDeck,
+        Certainty associationConfidence)
+    {
+        var expectedFormat = summary.Format switch
+        {
+            ConstructedFormat.Standard => "standard",
+            ConstructedFormat.Wild => "wild",
+            _ => null,
+        };
+        if (selectedDeck is null ||
+            expectedFormat is null ||
+            associationConfidence is not (Certainty.Inferred or Certainty.Partial or Certainty.Exact) ||
+            selectedDeck.ObservedAt > summary.StartedAt ||
+            !string.Equals(selectedDeck.FormatToken, expectedFormat, StringComparison.OrdinalIgnoreCase))
+        {
+            return DeckEvidence.Unknown;
+        }
+
+        var deckCode = selectedDeck.DeckCode;
+        var deckHash = selectedDeck.CardIds.Count > 0
+            ? DeckHash.Compute(selectedDeck.CardIds)
+            : null;
+        return deckCode is null && deckHash is null
+            ? DeckEvidence.Unknown
+            : new DeckEvidence(deckCode, deckHash, associationConfidence);
     }
 
     public static ArenaMatchRecord? CreateArena(ConstructedMatchSummary summary, Guid matchId)

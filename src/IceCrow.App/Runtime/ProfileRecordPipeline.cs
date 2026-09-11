@@ -1,4 +1,6 @@
 using IceCrow.Live;
+using IceCrow.Hearthstone.ClientState;
+using IceCrow.Hearthstone.Protocol.Events;
 using IceCrow.ProfileSync;
 using IceCrow.ProfileSync.Arena;
 using IceCrow.ProfileSync.Factories;
@@ -17,20 +19,24 @@ internal sealed class ProfileRecordPipeline
 {
     private readonly Func<ProfileEvent, bool> _enqueue;
     private readonly Action<bool> _setGameplayActive;
+    private readonly Func<SelectedDeckSnapshot?> _getSelectedDeck;
     private readonly ArenaRunCollector _arenaRuns;
     private (DateTimeOffset StartedAt, DateTimeOffset EndedAt)? _lastBattlegroundsResult;
     private bool _gameplayActive;
+    private SelectedDeckSnapshot? _selectedDeckAtGameStart;
 
     public ProfileRecordPipeline(
         Func<ProfileEvent, bool> enqueue,
         Action<bool> setGameplayActive,
-        ArenaRunCollector? arenaRuns = null)
+        ArenaRunCollector? arenaRuns = null,
+        Func<SelectedDeckSnapshot?>? getSelectedDeck = null)
     {
         ArgumentNullException.ThrowIfNull(enqueue);
         ArgumentNullException.ThrowIfNull(setGameplayActive);
         _enqueue = enqueue;
         _setGameplayActive = setGameplayActive;
         _arenaRuns = arenaRuns ?? new ArenaRunCollector();
+        _getSelectedDeck = getSelectedDeck ?? (static () => null);
     }
 
     public long ConstructedRecords { get; private set; }
@@ -55,6 +61,14 @@ internal sealed class ProfileRecordPipeline
             RecordCompletedMatch(summary);
         }
 
+        // A CREATE_GAME can close the previous game and open the next one in
+        // the same update. Record the previous summary before replacing its
+        // deck snapshot with the current selection for the new game.
+        if (update.ParseResult.Event is GameCreated)
+        {
+            _selectedDeckAtGameStart = _getSelectedDeck();
+        }
+
         if (update.Battlegrounds is { StateChanged: true, Snapshot: { SessionState: TrackingSessionState.Ended, Result: not null } snapshot })
         {
             RecordBattlegroundsResult(snapshot);
@@ -72,7 +86,11 @@ internal sealed class ProfileRecordPipeline
         var eventId = ProfileMatchIdentity.CreateEventId(eventType, summary.StartedAt, summary.EndedAt);
         switch (summary.Mode)
         {
-            case GameMode.Ranked when ConstructedRecordFactory.CreateRanked(summary, matchId) is { } ranked:
+            case GameMode.Ranked when ConstructedRecordFactory.CreateRanked(
+                summary,
+                matchId,
+                _selectedDeckAtGameStart,
+                Certainty.Inferred) is { } ranked:
                 if (_enqueue(ProfileEvent.Create(ProfileEventType.ConstructedMatch, summary.EndedAt, ranked, eventId)))
                 {
                     ConstructedRecords++;
