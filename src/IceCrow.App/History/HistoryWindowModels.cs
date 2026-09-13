@@ -2,6 +2,7 @@ using System.Globalization;
 using IceCrow.App.Runtime;
 using IceCrow.ProfileSync;
 using IceCrow.ProfileSync.History;
+using IceCrow.ProfileSync.History.Decks;
 using IceCrow.ProfileSync.Records;
 
 namespace IceCrow.App.History;
@@ -147,5 +148,106 @@ internal sealed record DeckHistoryRow(
             _ => "Состав подтверждён частично",
         },
         deck.DeckCode);
+    }
+}
+
+internal sealed record DeckFamilyRow(
+    DeckFamilyStatistics Family,
+    string Name,
+    string Mode,
+    string Hero,
+    string Record,
+    string WinRate,
+    string CurrentRecord,
+    string CurrentWinRate,
+    string Versions,
+    string LastPlayed,
+    string Confidence,
+    string ActiveLabel)
+{
+    public static DeckFamilyRow From(
+        DeckFamilyStatistics family,
+        int index,
+        Func<string, string?>? resolveCardName = null)
+    {
+        var hero = family.HeroCardId is { } cardId
+            ? resolveCardName?.Invoke(cardId) ?? "Герой определён"
+            : "Герой не определён";
+        var name = family.Name ?? (family.HeroCardId is not null
+            ? $"{hero} · новая сборка"
+            : $"Новая колода {index + 1}");
+        var current = family.CurrentVersion;
+        return new DeckFamilyRow(
+            family,
+            name,
+            family.Format == "standard" ? "Стандарт" : "Вольный режим",
+            hero,
+            FormatRecord(family.Games, family.Wins, family.Losses, family.UnknownResults),
+            FormatWinRate(family.Wins, family.Losses, family.Ties),
+            FormatRecord(current.Games, current.Wins, current.Losses, current.UnknownResults),
+            FormatWinRate(current.Wins, current.Losses, current.Ties),
+            family.Versions.Length == 1 ? "1 версия" : $"Версий: {family.Versions.Length}",
+            family.LastPlayedAt is { } lastPlayed
+                ? $"Последняя игра: {lastPlayed.ToLocalTime():dd.MM.yyyy HH:mm}"
+                : "Матчей пока нет",
+            FormatConfidence(family.Confidence),
+            family.IsActive ? "АКТИВНА" : string.Empty);
+    }
+
+    private static string FormatRecord(int games, int wins, int losses, int unknown) =>
+        unknown > 0
+            ? $"{GameCount(games)} · {wins}–{losses} · без итога {unknown}"
+            : $"{GameCount(games)} · {wins}–{losses}";
+
+    private static string FormatWinRate(int wins, int losses, int ties)
+    {
+        var decided = wins + losses + ties;
+        return decided == 0 ? "Винрейт —" : $"{(double)wins / decided:P1}";
+    }
+
+    private static string FormatConfidence(Certainty certainty) => certainty switch
+    {
+        Certainty.Exact => "Определено клиентом",
+        Certainty.Inferred => "Назначено вручную",
+        Certainty.Partial => "Состав подтверждён частично",
+        _ => "Источник колоды не подтверждён",
+    };
+
+    internal static string GameCount(int count)
+    {
+        var remainder100 = count % 100;
+        var remainder10 = count % 10;
+        var suffix = remainder100 is >= 11 and <= 14
+            ? "игр"
+            : remainder10 switch
+            {
+                1 => "игра",
+                2 or 3 or 4 => "игры",
+                _ => "игр",
+            };
+        return $"{count} {suffix}";
+    }
+}
+
+internal sealed record DeckVersionRow(
+    string Label,
+    string Record,
+    string WinRate,
+    string LastPlayed,
+    string CurrentLabel)
+{
+    public static DeckVersionRow From(DeckVersionStatistics version, int index, string currentRevisionKey)
+    {
+        var decided = version.Wins + version.Losses + version.Ties;
+        return new DeckVersionRow(
+            $"Версия {index + 1}",
+            $"{DeckFamilyRow.GameCount(version.Games)} · {version.Wins}–{version.Losses}",
+            decided == 0 ? "Винрейт —" : $"{(double)version.Wins / decided:P1}",
+            version.LastPlayedAt is { } lastPlayed
+                ? lastPlayed.ToLocalTime().ToString("dd.MM.yyyy HH:mm", CultureInfo.CurrentCulture)
+                : "Матчей пока нет",
+            string.Equals(version.Identity.Key, currentRevisionKey, StringComparison.Ordinal)
+                ? "ТЕКУЩАЯ"
+                : string.Empty);
     }
 }

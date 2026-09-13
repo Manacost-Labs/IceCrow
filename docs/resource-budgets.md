@@ -37,6 +37,7 @@ requires a corpus or soak result and a security review.
 | Profile-sync producer handoff | 64 events | owned by the persistence worker until durably committed; transient IO retried with 250 ms–30 s backoff; full handoff refused explicitly; 10 s drain grace at shutdown |
 | Profile outbox history (matches, Arena) | — | 4096 events, 512 KiB per payload (collection snapshot 4 MiB), 64 MiB append-only journal with tombstone compaction; a full outbox is an explicit `Full` result, never a silent drop |
 | Profile outbox collection snapshot | — | latest-only: a newer pending snapshot replaces the older one |
+| Local deck library catalog | — | 1 MiB, 256 families, 1,024 exact revisions, 80 characters per user-visible name |
 | HDT collection export import | — | schema v3 only; 16 MiB file, JSON depth 16, 20,000 unique cards, counts 0–99; startup or explicit command only |
 | Profile upload batch | 25 events | hard cap 50; backoff 30 s–30 min with ±20% jitter; no HTTP per gameplay event |
 | Power.log locate | every 15 recovery ticks (15 s) | idle ticks reuse the cached path; a watcher signal or a missing file re-runs the search |

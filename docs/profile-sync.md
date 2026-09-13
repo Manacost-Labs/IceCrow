@@ -50,6 +50,10 @@ The active deck is stored as a bounded validated deckstring in
 the immutable selection at `CREATE_GAME`; changing the UI while a match is in
 progress affects only the next match. Format mismatches and selections made
 after match start are rejected instead of being attached retroactively.
+User-created deck families and their exact revisions are stored separately in
+`%LOCALAPPDATA%\IceCrow\decks\catalog.json`; merging or splitting families never
+rewrites match records. See `docs/deck-library.md` for the product and storage
+contract.
 
 ## Data flow
 

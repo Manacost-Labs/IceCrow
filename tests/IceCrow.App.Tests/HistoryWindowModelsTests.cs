@@ -3,6 +3,7 @@ using IceCrow.App.Runtime;
 using IceCrow.Hearthstone.ClientState;
 using IceCrow.ProfileSync;
 using IceCrow.ProfileSync.History;
+using IceCrow.ProfileSync.History.Decks;
 using IceCrow.ProfileSync.Records;
 
 namespace IceCrow.App.Tests;
@@ -55,6 +56,58 @@ public sealed class HistoryWindowModelsTests
         Assert.Contains("без итога: 1", row.Record, StringComparison.Ordinal);
         Assert.DoesNotContain("abcdef", row.Identity, StringComparison.Ordinal);
         Assert.Equal("Выбрана вручную перед матчем", row.Confidence);
+    }
+
+    [Fact]
+    public void DeckFamilyRowSeparatesOverallAndCurrentRevisionStatistics()
+    {
+        var first = new DeckVersionStatistics(
+            DeckRevisionIdentity.FromCode("standard", "DECK_A"),
+            4,
+            3,
+            1,
+            0,
+            0,
+            Timestamp.AddDays(-1),
+            Certainty.Inferred,
+            "HERO_RAW");
+        var current = new DeckVersionStatistics(
+            DeckRevisionIdentity.FromCode("standard", "DECK_B"),
+            2,
+            1,
+            1,
+            0,
+            0,
+            Timestamp,
+            Certainty.Inferred,
+            "HERO_RAW");
+        var family = new DeckFamilyStatistics(
+            Guid.CreateVersion7(),
+            "Контроль воин",
+            "standard",
+            [first, current],
+            current.Identity.Key,
+            true,
+            6,
+            4,
+            2,
+            0,
+            0,
+            Timestamp,
+            Certainty.Inferred,
+            "HERO_RAW");
+
+        var row = DeckFamilyRow.From(family, 0, static _ => "Гаррош");
+
+        Assert.Equal("Контроль воин", row.Name);
+        Assert.Equal("6 игр · 4–2", row.Record);
+        Assert.Equal("2 игры · 1–1", row.CurrentRecord);
+        Assert.Equal("Версий: 2", row.Versions);
+        Assert.Equal("АКТИВНА", row.ActiveLabel);
+        Assert.DoesNotContain(
+            "HERO_RAW",
+            string.Join(' ', row.Name, row.Mode, row.Hero, row.Record, row.WinRate, row.Confidence),
+            StringComparison.Ordinal);
     }
 
     private static HistoryMatch Match(MatchResult result, Certainty certainty, string? deckCode) => new(

@@ -199,7 +199,8 @@ public sealed class HeadlessCompositionTests : IDisposable
         static _ => { },
         static _ => { },
         static _ => { },
-        "0.0.0-test");
+        "0.0.0-test",
+        static _ => { });
 
     private static async Task<int> WaitForOutboxAsync(string outboxPath)
     {

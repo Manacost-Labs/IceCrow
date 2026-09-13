@@ -255,40 +255,138 @@
                             </Grid>
                         </Grid>
                     </Border>
-                    <Border Grid.Row="2" Style="{StaticResource HeartPulse.Panel}">
-                        <DockPanel>
-                            <TextBlock DockPanel.Dock="Top" Margin="0,0,0,12" Style="{StaticResource HeartPulse.Text.Heading}" Text="Статистика по колодам" />
-                            <Grid>
-                                <ListBox x:Name="DeckList" Background="Transparent" BorderThickness="0" ItemContainerStyle="{StaticResource HeartPulse.ListItem}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Hidden">
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="180" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel>
-                                                    <TextBlock Style="{StaticResource HeartPulse.Text.Body}" FontWeight="SemiBold" Text="{Binding Identity}" />
-                                                    <TextBlock Margin="0,3,0,0" Style="{StaticResource HeartPulse.Text.Caption}" Text="{Binding Mode}" />
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="1">
-                                                    <TextBlock Style="{StaticResource HeartPulse.Text.Body}" FontWeight="SemiBold" Text="{Binding WinRate}" />
-                                                    <TextBlock Margin="0,3,0,0" Style="{StaticResource HeartPulse.Text.Caption}" Text="{Binding Record}" />
-                                                    <TextBlock Margin="0,3,0,0" Style="{StaticResource HeartPulse.Text.Caption}" Text="{Binding Confidence}" />
-                                                </StackPanel>
-                                                <TextBlock Grid.Column="2" Style="{StaticResource HeartPulse.Text.Caption}" Text="{Binding LastPlayed}" />
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
-                                <StackPanel x:Name="NoDecks" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <TextBlock HorizontalAlignment="Center" Style="{StaticResource HeartPulse.Text.Heading}" Text="Статистики пока нет" />
-                                    <TextBlock Margin="0,6,0,0" HorizontalAlignment="Center" Style="{StaticResource HeartPulse.Text.Caption}" Text="Выберите активную колоду и завершите матч в Стандарте или Вольном режиме." />
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.1*" />
+                            <ColumnDefinition Width="18" />
+                            <ColumnDefinition Width="0.9*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Style="{StaticResource HeartPulse.Panel}">
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                                    <TextBlock Style="{StaticResource HeartPulse.Text.Heading}" Text="Мои колоды" />
+                                    <TextBlock x:Name="DeckSelectionHint" Margin="0,5,0,0" Style="{StaticResource HeartPulse.Text.Caption}" Text="Отметьте две колоды, чтобы объединить их статистику как версии." />
+                                    <StackPanel Margin="0,10,0,0" Orientation="Horizontal">
+                                        <Button x:Name="MergeDecksButton" Style="{StaticResource HeartPulse.PrimaryButton}" Content="Объединить как версии" IsEnabled="False" Click="OnMergeDecks" />
+                                        <Button x:Name="SeparateDeckButton" Margin="8,0,0,0" Style="{StaticResource HeartPulse.SecondaryButton}" Content="Разделить версии" IsEnabled="False" Click="OnSeparateDeck" />
+                                    </StackPanel>
+                                    <TextBlock x:Name="DeckLibraryMessage" Margin="0,8,0,0" Style="{StaticResource HeartPulse.Text.Caption}" Text="Каталог колод загружается…" TextWrapping="Wrap" />
                                 </StackPanel>
-                            </Grid>
-                        </DockPanel>
-                    </Border>
+                                <Grid>
+                                    <ListBox x:Name="DeckList"
+                                             Background="Transparent"
+                                             BorderThickness="0"
+                                             ItemContainerStyle="{StaticResource HeartPulse.ListItem}"
+                                             SelectionMode="Extended"
+                                             SelectionChanged="OnDeckSelected"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                             ScrollViewer.VerticalScrollBarVisibility="Hidden">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="26" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <CheckBox VerticalAlignment="Center"
+                                                              IsChecked="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}, Mode=TwoWay}" />
+                                                    <StackPanel Grid.Column="1">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Style="{StaticResource HeartPulse.Text.Body}" FontWeight="SemiBold" Text="{Binding Name}" />
+                                                            <TextBlock Margin="8,1,0,0" Foreground="{StaticResource HeartPulse.Brush.ArenaRed}" FontSize="10" FontWeight="SemiBold" Text="{Binding ActiveLabel}" />
+                                                        </StackPanel>
+                                                        <TextBlock Margin="0,3,0,0" Style="{StaticResource HeartPulse.Text.Caption}" Text="{Binding Hero}" />
+                                                        <TextBlock Margin="0,3,0,0" Style="{StaticResource HeartPulse.Text.Caption}" Text="{Binding Mode}" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="2" Margin="12,0,0,0" HorizontalAlignment="Right">
+                                                        <TextBlock HorizontalAlignment="Right" Style="{StaticResource HeartPulse.Text.Body}" FontWeight="SemiBold" Text="{Binding WinRate}" />
+                                                        <TextBlock Margin="0,3,0,0" HorizontalAlignment="Right" Style="{StaticResource HeartPulse.Text.Caption}" Text="{Binding Record}" />
+                                                        <TextBlock Margin="0,3,0,0" HorizontalAlignment="Right" Style="{StaticResource HeartPulse.Text.Caption}" Text="{Binding Versions}" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                    <StackPanel x:Name="NoDecks" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <TextBlock HorizontalAlignment="Center" Style="{StaticResource HeartPulse.Text.Heading}" Text="Статистики пока нет" />
+                                        <TextBlock Margin="0,6,0,0" HorizontalAlignment="Center" Style="{StaticResource HeartPulse.Text.Caption}" Text="Выберите активную колоду и завершите матч в Стандарте или Вольном режиме." />
+                                    </StackPanel>
+                                </Grid>
+                            </DockPanel>
+                        </Border>
+
+                        <Border Grid.Column="2" Style="{StaticResource HeartPulse.Panel}" BorderBrush="{StaticResource HeartPulse.Brush.ArenaRed}">
+                            <ScrollViewer VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource HeartPulse.Text.Caption}" Text="СТАТИСТИКА КОЛОДЫ" />
+                                    <TextBlock x:Name="DeckDetailName" Margin="0,6,0,0" Style="{StaticResource HeartPulse.Text.Display}" FontSize="25" Text="Выберите колоду" />
+                                    <TextBlock x:Name="DeckDetailHero" Margin="0,5,0,18" Style="{StaticResource HeartPulse.Text.Caption}" Text="—" />
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="14" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Padding="12" Background="{StaticResource HeartPulse.Brush.Parchment}">
+                                            <StackPanel>
+                                                <TextBlock Style="{StaticResource HeartPulse.Text.Caption}" Text="ВСЕ ВЕРСИИ" />
+                                                <TextBlock x:Name="DeckDetailWinRate" Margin="0,5,0,0" Style="{StaticResource HeartPulse.Text.Display}" FontSize="22" Text="—" />
+                                                <TextBlock x:Name="DeckDetailOverall" Margin="0,4,0,0" Style="{StaticResource HeartPulse.Text.Caption}" Text="—" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Grid.Column="2" Padding="12" Background="{StaticResource HeartPulse.Brush.Parchment}">
+                                            <StackPanel>
+                                                <TextBlock Style="{StaticResource HeartPulse.Text.Caption}" Text="ТЕКУЩАЯ ВЕРСИЯ" />
+                                                <TextBlock x:Name="DeckDetailCurrentWinRate" Margin="0,5,0,0" Style="{StaticResource HeartPulse.Text.Display}" FontSize="22" Text="—" />
+                                                <TextBlock x:Name="DeckDetailCurrent" Margin="0,4,0,0" Style="{StaticResource HeartPulse.Text.Caption}" Text="—" />
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+
+                                    <TextBlock x:Name="DeckDetailMeta" Margin="0,14,0,0" Style="{StaticResource HeartPulse.Text.Caption}" Text="—" TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,18,0,8" Style="{StaticResource HeartPulse.Text.Heading}" Text="Версии сборки" />
+                                    <ItemsControl x:Name="DeckVersionList">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Margin="0,0,0,6" Padding="10" Background="{StaticResource HeartPulse.Brush.Parchment}">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel>
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <TextBlock Style="{StaticResource HeartPulse.Text.Body}" FontWeight="SemiBold" Text="{Binding Label}" />
+                                                                <TextBlock Margin="7,1,0,0" Foreground="{StaticResource HeartPulse.Brush.ArenaRed}" FontSize="10" FontWeight="SemiBold" Text="{Binding CurrentLabel}" />
+                                                            </StackPanel>
+                                                            <TextBlock Margin="0,3,0,0" Style="{StaticResource HeartPulse.Text.Caption}" Text="{Binding Record}" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                                                            <TextBlock HorizontalAlignment="Right" Style="{StaticResource HeartPulse.Text.Body}" FontWeight="SemiBold" Text="{Binding WinRate}" />
+                                                            <TextBlock Margin="0,3,0,0" HorizontalAlignment="Right" Style="{StaticResource HeartPulse.Text.Caption}" Text="{Binding LastPlayed}" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <TextBlock Margin="0,14,0,5" Style="{StaticResource HeartPulse.Text.Caption}" Text="Название колоды" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox x:Name="DeckRenameBox" Style="{StaticResource HeartPulse.TextBox}" />
+                                        <Button x:Name="RenameDeckButton" Grid.Column="2" Style="{StaticResource HeartPulse.SecondaryButton}" Content="Переименовать" IsEnabled="False" Click="OnRenameDeck" />
+                                    </Grid>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Border>
+                    </Grid>
                 </Grid>
 
                 <Grid x:Name="ProfilePage" Visibility="Collapsed">

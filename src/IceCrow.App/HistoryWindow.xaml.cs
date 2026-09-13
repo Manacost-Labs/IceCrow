@@ -7,6 +7,7 @@ using IceCrow.App.History;
 using IceCrow.App.Runtime;
 using IceCrow.ProfileSync;
 using IceCrow.ProfileSync.History;
+using IceCrow.ProfileSync.History.Decks;
 
 namespace IceCrow.App;
 
@@ -14,9 +15,11 @@ public partial class HistoryWindow : Window
 {
     private readonly ObservableCollection<MatchHistoryRow> _matches = [];
     private readonly ObservableCollection<MatchHistoryRow> _recent = [];
-    private readonly ObservableCollection<DeckHistoryRow> _decks = [];
+    private readonly ObservableCollection<DeckFamilyRow> _decks = [];
+    private readonly ObservableCollection<DeckVersionRow> _deckVersions = [];
     private IReadOnlyList<MatchHistoryRow> _allMatches = [];
     private ProfileHistorySnapshot _snapshot = ProfileHistorySnapshot.Empty;
+    private DeckLibrarySnapshot _deckLibrarySnapshot = DeckLibrarySnapshot.Empty;
     private ActiveDeckState _activeDeckState = ActiveDeckState.Empty;
     private Func<string, string?>? _resolveCardName;
     private ProfileSyncStatus _syncStatus = ProfileSyncStatus.Initial;
@@ -36,12 +39,19 @@ public partial class HistoryWindow : Window
 
     public event Action? DeckClearRequested;
 
+    public event Action<Guid, Guid>? DeckMergeRequested;
+
+    public event Action<Guid>? DeckSeparateRequested;
+
+    public event Action<Guid, string>? DeckRenameRequested;
+
     public HistoryWindow()
     {
         InitializeComponent();
         MatchList.ItemsSource = _matches;
         RecentMatches.ItemsSource = _recent;
         DeckList.ItemsSource = _decks;
+        DeckVersionList.ItemsSource = _deckVersions;
         UpdateEmptyStates();
         RenderAccountState();
     }
@@ -77,6 +87,18 @@ public partial class HistoryWindow : Window
         RefreshHistory();
     }
 
+    internal void SetDeckLibrarySnapshot(DeckLibrarySnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        Dispatcher.VerifyAccess();
+        _deckLibrarySnapshot = snapshot;
+        DeckLibraryMessage.Text = snapshot.Message;
+        DeckLibraryMessage.Foreground = snapshot.IsError
+            ? FindBrush("HeartPulse.Brush.Negative")
+            : FindBrush("HeartPulse.Brush.InkMuted");
+        RefreshHistory();
+    }
+
     internal void SetCardNameResolver(Func<string, string?> resolveCardName)
     {
         ArgumentNullException.ThrowIfNull(resolveCardName);
@@ -99,10 +121,13 @@ public partial class HistoryWindow : Window
         }
 
         _decks.Clear();
-        for (var index = 0; index < _snapshot.Decks.Length; index++)
+        for (var index = 0; index < _deckLibrarySnapshot.Families.Length; index++)
         {
-            _decks.Add(DeckHistoryRow.From(_snapshot.Decks[index], index, activeDeck));
+            _decks.Add(DeckFamilyRow.From(_deckLibrarySnapshot.Families[index], index, _resolveCardName));
         }
+
+        DeckList.SelectedItem = _decks.FirstOrDefault(static deck => deck.Family.IsActive) ?? _decks.FirstOrDefault();
+        UpdateDeckDetails(updateRenameText: true);
 
         TotalMatches.Text = _snapshot.MatchesWithResult.ToString(CultureInfo.CurrentCulture);
         TotalWins.Text = _snapshot.Wins.ToString(CultureInfo.CurrentCulture);
@@ -214,6 +239,63 @@ public partial class HistoryWindow : Window
         DetailOpponentHero.Text = row.OpponentHero;
         DetailDeck.Text = row.Deck;
         DetailConfidence.Text = row.Confidence;
+    }
+
+    private void OnDeckSelected(object sender, SelectionChangedEventArgs eventArgs)
+    {
+        _ = sender;
+        _ = eventArgs;
+        UpdateDeckDetails(updateRenameText: true);
+    }
+
+    private void UpdateDeckDetails(bool updateRenameText)
+    {
+        var selected = DeckList.SelectedItems.Cast<DeckFamilyRow>().ToArray();
+        var row = DeckList.SelectedItem as DeckFamilyRow ?? selected.FirstOrDefault();
+        MergeDecksButton.IsEnabled = selected.Length == 2 &&
+                                     string.Equals(selected[0].Family.Format, selected[1].Family.Format, StringComparison.Ordinal);
+        SeparateDeckButton.IsEnabled = selected.Length == 1 && selected[0].Family.Versions.Length > 1;
+        RenameDeckButton.IsEnabled = selected.Length == 1;
+        DeckSelectionHint.Text = selected.Length switch
+        {
+            2 when MergeDecksButton.IsEnabled => "Две колоды выбраны — их матчи можно объединить как версии.",
+            2 => "Колоды разных режимов нельзя объединить.",
+            > 2 => "Оставьте выбранными ровно две колоды.",
+            _ => "Отметьте две колоды, чтобы объединить их статистику как версии.",
+        };
+
+        _deckVersions.Clear();
+        if (row is null)
+        {
+            DeckDetailName.Text = "Выберите колоду";
+            DeckDetailHero.Text = "—";
+            DeckDetailOverall.Text = "—";
+            DeckDetailWinRate.Text = "—";
+            DeckDetailCurrent.Text = "—";
+            DeckDetailCurrentWinRate.Text = "—";
+            DeckDetailMeta.Text = "—";
+            return;
+        }
+
+        DeckDetailName.Text = row.Name;
+        DeckDetailHero.Text = $"{row.Hero} · {row.Mode}";
+        DeckDetailOverall.Text = row.Record;
+        DeckDetailWinRate.Text = row.WinRate;
+        DeckDetailCurrent.Text = row.CurrentRecord;
+        DeckDetailCurrentWinRate.Text = row.CurrentWinRate;
+        DeckDetailMeta.Text = $"{row.Versions} · {row.Confidence}";
+        if (updateRenameText)
+        {
+            DeckRenameBox.Text = row.Name;
+        }
+
+        var orderedVersions = row.Family.Versions
+            .OrderByDescending(static version => version.LastPlayedAt)
+            .ToArray();
+        for (var index = 0; index < orderedVersions.Length; index++)
+        {
+            _deckVersions.Add(DeckVersionRow.From(orderedVersions[index], index, row.Family.CurrentRevisionKey));
+        }
     }
 
     private void OnNavigate(object sender, RoutedEventArgs eventArgs)
@@ -346,6 +428,37 @@ public partial class HistoryWindow : Window
         _ = sender;
         eventArgs.Handled = true;
         DeckClearRequested?.Invoke();
+    }
+
+    private void OnMergeDecks(object sender, RoutedEventArgs eventArgs)
+    {
+        _ = sender;
+        eventArgs.Handled = true;
+        var selected = DeckList.SelectedItems.Cast<DeckFamilyRow>().ToArray();
+        if (selected.Length == 2)
+        {
+            DeckMergeRequested?.Invoke(selected[0].Family.Id, selected[1].Family.Id);
+        }
+    }
+
+    private void OnSeparateDeck(object sender, RoutedEventArgs eventArgs)
+    {
+        _ = sender;
+        eventArgs.Handled = true;
+        if (DeckList.SelectedItem is DeckFamilyRow row)
+        {
+            DeckSeparateRequested?.Invoke(row.Family.Id);
+        }
+    }
+
+    private void OnRenameDeck(object sender, RoutedEventArgs eventArgs)
+    {
+        _ = sender;
+        eventArgs.Handled = true;
+        if (DeckList.SelectedItem is DeckFamilyRow row)
+        {
+            DeckRenameRequested?.Invoke(row.Family.Id, DeckRenameBox.Text);
+        }
     }
 
     private void RenderAccountState()

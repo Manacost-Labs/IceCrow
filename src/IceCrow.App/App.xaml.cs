@@ -8,6 +8,7 @@ using IceCrow.Infrastructure.ManacostApi;
 using IceCrow.Live;
 using IceCrow.ProfileSync;
 using IceCrow.ProfileSync.History;
+using IceCrow.ProfileSync.History.Decks;
 #if DEBUG
 using IceCrow.Overlay;
 #endif
@@ -37,6 +38,9 @@ public partial class App : Application, IAsyncDisposable
         _historyWindow.VerificationPageRequested += OnVerificationPageRequested;
         _historyWindow.DeckActivationRequested += OnDeckActivationRequested;
         _historyWindow.DeckClearRequested += OnDeckClearRequested;
+        _historyWindow.DeckMergeRequested += OnDeckMergeRequested;
+        _historyWindow.DeckSeparateRequested += OnDeckSeparateRequested;
+        _historyWindow.DeckRenameRequested += OnDeckRenameRequested;
         _historyWindow.Show();
 
 #if DEBUG
@@ -62,7 +66,8 @@ public partial class App : Application, IAsyncDisposable
             OnCaptureStatusChanged,
             ReportRecoverableLogError,
             ReportLogStatus,
-            typeof(App).Assembly.GetName().Version?.ToString() ?? "0.0.0");
+            typeof(App).Assembly.GetName().Version?.ToString() ?? "0.0.0",
+            OnDeckLibraryChanged);
         _historyWindow.SetCardNameResolver(cardId => _runtime.CardDatabase.GetByCardId(cardId)?.Name);
 
 #if DEBUG
@@ -215,6 +220,8 @@ public partial class App : Application, IAsyncDisposable
     private void OnActiveDeckChanged(ActiveDeckState state) =>
         _ = Dispatcher.BeginInvoke(() => _historyWindow?.SetActiveDeckState(state));
 
+    private void OnDeckLibraryChanged(DeckLibrarySnapshot snapshot) =>
+        _ = Dispatcher.BeginInvoke(() => _historyWindow?.SetDeckLibrarySnapshot(snapshot));
     private void ReportRecoverableLogError(Exception exception)
     {
         Debug.WriteLine(exception);
@@ -259,6 +266,9 @@ public partial class App : Application, IAsyncDisposable
             _historyWindow.VerificationPageRequested -= OnVerificationPageRequested;
             _historyWindow.DeckActivationRequested -= OnDeckActivationRequested;
             _historyWindow.DeckClearRequested -= OnDeckClearRequested;
+            _historyWindow.DeckMergeRequested -= OnDeckMergeRequested;
+            _historyWindow.DeckSeparateRequested -= OnDeckSeparateRequested;
+            _historyWindow.DeckRenameRequested -= OnDeckRenameRequested;
             _historyWindow.Closed -= OnHistoryWindowClosed;
             _historyWindow = null;
         }
@@ -367,6 +377,30 @@ public partial class App : Application, IAsyncDisposable
         if (_runtime is { } runtime)
         {
             await runtime.ClearActiveDeckAsync(CancellationToken.None);
+        }
+    }
+
+    private async void OnDeckMergeRequested(Guid firstFamilyId, Guid secondFamilyId)
+    {
+        if (_runtime is { } runtime)
+        {
+            await runtime.MergeDecksAsync(firstFamilyId, secondFamilyId, CancellationToken.None);
+        }
+    }
+
+    private async void OnDeckSeparateRequested(Guid familyId)
+    {
+        if (_runtime is { } runtime)
+        {
+            await runtime.SeparateDeckVersionsAsync(familyId, CancellationToken.None);
+        }
+    }
+
+    private async void OnDeckRenameRequested(Guid familyId, string name)
+    {
+        if (_runtime is { } runtime)
+        {
+            await runtime.RenameDeckAsync(familyId, name, CancellationToken.None);
         }
     }
 }

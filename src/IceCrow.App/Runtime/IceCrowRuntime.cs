@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows.Threading;
 using IceCrow.Hearthstone.Logs;
 using IceCrow.Hearthstone.Data;
@@ -6,6 +7,7 @@ using IceCrow.Infrastructure.ManacostApi;
 using IceCrow.Live;
 using IceCrow.ProfileSync;
 using IceCrow.ProfileSync.History;
+using IceCrow.ProfileSync.History.Decks;
 
 namespace IceCrow.App.Runtime;
 
@@ -18,6 +20,8 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
     private readonly ProfileSyncRuntime? _profileSync;
     private readonly ProfileHistoryRuntime _history;
     private readonly ActiveDeckRuntime _activeDeck;
+    private readonly DeckLibrary _deckLibrary;
+    private readonly Action<DeckLibrarySnapshot> _onDeckLibraryChanged;
     private readonly RecordingRuntime? _recording;
     private readonly LiveRuntime _live;
     private readonly ProfileRecordPipeline _profileRecords;
@@ -40,13 +44,16 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
         Action<RecordingCaptureStatus> onCaptureStatusChanged,
         Action<Exception> onRecoverableLogError,
         Action<string> onLogStatus,
-        string clientVersion)
+        string clientVersion,
+        Action<DeckLibrarySnapshot> onDeckLibraryChanged)
     {
         ArgumentNullException.ThrowIfNull(dispatcher);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(onSessionProcessed);
+        ArgumentNullException.ThrowIfNull(onDeckLibraryChanged);
         Options = options;
         _onSessionProcessed = onSessionProcessed;
+        _onDeckLibraryChanged = onDeckLibraryChanged;
         _data = new DataRuntime(localDataDirectory, onDataStatusChanged);
         _telemetry = new TelemetryRuntime(localDataDirectory, clientVersion, onTelemetryStatusChanged);
         // The overlay is an optional feature. Headless composition never calls
@@ -58,9 +65,15 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
         _profileSync = options.ProfileSyncEnabled
             ? new ProfileSyncRuntime(localDataDirectory, options.HearthPulseOrigin, onProfileSyncStatusChanged, clientVersion)
             : null;
+        _deckLibrary = new DeckLibrary(Path.Combine(localDataDirectory, "decks", "catalog.json"));
+        _deckLibrary.SnapshotChanged += _onDeckLibraryChanged;
         _history = new ProfileHistoryRuntime(
             localDataDirectory,
-            onHistoryChanged,
+            snapshot =>
+            {
+                _deckLibrary.ApplyHistory(snapshot);
+                onHistoryChanged(snapshot);
+            },
             failure => onLogStatus($"Match history unavailable: {failure}"));
         _activeDeck = new ActiveDeckRuntime(
             localDataDirectory,
@@ -106,6 +119,8 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
     public ICardDatabase CardDatabase => _data.Database;
 
     public ActiveDeckSelection? ActiveDeck => _activeDeck.Current;
+
+    public DeckLibrarySnapshot DeckLibrary => _deckLibrary.Snapshot;
 
     /// <summary>Profile records produced from finished matches for local history and optional sync.</summary>
     public ProfileRecordPipeline ProfileRecords => _profileRecords;
@@ -165,6 +180,8 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
 
             _history.Dispose();
             _activeDeck.Dispose();
+            _deckLibrary.SnapshotChanged -= _onDeckLibraryChanged;
+            _deckLibrary.Dispose();
 
             await _data.DisposeAsync().ConfigureAwait(false);
             if (_presentation is not null)
@@ -200,14 +217,47 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
         _shutdown.Cancel();
     }
 
-    public Task<ActiveDeckState> ActivateDeckAsync(
+    public async Task<ActiveDeckState> ActivateDeckAsync(
         string? name,
         string importText,
-        CancellationToken cancellationToken = default) =>
-        _activeDeck.ActivateAsync(name, importText, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        var state = await _activeDeck.ActivateAsync(name, importText, cancellationToken).ConfigureAwait(false);
+        if (!state.IsError && state.Selection is { } selection)
+        {
+            await RegisterSelectionAsync(selection, cancellationToken).ConfigureAwait(false);
+        }
 
-    public Task<ActiveDeckState> ClearActiveDeckAsync(CancellationToken cancellationToken = default) =>
-        _activeDeck.ClearAsync(cancellationToken);
+        return state;
+    }
+
+    public async Task<ActiveDeckState> ClearActiveDeckAsync(CancellationToken cancellationToken = default)
+    {
+        var state = await _activeDeck.ClearAsync(cancellationToken).ConfigureAwait(false);
+        if (!state.IsError)
+        {
+            await _deckLibrary.ClearActiveAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        return state;
+    }
+
+    public Task<DeckLibraryOperationResult> MergeDecksAsync(
+        Guid firstFamilyId,
+        Guid secondFamilyId,
+        CancellationToken cancellationToken = default) =>
+        _deckLibrary.MergeAsync(firstFamilyId, secondFamilyId, cancellationToken);
+
+    public Task<DeckLibraryOperationResult> SeparateDeckVersionsAsync(
+        Guid familyId,
+        CancellationToken cancellationToken = default) =>
+        _deckLibrary.SeparateAsync(familyId, cancellationToken);
+
+    public Task<DeckLibraryOperationResult> RenameDeckAsync(
+        Guid familyId,
+        string name,
+        CancellationToken cancellationToken = default) =>
+        _deckLibrary.RenameAsync(familyId, name, cancellationToken);
 
     private bool PublishProfileRecord(ProfileEvent profileEvent)
     {
@@ -218,9 +268,25 @@ internal sealed class IceCrowRuntime : IAsyncDisposable
 
     private async Task RunLiveAfterDeckInitializationAsync(CancellationToken cancellationToken)
     {
+        await _deckLibrary.InitializeAsync(cancellationToken).ConfigureAwait(false);
         await _activeDeck.InitializeAsync(cancellationToken).ConfigureAwait(false);
+        if (_activeDeck.Current is { } selection)
+        {
+            await RegisterSelectionAsync(selection, cancellationToken).ConfigureAwait(false);
+        }
+
         await _live.RunAsync(cancellationToken).ConfigureAwait(false);
     }
+
+    private Task<DeckLibraryOperationResult> RegisterSelectionAsync(
+        ActiveDeckSelection selection,
+        CancellationToken cancellationToken) =>
+        _deckLibrary.RegisterSelectionAsync(
+            selection.Name,
+            selection.Format,
+            selection.Snapshot.DeckCode!,
+            selection.Snapshot.HeroCardId,
+            cancellationToken);
 
     private void OnSessionProcessed(GameSessionUpdate update)
     {
